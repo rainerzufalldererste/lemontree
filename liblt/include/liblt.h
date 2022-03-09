@@ -50,25 +50,31 @@ extern "C"
   // Reads from extern `const bool g_lt_crash_stack_trace_include_data`.
   const bool lt_get_crash_stack_trace_include_data();
 
+  // Reads from extern `const bool g_lt_error_include_stack_trace`.
+  const bool lt_error_include_stack_trace();
+
+  // Reads from extern `const bool g_lt_warn_include_stack_trace`.
+  const bool lt_warn_include_stack_trace();
+
   //////////////////////////////////////////////////////////////////////////
 
 #ifdef _WIN32
   void lt_crash_ex(IN HANDLE process, IN HANDLE thread, const uint64_t errorCode, IN OPTIONAL const char *description);
 #endif
 
-  void lt_crash(const uint64_t errorCode, IN OPTIONAL const char *description);
-  void lt_error(const uint64_t errorCode, IN OPTIONAL const char *description);
-  void lt_warn(const uint64_t errorCode, IN OPTIONAL const char *description);
-  void lt_set_state(const uint64_t stateIndex, const uint64_t subStateIndex);
-  void lt_perf_data(const uint64_t performanceDataIndex, IN const uint64_t *pDataNs, const size_t count);
-  void lt_operation(const uint64_t operationType, const uint64_t operationIndex);
+  void lt_crash(const uint64_t errorCode, IN OPTIONAL const char *description); // `description`: 255 chars max (not including \0).
+  void lt_error(const uint64_t subSystem, const uint64_t errorCode, IN OPTIONAL const char *description); // `description`: 255 chars max (not including \0).
+  void lt_warn(const uint64_t subSystem, const uint64_t errorCode, IN OPTIONAL const char *description); // `description`: 255 chars max (not including \0).
+  void lt_log(const uint64_t subSystem, IN OPTIONAL const char *description); // `description`: 255 chars max (not including \0).
+  void lt_set_state(const uint64_t subSystem, const uint64_t stateIndex, const uint64_t subStateIndex);
+  void lt_perf_data(const uint64_t subSystem, IN const uint64_t *pDataNs, const uint8_t count);
+  void lt_operation(const uint64_t subSystem, const uint64_t operationType, const uint64_t operationIndex);
   void lt_observe_value_u64(const uint64_t valueIndex, const uint64_t value);
   void lt_observe_value_i64(const uint64_t valueIndex, const int64_t value);
   void lt_observe_value_f64(const uint64_t valueIndex, const double value);
-  void lt_observe_value_string(const uint64_t valueIndex, IN const char *value);
   void lt_observe_exact_value_u64(const uint64_t exactValueIndex, const uint64_t value);
   void lt_observe_exact_value_i64(const uint64_t exactValueIndex, const int64_t value);
-  void lt_observe_exact_value_string(const uint64_t exactValueIndex, IN const char *value);
+  void lt_observe_exact_value_string(const uint64_t exactValueIndex, IN const char *value); // `value`: 255 chars max (not including \0).
 
 #ifdef __cplusplus
 };

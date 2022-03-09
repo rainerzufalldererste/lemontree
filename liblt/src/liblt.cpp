@@ -52,6 +52,18 @@ const bool lt_get_crash_stack_trace_include_data()
   return g_lt_crash_stack_trace_include_data;;
 }
 
+const bool lt_error_include_stack_trace()
+{
+  extern const bool g_lt_error_include_stack_trace;
+  return g_lt_error_include_stack_trace;
+}
+
+const bool lt_warn_include_stack_trace()
+{
+  extern const bool g_lt_warn_include_stack_trace;
+  return g_lt_warn_include_stack_trace;
+}
+
 //////////////////////////////////////////////////////////////////////////
 
 static bool lt_init();
@@ -91,22 +103,22 @@ void lt_crash(const uint64_t errorCode, IN OPTIONAL const char *description)
   const uint64_t timestamp = lt_time_100ns();
 
   uint8_t data[1024 * 10];
-  static_assert(sizeof(data) > 1 + 2 + 8 + 8 + 1 + 255 + 1 + 2 + 8 + lt_stack_trace_depth * (1 + 1 + 255 + 8 + 1 + 16) + 1, "data size may be insufficient.");
+  static_assert(sizeof(data) > 1 + 4 + 8 + 8 + 1 + 255 + 1 + 2 + 8 + lt_stack_trace_depth * (1 + 1 + 255 + 8) + 1, "data size may be insufficient.");
 
   uint8_t *pData = data;
-  
+
   *pData = lt_t_crash;
   pData += sizeof(uint8_t) + sizeof(uint16_t); // size of this block.
-  
+
   *reinterpret_cast<uint64_t *>(pData) = timestamp;
   pData += sizeof(uint64_t);
-  
+
   *reinterpret_cast<uint64_t *>(pData) = errorCode;
   pData += sizeof(uint64_t);
   
   if (description != nullptr)
   {
-    const uint8_t size = (uint8_t)max(0xFF, strlen(description));
+    const uint8_t size = (uint8_t)min(0xFF, strlen(description));
   
     *pData = size;
     pData++;
@@ -129,18 +141,373 @@ void lt_crash(const uint64_t errorCode, IN OPTIONAL const char *description)
   lt_write_block(data, pData - data);
 }
 
-void lt_error(const uint64_t errorCode, IN OPTIONAL const char *description);
-void lt_warn(const uint64_t errorCode, IN OPTIONAL const char *description);
-void lt_set_state(const uint64_t stateIndex, const uint64_t subStateIndex);
-void lt_perf_data(const uint64_t performanceDataIndex, IN const uint64_t *pDataNs, const size_t count);
-void lt_operation(const uint64_t operationType, const uint64_t operationIndex);
-void lt_observe_value_u64(const uint64_t valueIndex, const uint64_t value);
-void lt_observe_value_i64(const uint64_t valueIndex, const int64_t value);
-void lt_observe_value_f64(const uint64_t valueIndex, const double value);
-void lt_observe_value_string(const uint64_t valueIndex, IN const char *value);
-void lt_observe_exact_value_u64(const uint64_t exactValueIndex, const uint64_t value);
-void lt_observe_exact_value_i64(const uint64_t exactValueIndex, const int64_t value);
-void lt_observe_exact_value_string(const uint64_t exactValueIndex, IN const char *value);
+void lt_error(const uint64_t subSystem, const uint64_t errorCode, IN OPTIONAL const char *description)
+{
+  if (!lt_init())
+    return;
+
+  const uint64_t timestamp = lt_time_100ns();
+
+  uint8_t data[1024 * 10];
+  static_assert(sizeof(data) > 1 + 4 + 8 + 8 + 8 + 1 + 255 + 1 + 2 + 8 + lt_stack_trace_depth * (1 + 1 + 255 + 8) + 1, "data size may be insufficient.");
+
+  uint8_t *pData = data;
+
+  *pData = lt_t_error;
+  pData += sizeof(uint8_t) + sizeof(uint16_t); // size of this block.
+
+  *reinterpret_cast<uint64_t *>(pData) = timestamp;
+  pData += sizeof(uint64_t);
+
+  *reinterpret_cast<uint64_t *>(pData) = subSystem;
+  pData += sizeof(uint64_t);
+
+  *reinterpret_cast<uint64_t *>(pData) = errorCode;
+  pData += sizeof(uint64_t);
+
+  if (description != nullptr)
+  {
+    const uint8_t size = (uint8_t)min(0xFF, strlen(description));
+
+    *pData = size;
+    pData++;
+
+    memcpy(pData, description, size);
+    pData += size;
+  }
+  else
+  {
+    *pData = 0;
+    pData++;
+  }
+
+  if (lt_error_include_stack_trace())
+  {
+    const uint16_t stackTraceSize = (uint16_t)lt_write_stack_trace(pData + 2, false);
+    *reinterpret_cast<uint16_t *>(pData) = stackTraceSize;
+    pData += 2ULL + stackTraceSize;
+  }
+  else
+  {
+    *reinterpret_cast<uint16_t *>(pData) = 0;
+    pData += 2;
+  }
+
+  *reinterpret_cast<uint16_t *>(&data[1]) = (uint16_t)(pData - data);
+
+  lt_write_block(data, pData - data);
+}
+
+void lt_warn(const uint64_t subSystem, const uint64_t errorCode, IN OPTIONAL const char *description)
+{
+  if (!lt_init())
+    return;
+
+  const uint64_t timestamp = lt_time_100ns();
+
+  uint8_t data[1024 * 10];
+  static_assert(sizeof(data) > 1 + 4 + 8 + 8 + 8 + 1 + 255 + 1 + 2 + 8 + lt_stack_trace_depth * (1 + 1 + 255 + 8) + 1, "data size may be insufficient.");
+
+  uint8_t *pData = data;
+
+  *pData = lt_t_warning;
+  pData += sizeof(uint8_t) + sizeof(uint16_t); // size of this block.
+
+  *reinterpret_cast<uint64_t *>(pData) = timestamp;
+  pData += sizeof(uint64_t);
+
+  *reinterpret_cast<uint64_t *>(pData) = subSystem;
+  pData += sizeof(uint64_t);
+
+  *reinterpret_cast<uint64_t *>(pData) = errorCode;
+  pData += sizeof(uint64_t);
+
+  if (description != nullptr)
+  {
+    const uint8_t size = (uint8_t)min(0xFF, strlen(description));
+
+    *pData = size;
+    pData++;
+
+    memcpy(pData, description, size);
+    pData += size;
+  }
+  else
+  {
+    *pData = 0;
+    pData++;
+  }
+
+  if (lt_warn_include_stack_trace())
+  {
+    const uint16_t stackTraceSize = (uint16_t)lt_write_stack_trace(pData + 2, false);
+    *reinterpret_cast<uint16_t *>(pData) = stackTraceSize;
+    pData += 2ULL + stackTraceSize;
+  }
+  else
+  {
+    *reinterpret_cast<uint16_t *>(pData) = 0;
+    pData += 2;
+  }
+
+  *reinterpret_cast<uint16_t *>(&data[1]) = (uint16_t)(pData - data);
+
+  lt_write_block(data, pData - data);
+}
+
+void lt_log(const uint64_t subSystem, IN OPTIONAL const char *description)
+{
+  if (!lt_init())
+    return;
+
+  const uint64_t timestamp = lt_time_100ns();
+
+  uint8_t data[1024 * 10];
+  static_assert(sizeof(data) > 1 + 4 + 8 + 8 + 1 + 255, "data size may be insufficient.");
+
+  uint8_t *pData = data;
+
+  *pData = lt_t_log;
+  pData += sizeof(uint8_t) + sizeof(uint16_t); // size of this block.
+
+  *reinterpret_cast<uint64_t *>(pData) = timestamp;
+  pData += sizeof(uint64_t);
+
+  *reinterpret_cast<uint64_t *>(pData) = subSystem;
+  pData += sizeof(uint64_t);
+
+  if (description != nullptr)
+  {
+    const uint8_t size = (uint8_t)min(0xFF, strlen(description));
+
+    *pData = size;
+    pData++;
+
+    memcpy(pData, description, size);
+    pData += size;
+  }
+  else
+  {
+    *pData = 0;
+    pData++;
+  }
+
+  *reinterpret_cast<uint16_t *>(&data[1]) = (uint16_t)(pData - data);
+
+  lt_write_block(data, pData - data);
+}
+
+void lt_set_state(const uint64_t subSystem, const uint64_t stateIndex, const uint64_t subStateIndex)
+{
+  if (!lt_init())
+    return;
+
+  const uint64_t timestamp = lt_time_100ns();
+  uint8_t data[1 + 8 + 8 + 8 + 8];
+
+  data[0] = lt_t_state;
+  *reinterpret_cast<uint64_t *>(&data[1]) = subSystem;
+  *reinterpret_cast<uint64_t *>(&data[9]) = stateIndex;
+  *reinterpret_cast<uint64_t *>(&data[9 + 8]) = subStateIndex;
+  *reinterpret_cast<uint64_t *>(&data[9 + 16]) = timestamp;
+
+  static_assert(sizeof(data) == 9 + 24, "invalid data size.");
+
+  lt_write_block(data, sizeof(data));
+}
+
+void lt_perf_data(const uint64_t subSystem, IN const uint64_t *pDataNs, const uint8_t count)
+{
+  if (pDataNs == nullptr || count == 0)
+    return;
+
+  if (!lt_init())
+    return;
+
+  const uint64_t timestamp = lt_time_100ns();
+
+  uint8_t data[1024 * 3];
+  static_assert(sizeof(data) > 1 + 2 + 8 + 8 + 1 + 8 * 256, "data size may be insufficient.");
+
+  uint8_t *pData = data;
+
+  *pData = lt_t_perf_data;
+  pData += sizeof(uint8_t) + sizeof(uint16_t); // size of this block.
+
+  *reinterpret_cast<uint64_t *>(pData) = timestamp;
+  pData += sizeof(uint64_t);
+
+  *reinterpret_cast<uint64_t *>(pData) = subSystem;
+  pData += sizeof(uint64_t);
+
+  *pData = count;
+  pData++;
+
+  const size_t dataSize = sizeof(uint64_t) * (size_t)count;
+  memcpy(pData, pDataNs, dataSize);
+  pData += dataSize;
+
+  *reinterpret_cast<uint16_t *>(&data[1]) = (uint16_t)(pData - data);
+
+  lt_write_block(data, pData - data);
+}
+
+void lt_operation(const uint64_t subSystem, const uint64_t operationType, const uint64_t operationIndex)
+{
+  if (!lt_init())
+    return;
+
+  const uint64_t timestamp = lt_time_100ns();
+  uint8_t data[1 + 8 + 8 + 8 + 8];
+
+  data[0] = lt_t_operation;
+  *reinterpret_cast<uint64_t *>(&data[1]) = subSystem;
+  *reinterpret_cast<uint64_t *>(&data[9]) = operationType;
+  *reinterpret_cast<uint64_t *>(&data[9 + 8]) = timestamp;
+  *reinterpret_cast<uint64_t *>(&data[9 + 16]) = operationIndex;
+
+  static_assert(sizeof(data) == 9 + 24, "invalid data size.");
+
+  lt_write_block(data, sizeof(data));
+}
+
+void lt_observe_value_u64(const uint64_t valueIndex, const uint64_t value)
+{
+  if (!lt_init())
+    return;
+
+  const uint64_t timestamp = lt_time_100ns();
+  uint8_t data[1 + 1 + 8 + 8 + 8];
+
+  data[0] = lt_t_observed_value;
+  data[1] = lt_vt_u64;
+  *reinterpret_cast<uint64_t *>(&data[2]) = valueIndex;
+  *reinterpret_cast<uint64_t *>(&data[10]) = timestamp;
+  *reinterpret_cast<uint64_t *>(&data[18]) = value;
+
+  static_assert(sizeof(data) == 26, "invalid data size.");
+
+  lt_write_block(data, sizeof(data));
+}
+
+void lt_observe_value_i64(const uint64_t valueIndex, const int64_t value)
+{
+  if (!lt_init())
+    return;
+
+  const uint64_t timestamp = lt_time_100ns();
+  uint8_t data[1 + 1 + 8 + 8 + 8];
+
+  data[0] = lt_t_observed_value;
+  data[1] = lt_vt_i64;
+  *reinterpret_cast<uint64_t *>(&data[2]) = valueIndex;
+  *reinterpret_cast<uint64_t *>(&data[10]) = timestamp;
+  *reinterpret_cast<int64_t *>(&data[18]) = value;
+
+  static_assert(sizeof(data) == 26, "invalid data size.");
+
+  lt_write_block(data, sizeof(data));
+}
+
+void lt_observe_value_f64(const uint64_t valueIndex, const double value)
+{
+  if (!lt_init())
+    return;
+
+  const uint64_t timestamp = lt_time_100ns();
+  uint8_t data[1 + 1 + 8 + 8 + 8];
+
+  data[0] = lt_t_observed_value;
+  data[1] = lt_vt_f64;
+  *reinterpret_cast<uint64_t *>(&data[2]) = valueIndex;
+  *reinterpret_cast<uint64_t *>(&data[10]) = timestamp;
+  *reinterpret_cast<double *>(&data[18]) = value;
+
+  static_assert(sizeof(data) == 26, "invalid data size.");
+
+  lt_write_block(data, sizeof(data));
+}
+
+void lt_observe_exact_value_u64(const uint64_t exactValueIndex, const uint64_t value)
+{
+  if (!lt_init())
+    return;
+
+  const uint64_t timestamp = lt_time_100ns();
+  uint8_t data[1 + 1 + 8 + 8 + 8];
+
+  data[0] = lt_t_observed_exact_value;
+  data[1] = lt_vt_u64;
+  *reinterpret_cast<uint64_t *>(&data[2]) = exactValueIndex;
+  *reinterpret_cast<uint64_t *>(&data[10]) = timestamp;
+  *reinterpret_cast<uint64_t *>(&data[18]) = value;
+
+  static_assert(sizeof(data) == 26, "invalid data size.");
+
+  lt_write_block(data, sizeof(data));
+}
+
+void lt_observe_exact_value_i64(const uint64_t exactValueIndex, const int64_t value)
+{
+  if (!lt_init())
+    return;
+
+  const uint64_t timestamp = lt_time_100ns();
+  uint8_t data[1 + 1 + 8 + 8 + 8];
+
+  data[0] = lt_t_observed_exact_value;
+  data[1] = lt_vt_i64;
+  *reinterpret_cast<uint64_t *>(&data[2]) = exactValueIndex;
+  *reinterpret_cast<uint64_t *>(&data[10]) = timestamp;
+  *reinterpret_cast<int64_t *>(&data[18]) = value;
+
+  static_assert(sizeof(data) == 26, "invalid data size.");
+
+  lt_write_block(data, sizeof(data));
+}
+
+void lt_observe_exact_value_string(const uint64_t exactValueIndex, IN const char *value)
+{
+  if (!lt_init())
+    return;
+
+  uint8_t length = 0;
+
+  if (value != nullptr)
+    length = (uint8_t)min(0xFF, strlen(value));
+
+  const uint64_t timestamp = lt_time_100ns();
+  uint8_t data[1 + 2 + 1 + 8 + 8 + 1 + 255];
+
+  uint8_t *pData = data;
+
+  *pData = lt_t_observed_exact_value_variable_length;
+  pData++;
+
+  uint16_t *pLength = reinterpret_cast<uint16_t *>(pData);
+  pLength++;
+
+  *pData = lt_vt_string;
+  pData++;
+
+  *reinterpret_cast<uint64_t *>(pData) = exactValueIndex;
+  pData += sizeof(uint64_t);
+
+  *reinterpret_cast<uint64_t *>(pData) = timestamp;
+  pData += sizeof(uint64_t);
+
+  *pData = length;
+
+  if (value != nullptr)
+  {
+    memcpy(pData, value, length);
+    pData += length;
+  }
+
+  *pLength = (uint16_t)(pData - data);
+
+  lt_write_block(data, pData - data);
+}
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -194,14 +561,14 @@ static bool lt_init()
   // Create Directory if missing.
   {
     char folder[ARRAYSIZE(path)];
-    char *end;
+    char *end = nullptr;
     ZeroMemory(folder, sizeof(folder));
 
     end = strchr(path, L'\\');
 
     while (end != nullptr)
     {
-      strncpy(folder, path, end - path + 1);
+      strncpy_s(folder, path, end - path + 1);
       
       if (!CreateDirectoryA(folder, nullptr))
       {
@@ -211,7 +578,8 @@ static bool lt_init()
         }
       }
 
-      end = strchr(++end, L'\\');
+      end++;
+      end = strchr(end, L'\\');
     }
   }
 
@@ -238,7 +606,7 @@ static bool lt_init()
 
     path[length] = '\0';
 
-    _lt_context.file = CreateFileA(path, GENERIC_WRITE, FILE_SHARE_WRITE, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_WRITE_THROUGH, nullptr);
+    _lt_context.file = CreateFileA(path, GENERIC_WRITE, FILE_SHARE_WRITE | FILE_SHARE_READ, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_WRITE_THROUGH, nullptr);
 
     if (_lt_context.file == INVALID_HANDLE_VALUE)
     {
@@ -252,7 +620,12 @@ static bool lt_init()
   {
     uint8_t data[1024 * 8];
     uint8_t *pData = data;
-    // do something.
+
+    *pData = lt_t_start;
+    pData++;
+
+    *reinterpret_cast<uint32_t *>(pData) = lt_version;
+    pData += sizeof(uint32_t);
 
     lt_write_block_internal(data, pData - data);
   }
@@ -302,6 +675,27 @@ static void lt_write_block_internal(IN const uint8_t *pData, const size_t size)
 
   if (!WriteFile(_lt_context.file, pData, (DWORD)size, &bytesWritten, nullptr) || (size_t)bytesWritten != size)
     _lt_context.failed = true;
+
+#ifdef DEBUG_WRITES
+  char buffer[4] = "   ";
+  const char lut[] = "0123456789ABCDEF";
+
+  for (size_t i = 0; i < size; i += 16)
+  {
+    for (size_t j = 0; j < 16; j++)
+    {
+      if (i + j == size)
+        break;
+
+      buffer[0] = lut[pData[i + j] >> 4];
+      buffer[1] = lut[pData[i + j] & 0xF];
+
+      OutputDebugStringA(buffer);
+    }
+
+    OutputDebugStringA("\n");
+  }
+#endif
 }
 
 static size_t lt_write_stack_trace(OUT uint8_t *pStackTrace, const bool includeData)
@@ -311,12 +705,13 @@ static size_t lt_write_stack_trace(OUT uint8_t *pStackTrace, const bool includeD
   *pStackTrace = lt_st_start;
   pStackTrace++;
 
-  DWORD stackTraceHash;
   PVOID stack[lt_stack_trace_depth];
-  const USHORT stackTraceSize = CaptureStackBackTrace(0, (DWORD)ARRAYSIZE(stack), stack, &stackTraceHash);
+  const USHORT stackTraceSize = CaptureStackBackTrace(0, (DWORD)ARRAYSIZE(stack), stack, nullptr);
 
-  *reinterpret_cast<DWORD *>(pStackTrace) = stackTraceHash;
-  pStackTrace += sizeof(DWORD);
+  uint64_t stackTraceHash = 0;
+
+  uint32_t *pStackTraceHash = reinterpret_cast<uint32_t *>(pStackTrace);
+  pStackTrace += sizeof(uint32_t);
 
   *reinterpret_cast<uint64_t *>(pStackTrace) = 1; // quantity of how often this error occured (may be overwritten later).
   pStackTrace += sizeof(uint64_t);
@@ -353,6 +748,8 @@ static size_t lt_write_stack_trace(OUT uint8_t *pStackTrace, const bool includeD
 
           if (value >= moduleBase + pSectionHeader[i].VirtualAddress && value < moduleBase + pSectionHeader[i].VirtualAddress + pSectionHeader[i].Misc.VirtualSize)
           {
+            stackTraceHash = (stackTraceHash ^ (value - moduleBase) * 0xCC9E2D51) * 0x1B873593;
+
             if (pNext == pAppMemoryModule)
             {
               *pStackTrace = lt_st_app_offset;
@@ -433,6 +830,8 @@ static size_t lt_write_stack_trace(OUT uint8_t *pStackTrace, const bool includeD
 
     } while (pNext != nullptr && pNext != pAppMemoryModule);
   }
+
+  *pStackTraceHash = (uint32_t)(stackTraceHash | (stackTraceHash >> 32));
 
   *pStackTrace = lt_st_end;
   pStackTrace++;

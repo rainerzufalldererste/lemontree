@@ -35,6 +35,11 @@ extern "C"
 
 //////////////////////////////////////////////////////////////////////////
 
+void print_string_as_json(const char *string);
+void print_string_as_json(const wchar_t *string);
+
+//////////////////////////////////////////////////////////////////////////
+
 int32_t main(void)
 {
   const wchar_t *commandLine = GetCommandLineW();
@@ -79,7 +84,7 @@ int32_t main(void)
     }
 
     if (FAILED(pdbSource->loadDataFromPdb(pdbFileName)))
-      FATAL("Failed to load pdb.");
+      FATAL("Failed to load pdb. ('%ws')", pdbFileName);
 
     FATAL_IF(FAILED(hr = pdbSource->openSession(&pdbSession)), "Failed to Open Session.");
   }
@@ -123,163 +128,307 @@ int32_t main(void)
       ZYAN_SUCCESS(ZydisFormatterSetProperty(&disasmFormatter, ZYDIS_FORMATTER_PROP_FORCE_SIZE, ZYAN_TRUE));
   }
 
-  uint8_t *pStackTracesEnd = pStackTraces + stackTracesBytes;
-
-  while (pStackTraces < pStackTracesEnd)
+  // Print Stacktraces.
   {
-    FATAL_IF(*pStackTraces != lt_st_start, "Invalid Stack Trace Header.");
-    pStackTraces += sizeof(uint8_t) + sizeof(DWORD);
+    uint8_t *pStackTracesEnd = pStackTraces + stackTracesBytes;
 
-    printf("Stacktrace (x %" PRIu64 "):\n", *reinterpret_cast<const uint64_t *>(pStackTraces));
-    pStackTraces += sizeof(uint64_t);
+    fputs("{\"stacktraces\":[\n", stdout);
+    bool isFirstTrace = true;
 
-    char moduleName[256] = "<Invalid Module>";
-    uint64_t offset = 0;
-
-    while (true)
+    while (pStackTraces < pStackTracesEnd)
     {
-      const uint8_t type = *pStackTraces;
-      pStackTraces++;
+      FATAL_IF(*pStackTraces != lt_st_start, "Invalid Stack Trace Header.");
+      pStackTraces += sizeof(uint8_t);
 
-      bool end = false;
+      const uint32_t hash = *reinterpret_cast<const uint32_t *>(pStackTraces);
+      pStackTraces += sizeof(uint32_t);
 
-      switch (type)
+      const uint64_t errorCount = *reinterpret_cast<const uint64_t *>(pStackTraces);
+      pStackTraces += sizeof(uint64_t);
+
+      if (!isFirstTrace)
+        fputs(",\n", stdout);
+
+      isFirstTrace = false;
+
+      printf("{\"hash\":%" PRIu32 ",\"errorCount\":%" PRIu64 ",\"stack\":[\n", hash, errorCount);
+
+      char moduleName[256] = "<Invalid Module>";
+      uint64_t offset = 0;
+      bool isFirstElement = true;
+
+      while (true)
       {
-      default:
-      {
-        end = true;
-        FATAL("Invalid Stack Trace Type.");
-        break;
-      }
+        const uint8_t type = *pStackTraces;
+        pStackTraces++;
 
-      case lt_st_end:
-      {
-        end = true;
-        puts("");
-        break;
-      }
+        bool end = false;
 
-      case lt_st_app_offset:
-      {
-        offset = *reinterpret_cast<const uint64_t *>(pStackTraces);
-        pStackTraces += sizeof(uint64_t);
-
-        CComPtr<IDiaEnumLineNumbers> lineNumEnum;
-        CComPtr<IDiaSymbol> symbol;
-
-        wchar_t *symbolName = nullptr;
-
-        if (SUCCEEDED(pdbSession->findSymbolByVA(offset, SymTagFunction, &symbol)) && symbol != nullptr && ((SUCCEEDED(symbol->get_undecoratedName(&symbolName)) && symbolName != nullptr) || SUCCEEDED(symbol->get_name(&symbolName))))
-          printf("Function '%ws' @ 0x%" PRIX64 "", symbolName, offset);
-        else
-          printf("Application Binary @ 0x%" PRIX64 "", offset);
-
-        if (symbolName != nullptr)
-          SysFreeString(symbolName);
-
-        if (SUCCEEDED(pdbSession->findLinesByVA(offset, 1, &lineNumEnum)))
+        switch (type)
         {
-          CComPtr<IDiaLineNumber> lineNumber;
-          ULONG fetched;
+        default:
+        {
+          end = true;
+          FATAL("Invalid Stack Trace Type.");
+          break;
+        }
 
-          if (SUCCEEDED(lineNumEnum->Next(1, &lineNumber, &fetched)) && fetched != 0)
+        case lt_st_end:
+        {
+          end = true;
+          fputs("]}", stdout);
+          break;
+        }
+
+        case lt_st_app_offset:
+        {
+          if (!isFirstElement)
+            fputs(",\n", stdout);
+
+          isFirstElement = false;
+
+          offset = *reinterpret_cast<const uint64_t *>(pStackTraces);
+          pStackTraces += sizeof(uint64_t);
+
+          printf("{\"offset\":\"0x%" PRIX64 "\"", offset);
+
+          CComPtr<IDiaEnumLineNumbers> lineNumEnum;
+          CComPtr<IDiaSymbol> symbol;
+
+          wchar_t *symbolName = nullptr;
+
+          if (SUCCEEDED(pdbSession->findSymbolByVA(offset, SymTagFunction, &symbol)) && symbol != nullptr && ((SUCCEEDED(symbol->get_undecoratedName(&symbolName)) && symbolName != nullptr) || SUCCEEDED(symbol->get_name(&symbolName))))
           {
-            DWORD sourceFileId;
+            fputs(",\"function\":", stdout);
+            print_string_as_json(symbolName);
+          }
 
-            if (SUCCEEDED(lineNumber->get_sourceFileId(&sourceFileId)))
+          if (symbolName != nullptr)
+            SysFreeString(symbolName);
+
+          if (SUCCEEDED(pdbSession->findLinesByVA(offset, 1, &lineNumEnum)))
+          {
+            CComPtr<IDiaLineNumber> lineNumber;
+            ULONG fetched;
+
+            if (SUCCEEDED(lineNumEnum->Next(1, &lineNumber, &fetched)) && fetched != 0)
             {
-              CComPtr<IDiaSourceFile> sourceFile;
+              DWORD sourceFileId;
 
-              if (SUCCEEDED(lineNumber->get_sourceFile(&sourceFile)))
+              if (SUCCEEDED(lineNumber->get_sourceFileId(&sourceFileId)))
               {
-                wchar_t *sourceFileName = nullptr;
+                CComPtr<IDiaSourceFile> sourceFile;
 
-                if (SUCCEEDED(sourceFile->get_fileName(&sourceFileName)))
+                if (SUCCEEDED(lineNumber->get_sourceFile(&sourceFile)))
                 {
-                  DWORD line = 0;
+                  wchar_t *sourceFileName = nullptr;
 
-                  if (SUCCEEDED(lineNumber->get_lineNumber(&line)))
-                    printf(" ('%ws' Line %" PRIu32 ")", sourceFileName, line);
-                  else
-                    printf(" ('%ws')", sourceFileName);
+                  if (SUCCEEDED(sourceFile->get_fileName(&sourceFileName)))
+                  {
+                    fputs(",\"file\":", stdout);
+                    print_string_as_json(sourceFileName);
+
+                    DWORD line = 0;
+
+                    if (SUCCEEDED(lineNumber->get_lineNumber(&line)))
+                      printf(",\"line\":%" PRIu32 "", line);
+                  }
+
+                  if (sourceFileName != nullptr)
+                    SysFreeString(sourceFileName);
                 }
-
-                if (sourceFileName != nullptr)
-                  SysFreeString(sourceFileName);
               }
             }
           }
+
+          fputs("}", stdout);
+
+          break;
         }
 
-        puts("");
-
-        break;
-      }
-
-      case lt_st_same_dll_offset:
-      {
-        offset = *reinterpret_cast<const uint64_t *>(pStackTraces);
-        pStackTraces += sizeof(uint64_t);
-
-        printf("Module '%s' @ 0x%" PRIX64 "\n", moduleName, offset);
-
-        break;
-      }
-
-      case lt_st_dll_offset:
-      {
-        const uint8_t count = *pStackTraces;
-        pStackTraces++;
-
-        memcpy(moduleName, pStackTraces, count);
-        pStackTraces += count;
-        moduleName[(size_t)count] = '\0';
-
-        offset = *reinterpret_cast<const uint64_t *>(pStackTraces);
-        pStackTraces += sizeof(uint64_t);
-
-        printf("Module '%s' @ 0x%" PRIX64 "\n", moduleName, offset);
-
-        break;
-      }
-
-      case lt_st_data16:
-      {
-        printf("\t\t");
-
-        for (size_t i = 0; i < 16; i++)
-          printf("%02" PRIX8 " ", pStackTraces[i]);
-        
-        if (disasmAvailable)
+        case lt_st_same_dll_offset:
         {
-          ZydisDecodedInstruction instruction;
-          char disasmBuffer[256] = {};
+          offset = *reinterpret_cast<const uint64_t *>(pStackTraces);
+          pStackTraces += sizeof(uint64_t);
 
-          if (ZYAN_SUCCESS(ZydisDecoderDecodeBuffer(&disasmDecoder, pStackTraces, 16, &instruction)) && ZYAN_SUCCESS(ZydisFormatterFormatInstruction(&disasmFormatter, &instruction, disasmBuffer, sizeof(disasmBuffer), offset)))
-            printf("\t%s\n", disasmBuffer);
+          if (!isFirstElement)
+            fputs(",\n", stdout);
+
+          isFirstElement = false;
+
+          printf("{\"offset\":\"0x%" PRIX64 "\",\"module\":", offset);
+          print_string_as_json(moduleName);
+          fputs("}", stdout);
+
+          break;
+        }
+
+        case lt_st_dll_offset:
+        {
+          const uint8_t count = *pStackTraces;
+          pStackTraces++;
+
+          memcpy(moduleName, pStackTraces, count);
+          pStackTraces += count;
+          moduleName[(size_t)count] = '\0';
+
+          offset = *reinterpret_cast<const uint64_t *>(pStackTraces);
+          pStackTraces += sizeof(uint64_t);
+
+          if (!isFirstElement)
+            fputs(",\n", stdout);
+
+          isFirstElement = false;
+
+          printf("{\"offset\":\"0x%" PRIX64 "\",\"module\":", offset);
+          print_string_as_json(moduleName);
+          fputs("}", stdout);
+
+          break;
+        }
+
+        case lt_st_data16:
+        {
+          if (!isFirstElement)
+            fputs(",\n", stdout);
+
+          isFirstElement = false;
+
+          fputs("{\"is_disasm\":1,\"data\":\"", stdout);
+
+          for (size_t i = 0; i < 16; i++)
+            printf("%02" PRIX8 "", pStackTraces[i]);
+
+          fputs("\"", stdout);
+
+          if (disasmAvailable)
+          {
+            ZydisDecodedInstruction instruction;
+            char disasmBuffer[256] = {};
+
+            if (ZYAN_SUCCESS(ZydisDecoderDecodeBuffer(&disasmDecoder, pStackTraces, 16, &instruction)) && ZYAN_SUCCESS(ZydisFormatterFormatInstruction(&disasmFormatter, &instruction, disasmBuffer, sizeof(disasmBuffer), offset)))
+            {
+              fputs(",\"disasm\":", stdout);
+              print_string_as_json(disasmBuffer);
+              fputs("}", stdout);
+            }
+            else
+            {
+              fputs(",\"error\":\"disasm_failed\"}", stdout);
+            }
+          }
           else
-            puts("\t<disasm_failed>");
+          {
+            fputs(",\"error\":\"disasm_not_available\"}", stdout);
+          }
+
+          pStackTraces += 16;
+
+          break;
         }
-        else
-        {
-          puts("\t<disasm_not_available>");
         }
 
-        pStackTraces += 16;
-
-        break;
+        if (end)
+          break;
       }
-      }
-
-      if (end)
-        break;
     }
-  }
 
-  // Cleanup.
-  {
-    
+    fputs("]}", stdout);
   }
 
   return 0;
+}
+
+//////////////////////////////////////////////////////////////////////////
+
+void print_string_as_json(const char *string)
+{
+  size_t i = 0;
+
+  if (string == nullptr)
+  {
+    fputs("null", stdout);
+    return;
+  }
+
+  fputs("\"", stdout);
+
+  char singleChar[2];
+  singleChar[1] = '\0';
+
+  while (true)
+  {
+    singleChar[0] = string[i++];
+
+    if (singleChar[0] == '\0')
+      break;
+
+    switch (singleChar[0])
+    {
+    case '\\': fputs("\\\\", stdout); break;
+    case '\"': fputs("\\\"", stdout); break;
+    case '\b': fputs("\\b", stdout); break;
+    case '\f': fputs("\\f", stdout); break;
+    case '\n': fputs("\\n", stdout); break;
+    case '\r': fputs("\\r", stdout); break;
+    case '\t': fputs("\\t", stdout); break;
+    default:
+    {
+      if (singleChar[0] > 0 && singleChar[0] <= 0x1F)
+        printf("\\u00%02" PRIX8, singleChar[0]);
+      else
+        fputs(singleChar, stdout);
+
+      break;
+    }
+    }
+  }
+
+  fputs("\"", stdout);
+}
+
+void print_string_as_json(const wchar_t *string)
+{
+  size_t i = 0;
+
+  if (string == nullptr)
+  {
+    fputs("null", stdout);
+    return;
+  }
+
+  fputs("\"", stdout);
+
+  wchar_t singleChar[2];
+  singleChar[1] = L'\0';
+
+  while (true)
+  {
+    singleChar[0] = string[i++];
+
+    if (singleChar[0] == L'\0')
+      break;
+
+    switch (singleChar[0])
+    {
+    case L'\\': fputs("\\\\", stdout); break;
+    case L'\"': fputs("\\\"", stdout); break;
+    case L'\b': fputs("\\b", stdout); break;
+    case L'\f': fputs("\\f", stdout); break;
+    case L'\n': fputs("\\n", stdout); break;
+    case L'\r': fputs("\\r", stdout); break;
+    case L'\t': fputs("\\t", stdout); break;
+    default:
+    {
+      if (singleChar[0] > 0 && singleChar[0] <= 0x1F)
+        printf("\\u00%02" PRIX8, singleChar[0]);
+      else
+        fputws(singleChar, stdout);
+
+      break;
+    }
+    }
+  }
+
+  fputs("\"", stdout);
 }
