@@ -41,7 +41,7 @@ extern "C"
   bool lt_is_debug_build();
 
   // Reads from extern `const char * g_lt_remote_host`.
-  const char * lt_get_remote_url();
+  const char * lt_get_remote_host();
 
   // Reads from extern `const char * g_lt_folder_path`.
   // This will be interpreted using `PathUnExpandEnvStringsA`.

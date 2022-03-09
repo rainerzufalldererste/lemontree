@@ -6,6 +6,11 @@
 enum : uint32_t
 {
   lt_version = 0x10000001,
+
+  _lt_state_length = 1 + 8 + 8 + 8 + 8,
+  _lt_operation_length = 1 + 8 + 8 + 8 + 8,
+  _lt_observed_value_length = 1 + 1 + 8 + 8 + 8,
+  _lt_observed_exact_value_length = 1 + 1 + 8 + 8 + 8,
 };
 
 enum lt_type : uint8_t
@@ -24,7 +29,8 @@ enum lt_type : uint8_t
   lt_t_observed_exact_value_variable_length,
 
   // fixed length.
-  lt_t_state = 0xC0,
+  __lt_t_fixed_length = 0xC0,
+  lt_t_state = __lt_t_fixed_length,
   lt_t_operation,
   lt_t_observed_value,
   lt_t_observed_exact_value,

@@ -34,7 +34,7 @@ bool lt_is_debug_build()
   return g_lt_is_debug_build;
 }
 
-const char * lt_get_remote_url()
+const char * lt_get_remote_host()
 {
   extern const char * g_lt_remote_host;
   return g_lt_remote_host;
@@ -190,7 +190,7 @@ void lt_error(const uint64_t subSystem, const uint64_t errorCode, IN OPTIONAL co
   else
   {
     *reinterpret_cast<uint16_t *>(pData) = 0;
-    pData += 2;
+    pData += sizeof(uint16_t);
   }
 
   *reinterpret_cast<uint16_t *>(&data[1]) = (uint16_t)(pData - data);
@@ -247,7 +247,7 @@ void lt_warn(const uint64_t subSystem, const uint64_t errorCode, IN OPTIONAL con
   else
   {
     *reinterpret_cast<uint16_t *>(pData) = 0;
-    pData += 2;
+    pData += sizeof(uint16_t);
   }
 
   *reinterpret_cast<uint16_t *>(&data[1]) = (uint16_t)(pData - data);
@@ -303,7 +303,7 @@ void lt_set_state(const uint64_t subSystem, const uint64_t stateIndex, const uin
     return;
 
   const uint64_t timestamp = lt_time_100ns();
-  uint8_t data[1 + 8 + 8 + 8 + 8];
+  uint8_t data[_lt_state_length];
 
   data[0] = lt_t_state;
   *reinterpret_cast<uint64_t *>(&data[1]) = subSystem;
@@ -358,13 +358,13 @@ void lt_operation(const uint64_t subSystem, const uint64_t operationType, const 
     return;
 
   const uint64_t timestamp = lt_time_100ns();
-  uint8_t data[1 + 8 + 8 + 8 + 8];
+  uint8_t data[_lt_operation_length];
 
   data[0] = lt_t_operation;
   *reinterpret_cast<uint64_t *>(&data[1]) = subSystem;
   *reinterpret_cast<uint64_t *>(&data[9]) = operationType;
-  *reinterpret_cast<uint64_t *>(&data[9 + 8]) = timestamp;
-  *reinterpret_cast<uint64_t *>(&data[9 + 16]) = operationIndex;
+  *reinterpret_cast<uint64_t *>(&data[9 + 8]) = operationIndex;
+  *reinterpret_cast<uint64_t *>(&data[9 + 16]) = timestamp;
 
   static_assert(sizeof(data) == 9 + 24, "invalid data size.");
 
@@ -377,13 +377,13 @@ void lt_observe_value_u64(const uint64_t valueIndex, const uint64_t value)
     return;
 
   const uint64_t timestamp = lt_time_100ns();
-  uint8_t data[1 + 1 + 8 + 8 + 8];
+  uint8_t data[_lt_observed_value_length];
 
   data[0] = lt_t_observed_value;
   data[1] = lt_vt_u64;
   *reinterpret_cast<uint64_t *>(&data[2]) = valueIndex;
-  *reinterpret_cast<uint64_t *>(&data[10]) = timestamp;
-  *reinterpret_cast<uint64_t *>(&data[18]) = value;
+  *reinterpret_cast<uint64_t *>(&data[10]) = value;
+  *reinterpret_cast<uint64_t *>(&data[18]) = timestamp;
 
   static_assert(sizeof(data) == 26, "invalid data size.");
 
@@ -396,13 +396,13 @@ void lt_observe_value_i64(const uint64_t valueIndex, const int64_t value)
     return;
 
   const uint64_t timestamp = lt_time_100ns();
-  uint8_t data[1 + 1 + 8 + 8 + 8];
+  uint8_t data[_lt_observed_value_length];
 
   data[0] = lt_t_observed_value;
   data[1] = lt_vt_i64;
   *reinterpret_cast<uint64_t *>(&data[2]) = valueIndex;
-  *reinterpret_cast<uint64_t *>(&data[10]) = timestamp;
-  *reinterpret_cast<int64_t *>(&data[18]) = value;
+  *reinterpret_cast<int64_t *>(&data[10]) = value;
+  *reinterpret_cast<uint64_t *>(&data[18]) = timestamp;
 
   static_assert(sizeof(data) == 26, "invalid data size.");
 
@@ -415,13 +415,13 @@ void lt_observe_value_f64(const uint64_t valueIndex, const double value)
     return;
 
   const uint64_t timestamp = lt_time_100ns();
-  uint8_t data[1 + 1 + 8 + 8 + 8];
+  uint8_t data[_lt_observed_value_length];
 
   data[0] = lt_t_observed_value;
   data[1] = lt_vt_f64;
   *reinterpret_cast<uint64_t *>(&data[2]) = valueIndex;
-  *reinterpret_cast<uint64_t *>(&data[10]) = timestamp;
-  *reinterpret_cast<double *>(&data[18]) = value;
+  *reinterpret_cast<double *>(&data[10]) = value;
+  *reinterpret_cast<uint64_t *>(&data[18]) = timestamp;
 
   static_assert(sizeof(data) == 26, "invalid data size.");
 
@@ -434,13 +434,13 @@ void lt_observe_exact_value_u64(const uint64_t exactValueIndex, const uint64_t v
     return;
 
   const uint64_t timestamp = lt_time_100ns();
-  uint8_t data[1 + 1 + 8 + 8 + 8];
+  uint8_t data[_lt_observed_exact_value_length];
 
   data[0] = lt_t_observed_exact_value;
   data[1] = lt_vt_u64;
   *reinterpret_cast<uint64_t *>(&data[2]) = exactValueIndex;
-  *reinterpret_cast<uint64_t *>(&data[10]) = timestamp;
-  *reinterpret_cast<uint64_t *>(&data[18]) = value;
+  *reinterpret_cast<uint64_t *>(&data[10]) = value;
+  *reinterpret_cast<uint64_t *>(&data[18]) = timestamp;
 
   static_assert(sizeof(data) == 26, "invalid data size.");
 
@@ -453,13 +453,13 @@ void lt_observe_exact_value_i64(const uint64_t exactValueIndex, const int64_t va
     return;
 
   const uint64_t timestamp = lt_time_100ns();
-  uint8_t data[1 + 1 + 8 + 8 + 8];
+  uint8_t data[_lt_observed_exact_value_length];
 
   data[0] = lt_t_observed_exact_value;
   data[1] = lt_vt_i64;
   *reinterpret_cast<uint64_t *>(&data[2]) = exactValueIndex;
-  *reinterpret_cast<uint64_t *>(&data[10]) = timestamp;
-  *reinterpret_cast<int64_t *>(&data[18]) = value;
+  *reinterpret_cast<int64_t *>(&data[10]) = value;
+  *reinterpret_cast<uint64_t *>(&data[18]) = timestamp;
 
   static_assert(sizeof(data) == 26, "invalid data size.");
 
@@ -485,7 +485,7 @@ void lt_observe_exact_value_string(const uint64_t exactValueIndex, IN const char
   pData++;
 
   uint16_t *pLength = reinterpret_cast<uint16_t *>(pData);
-  pLength++;
+  pData += sizeof(uint16_t);
 
   *pData = lt_vt_string;
   pData++;
@@ -497,6 +497,7 @@ void lt_observe_exact_value_string(const uint64_t exactValueIndex, IN const char
   pData += sizeof(uint64_t);
 
   *pData = length;
+  pData++;
 
   if (value != nullptr)
   {
@@ -562,7 +563,7 @@ static bool lt_init()
   {
     char folder[ARRAYSIZE(path)];
     char *end = nullptr;
-    ZeroMemory(folder, sizeof(folder));
+    memset(folder, 0, sizeof(folder));
 
     end = strchr(path, L'\\');
 
@@ -574,7 +575,7 @@ static bool lt_init()
       {
         if (GetLastError() != ERROR_ALREADY_EXISTS)
         {
-          // hmm...
+          // this should result in an error later (when we're trying to create the file).
         }
       }
 
@@ -627,12 +628,40 @@ static bool lt_init()
     *reinterpret_cast<uint32_t *>(pData) = lt_version;
     pData += sizeof(uint32_t);
 
+    *reinterpret_cast<uint64_t *>(pData) = lt_time_100ns();
+    pData += sizeof(uint64_t);
+
+    const uint8_t productNameLength = (uint8_t)min(0xFF, strlen(lt_get_product_name()));
+    *pData = productNameLength;
+    pData++;
+
+    memcpy(pData, lt_get_product_name(), productNameLength);
+    pData += productNameLength;
+
+    *reinterpret_cast<uint64_t *>(pData) = lt_get_product_major_version();
+    pData += sizeof(uint64_t);
+
+    *reinterpret_cast<uint64_t *>(pData) = lt_get_product_minor_version();
+    pData += sizeof(uint64_t);
+
+    *pData = lt_is_debug_build() ? 1 : 0;
+    pData++;
+
+    const uint8_t remoteHostLength = (uint8_t)min(0xFF, strlen(lt_get_remote_host()));
+    *pData = remoteHostLength;
+    pData++;
+
+    memcpy(pData, lt_get_remote_host(), remoteHostLength);
+    pData += remoteHostLength;
+
     lt_write_block_internal(data, pData - data);
   }
 
   ReleaseMutex(_lt_context.mutex);
 
-  return _lt_context.initialized = true;
+  _lt_context.initialized = true;
+
+  return true;
 }
 
 static void lt_write_block(IN const uint8_t *pData, const size_t size)

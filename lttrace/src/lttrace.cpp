@@ -9,9 +9,6 @@
 #include <cvconst.h>
 #include <initguid.h>
 
-#include <vector>
-#include <deque>
-#include <algorithm>
 #include <memory>
 
 #include <inttypes.h>
@@ -110,7 +107,7 @@ int32_t main(void)
       const DWORD bytesToRead = (DWORD)min(bytesRemaining, MAXDWORD);
       DWORD bytesRead = 0;
 
-      FATAL_IF(!ReadFile(file, pStackTraces + offset, bytesToRead, &bytesRead, nullptr), "Failed to read stack trace file.");
+      FATAL_IF(!ReadFile(file, pStackTraces + offset, bytesToRead, &bytesRead, nullptr), "Failed to read stack trace file (0x%" PRIX32 ")", GetLastError());
       FATAL_IF(bytesRead == 0, "Failed to read from stack trace file.");
 
       offset += bytesRead;
