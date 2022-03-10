@@ -67,7 +67,7 @@ extern "C"
   void lt_warn(const uint64_t subSystem, const uint64_t errorCode, IN OPTIONAL const char *description); // `description`: 255 chars max (not including \0).
   void lt_log(const uint64_t subSystem, IN OPTIONAL const char *description); // `description`: 255 chars max (not including \0).
   void lt_set_state(const uint64_t subSystem, const uint64_t stateIndex, const uint64_t subStateIndex);
-  void lt_perf_data(const uint64_t subSystem, IN const uint64_t *pDataNs, const uint8_t count);
+  void lt_perf_data(const uint64_t subSystem, IN const double *pDataMs, const uint8_t count);
   void lt_operation(const uint64_t subSystem, const uint64_t operationType, const uint64_t operationIndex);
   void lt_observe_value_u64(const uint64_t valueIndex, const uint64_t value);
   void lt_observe_value_i64(const uint64_t valueIndex, const int64_t value);

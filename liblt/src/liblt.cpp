@@ -316,9 +316,9 @@ void lt_set_state(const uint64_t subSystem, const uint64_t stateIndex, const uin
   lt_write_block(data, sizeof(data));
 }
 
-void lt_perf_data(const uint64_t subSystem, IN const uint64_t *pDataNs, const uint8_t count)
+void lt_perf_data(const uint64_t subSystem, IN const double *pDataMs, const uint8_t count)
 {
-  if (pDataNs == nullptr || count == 0)
+  if (pDataMs == nullptr || count == 0)
     return;
 
   if (!lt_init())
@@ -343,8 +343,8 @@ void lt_perf_data(const uint64_t subSystem, IN const uint64_t *pDataNs, const ui
   *pData = count;
   pData++;
 
-  const size_t dataSize = sizeof(uint64_t) * (size_t)count;
-  memcpy(pData, pDataNs, dataSize);
+  const size_t dataSize = sizeof(double) * (size_t)count;
+  memcpy(pData, pDataMs, dataSize);
   pData += dataSize;
 
   *reinterpret_cast<uint16_t *>(&data[1]) = (uint16_t)(pData - data);

@@ -53,16 +53,16 @@ int32_t main(const int32_t argc, const char **pArgv)
   lt_operation(1, 1, 1);
   lt_operation(1, 2, 5);
 
-  uint64_t data[] = { 1000, 2000, 3000, 4000, 5000, 6000 };
+  double data[] = { 1000, 2000, 3000, 4000, 5000, 6000 };
   lt_perf_data(0, data, ARRAYSIZE(data));
 
   for (size_t i = 0; i < ARRAYSIZE(data); i++)
-    data[i] += (i & 1) * 400 - 200;
+    data[i] += (i & 1) * 400.0 - 200.0;
 
   lt_perf_data(0, data, ARRAYSIZE(data));
 
   for (size_t i = 0; i < ARRAYSIZE(data); i++)
-    data[i] += (i & 1) * -800 + 400;
+    data[i] += (i & 1) * -800.0 + 400.0;
   
   lt_perf_data(1, data, ARRAYSIZE(data) - 1);
 

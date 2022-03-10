@@ -416,7 +416,7 @@ int32_t main(void)
             if (i > 0)
               fputs(",", stdout);
 
-            printf("\"0x%" PRIu64 "\"", reinterpret_cast<const uint64_t *>(pRead)[i]);
+            printf("%e", reinterpret_cast<const double *>(pRead)[i]);
           }
 
           fputs("]", stdout);
