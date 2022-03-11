@@ -140,15 +140,12 @@ int32_t main(void)
       const uint32_t hash = *reinterpret_cast<const uint32_t *>(pStackTraces);
       pStackTraces += sizeof(uint32_t);
 
-      const uint64_t errorCount = *reinterpret_cast<const uint64_t *>(pStackTraces);
-      pStackTraces += sizeof(uint64_t);
-
       if (!isFirstTrace)
         fputs(",\n", stdout);
 
       isFirstTrace = false;
 
-      printf("{\"hash\":%" PRIu32 ",\"errorCount\":%" PRIu64 ",\"stack\":[\n", hash, errorCount);
+      printf("{\"hash\":%" PRIu32 ",\"stack\":[\n", hash);
 
       char moduleName[256] = "<Invalid Module>";
       uint64_t offset = 0;

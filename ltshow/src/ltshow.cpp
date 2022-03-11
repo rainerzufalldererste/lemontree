@@ -13,13 +13,33 @@
 #ifdef _DEBUG
  #define DBG_BREAK() __debugbreak()
 #else
- #define DBG_BREAK()
+ #define DBG_BREAK() do { } while (0)
 #endif
 
 #define FATAL(x, ...) do { printf(x "\n", __VA_ARGS__); DBG_BREAK(); ExitProcess((UINT)-1); } while (0)
 #define FATAL_IF(conditional, x, ...) do { if (conditional) { FATAL(x, __VA_ARGS__); } } while (0)
 #define RECOVERABLE_ERROR(x, ...) FATAL(x, __VA_ARGS__)
 #define RECOVERABLE_ERROR_IF(conditional, x, ...) do { if (conditional) { RECOVERABLE_ERROR(x, __VA_ARGS__); } } while (0)
+
+#define PRINT_X64(prefix, name, stream) do { uint64_t v = 0; FATAL_IF(!stream.read(&v), "Insufficient data stream"); printf(prefix "\"" name "\":\"0x%" PRIX64 "\"", v); } while (0);
+#define PRINT_U64(prefix, name, stream) do { uint64_t v = 0; FATAL_IF(!stream.read(&v), "Insufficient data stream"); printf(prefix "\"" name "\":\"%" PRIu64 "\"", v); } while (0);
+#define PRINT_I64(prefix, name, stream) do { int64_t v = 0; FATAL_IF(!stream.read(&v), "Insufficient data stream"); printf(prefix "\"" name "\":\"%" PRIi64 "\"", v); } while (0);
+#define PRINT_F64(prefix, name, stream) do { double v = 0; FATAL_IF(!stream.read(&v), "Insufficient data stream"); printf(prefix "\"" name "\":%e", v); } while (0);
+#define PRINT_U32(prefix, name, stream) do { uint32_t v = 0; FATAL_IF(!stream.read(&v), "Insufficient data stream"); printf(prefix "\"" name "\":%" PRIu32 "", v); } while (0);
+#define PRINT_I32(prefix, name, stream) do { int32_t v = 0; FATAL_IF(!stream.read(&v), "Insufficient data stream"); printf(prefix "\"" name "\":%" PRIi32 "", v); } while (0);
+#define PRINT_U8(prefix, name, stream) do { uint8_t v = 0; FATAL_IF(!stream.read(&v), "Insufficient data stream"); printf(prefix "\"" name "\":%" PRIu8 "", v); } while (0);
+#define PRINT_BOOL(prefix, name, stream) do { uint8_t v = 0; FATAL_IF(!stream.read(&v), "Insufficient data stream"); v = !!v; printf(prefix "\"" name "\":%" PRIu8 "", v); } while (0);
+
+#define PRINT_STRING(prefix, name, stream) do { \
+  char buffer256[0x100]; \
+  uint8_t length = 0; \
+  FATAL_IF(!stream.read(&length), "Insufficient data stream"); \
+  if (length > 0) \
+  { FATAL_IF(!stream.read(buffer256, length), "Insufficient data stream"); \
+    buffer256[length] = '\0'; \
+    fputs(prefix "\"" name "\":", stdout); \
+    print_string_as_json(buffer256); \
+  } } while (0);
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -72,7 +92,7 @@ int32_t main(void)
     CloseHandle(file);
   }
 
-  std::vector<const uint8_t *> headers;
+  std::vector<PointerWithSize> headers;
   uint32_t ltVersion = 0;
   uint64_t startTimestamp = 0;
   uint64_t majorVersion = 0;
@@ -83,76 +103,70 @@ int32_t main(void)
 
   // Read Section Headers.
   {
-    const uint8_t *pRead = pData;
-    const uint8_t *pEnd = pData + fileSize;
+    ByteStream stream(pData, fileSize);
 
-    FATAL_IF(*pRead != lt_t_start, "Invalid Header");
-    pRead++;
+    uint8_t u8 = (uint8_t)~lt_t_start;
+    FATAL_IF(!stream.read(&u8), "Insufficient Data");
+    FATAL_IF(u8 != lt_t_start, "Invalid Header");
 
-    ltVersion = *reinterpret_cast<const uint32_t *>(pRead);
-    pRead += sizeof(uint32_t);
+    FATAL_IF(!stream.read(&ltVersion), "Insufficient Data");
+    FATAL_IF(!stream.read(&startTimestamp), "Insufficient Data");
 
-    startTimestamp = *reinterpret_cast<const uint64_t *>(pRead);
-    pRead += sizeof(uint64_t);
-
-    const uint8_t productNameLength = *pRead;
-    pRead++;
-
-    memcpy(productName, pRead, productNameLength);
-    pRead += productNameLength;
+    uint8_t productNameLength = 0;
+    FATAL_IF(!stream.read(&productNameLength), "Insufficient Data");
+    FATAL_IF(!stream.read(productName, productNameLength), "Insufficient Data");
     productName[productNameLength] = '\0';
 
-    majorVersion = *reinterpret_cast<const uint64_t *>(pRead);
-    pRead += sizeof(uint64_t);
+    FATAL_IF(!stream.read(&majorVersion), "Insufficient Data");
+    FATAL_IF(!stream.read(&minorVersion), "Insufficient Data");
 
-    minorVersion = *reinterpret_cast<const uint64_t *>(pRead);
-    pRead += sizeof(uint64_t);
+    FATAL_IF(!stream.read(&u8), "Insufficient Data");
+    isDebugBuild = (u8 != 0);
 
-    isDebugBuild = *pRead != 0;
-    pRead++;
-
-    const uint8_t remoteHostLength = *pRead;
-    pRead++;
-
-    memcpy(remoteHost, pRead, remoteHostLength);
-    pRead += remoteHostLength;
+    uint8_t remoteHostLength = 0;
+    FATAL_IF(!stream.read(&remoteHostLength), "Insufficient Data");
+    FATAL_IF(!stream.read(remoteHost, remoteHostLength), "Insufficient Data");
     remoteHost[remoteHostLength] = '\0';
 
-    while (pRead < pEnd)
+    while (stream.sizeRemaining > 0)
     {
-      const uint8_t type = *pRead;
+      const uint8_t *pPtr = stream.pData;
+
+      uint8_t type = 0;
+      FATAL_IF(!stream.read(&type), "Insufficient Data");
+      FATAL_IF(type == 0, "New Start Detected.");
 
       if (type < __lt_t_fixed_length)
       {
-        headers.push_back(pRead);
-
-        const uint16_t size = *reinterpret_cast<const uint16_t *>(pRead + 1);
+        uint16_t size;
+        FATAL_IF(!stream.read(&size), "Insufficient Data");
         FATAL_IF(size < 3, "Invalid Section Size");
+        FATAL_IF(!stream.read<uint8_t>(nullptr, size - 3), "Insufficient Data");
 
-        pRead += size;
+        headers.emplace_back(pPtr, size);
       }
       else
       {
         switch (type)
         {
         case lt_t_state:
-          headers.push_back(pRead);
-          pRead += _lt_state_length;
+          headers.emplace_back(pPtr, _lt_state_length);
+          FATAL_IF(!stream.read<uint8_t>(nullptr, _lt_state_length - 1), "Insufficient Data");
           break;
 
         case lt_t_operation:
-          headers.push_back(pRead);
-          pRead += _lt_operation_length;
+          headers.emplace_back(pPtr, _lt_operation_length);
+          FATAL_IF(!stream.read<uint8_t>(nullptr, _lt_operation_length - 1), "Insufficient Data");
           break;
 
         case lt_t_observed_value:
-          headers.push_back(pRead);
-          pRead += _lt_observed_value_length;
+          headers.emplace_back(pPtr, _lt_observed_value_length);
+          FATAL_IF(!stream.read<uint8_t>(nullptr, _lt_observed_value_length - 1), "Insufficient Data");
           break;
 
         case lt_t_observed_exact_value:
-          headers.push_back(pRead);
-          pRead += _lt_observed_exact_value_length;
+          headers.emplace_back(pPtr, _lt_observed_exact_value_length);
+          FATAL_IF(!stream.read<uint8_t>(nullptr, _lt_observed_exact_value_length - 1), "Insufficient Data");
           break;
 
         default:
@@ -173,17 +187,19 @@ int32_t main(void)
     print_string_as_json(remoteHost);
     printf(",\"majorVersion\":\"0x%" PRIX64 "\",\"minorVersion\":\"0x%" PRIX64 "\",\"isDebugBuild\":%" PRIu8 ",\"timestamp\":\"0x%" PRIX64 "\",\"contents\":[", majorVersion, minorVersion, isDebugBuild, startTimestamp);
 
-    bool isFirstTrace = true;
+    bool isFirstItem = true;
 
-    for (const uint8_t *pRead : headers)
+    for (const auto &_item : headers)
     {
-      const uint8_t type = *pRead;
-      pRead++;
+      ByteStream stream(_item);
 
-      if (!isFirstTrace)
+      uint8_t type = 0;
+      FATAL_IF(!stream.read(&type), "Insufficient Data");
+
+      if (!isFirstItem)
         fputs(",\n", stdout);
 
-      isFirstTrace = false;
+      isFirstItem = false;
 
       printf("{\"type\":%" PRIu8 "", type);
 
@@ -191,86 +207,76 @@ int32_t main(void)
       {
       case lt_t_state:
       {
-        const uint64_t *pRead64 = reinterpret_cast<const uint64_t *>(pRead);
-
-        printf(",\"subsystem\":\"0x%" PRIX64 "\"", pRead64[0]);
-        printf(",\"stateIndex\":\"0x%" PRIX64 "\"", pRead64[1]);
-        printf(",\"subStateIndex\":\"0x%" PRIX64 "\"", pRead64[2]);
-        printf(",\"timestamp\":\"0x%" PRIX64 "\"", pRead64[3]);
+        PRINT_X64(",", "subsystem", stream);
+        PRINT_X64(",", "stateIndex", stream);
+        PRINT_X64(",", "subStateIndex", stream);
+        PRINT_X64(",", "timestamp", stream);
 
         break;
       }
 
       case lt_t_operation:
       {
-        const uint64_t *pRead64 = reinterpret_cast<const uint64_t *>(pRead);
-
-        printf(",\"subsystem\":\"0x%" PRIX64 "\"", pRead64[0]);
-        printf(",\"operationType\":\"0x%" PRIX64 "\"", pRead64[1]);
-        printf(",\"operationIndex\":\"0x%" PRIX64 "\"", pRead64[2]);
-        printf(",\"timestamp\":\"0x%" PRIX64 "\"", pRead64[3]);
+        PRINT_X64(",", "subsystem", stream);
+        PRINT_X64(",", "operationType", stream);
+        PRINT_X64(",", "operationIndex", stream);
+        PRINT_X64(",", "timestamp", stream);
 
         break;
       }
 
       case lt_t_observed_value:
       {
-        const uint8_t dataType = *pRead;
-        pRead++;
-
+        uint8_t dataType = 0;
+        FATAL_IF(!stream.read(&dataType), "Insufficient data steam.");
         printf(",\"dataType\":%" PRIu8 "", dataType);
 
-        const uint64_t *pRead64 = reinterpret_cast<const uint64_t *>(pRead);
-
-        printf(",\"valueIndex\":\"0x%" PRIX64 "\"", pRead64[0]);
-        printf(",\"timestamp\":\"0x%" PRIX64 "\"", pRead64[2]);
+        PRINT_X64(",", "valueIndex", stream);
 
         switch (dataType)
         {
         case lt_vt_u64:
-          printf(",\"value\":\"%" PRIu64 "\"", pRead64[1]);
+          PRINT_U64(",", "value", stream);
           break;
         
         case lt_vt_i64:
-          printf(",\"value\":\"%" PRIi64 "\"", *reinterpret_cast<const int64_t *>(&pRead64[1]));
+          PRINT_I64(",", "value", stream);
           break;
 
         case lt_vt_f64:
-          printf(",\"value\":%e", *reinterpret_cast<const double_t *>(&pRead64[1]));
+          PRINT_F64(",", "value", stream);
           break;
 
         default:
           RECOVERABLE_ERROR("Invalid data type.");
           break;
         }
+
+        PRINT_X64(",", "timestamp", stream);
 
         break;
       }
 
       case lt_t_observed_exact_value:
       {
-        const uint8_t dataType = *pRead;
-        pRead++;
-
+        uint8_t dataType = 0;
+        FATAL_IF(!stream.read(&dataType), "Insufficient data steam.");
         printf(",\"dataType\":%" PRIu8 "", dataType);
 
-        const uint64_t *pRead64 = reinterpret_cast<const uint64_t *>(pRead);
-
-        printf(",\"valueIndex\":\"0x%" PRIX64 "\"", pRead64[0]);
-        printf(",\"timestamp\":\"0x%" PRIX64 "\"", pRead64[2]);
+        PRINT_X64(",", "valueIndex", stream);
 
         switch (dataType)
         {
         case lt_vt_u64:
-          printf(",\"value\":\"%" PRIu64 "\"", pRead64[1]);
+          PRINT_U64(",", "value", stream);
           break;
 
         case lt_vt_i64:
-          printf(",\"value\":\"%" PRIi64 "\"", *reinterpret_cast<const int64_t *>(&pRead64[1]));
+          PRINT_I64(",", "value", stream);
           break;
 
         case lt_vt_f64:
-          printf(",\"value\":%e", *reinterpret_cast<const double_t *>(&pRead64[1]));
+          PRINT_F64(",", "value", stream);
           break;
 
         default:
@@ -278,45 +284,29 @@ int32_t main(void)
           break;
         }
 
+        PRINT_X64(",", "timestamp", stream);
+
         break;
       }
 
       case lt_t_crash:
       {
-        const uint16_t size = *reinterpret_cast<const uint16_t *>(pRead);
-        pRead += sizeof(uint16_t);
-        (void)size;
+        uint16_t size = 0;
+        FATAL_IF(!stream.read(&size), "Insufficient data stream.");
 
-        printf(",\"timestamp\":\"0x%" PRIX64 "\"", *reinterpret_cast<const uint64_t *>(pRead));
-        pRead += sizeof(uint64_t);
-        
-        printf(",\"errorCode\":\"0x%" PRIX64 "\"", *reinterpret_cast<const uint64_t *>(pRead));
-        pRead += sizeof(uint64_t);
+        PRINT_X64(",", "timestamp", stream);
+        PRINT_X64(",", "errorCode", stream);
+        PRINT_STRING(",", "description", stream);
 
-        const uint8_t descriptionLength = *pRead;
-        pRead++;
-
-        if (descriptionLength > 0)
-        {
-          memcpy(svalue, pRead, descriptionLength);
-          pRead += descriptionLength;
-          svalue[descriptionLength] = '\0';
-
-          fputs(",\"description\":", stdout);
-          print_string_as_json(svalue);
-        }
-
-        const uint16_t stackTraceLength = *reinterpret_cast<const uint16_t *>(pRead);
-        pRead += sizeof(uint16_t);
+        uint16_t stackTraceLength = 0;
+        FATAL_IF(!stream.read(&stackTraceLength), "Insufficient data stream.");
 
         if (stackTraceLength > 0)
         {
-          fputs(",\"stacktrace\":\"", stdout);
-
-          for (uint16_t i = 0; i < stackTraceLength; i++)
-            printf("%02" PRIX8, pRead[i]);
-
-          fputs("\"", stdout);
+          const uint8_t *pStackTraceData = stream.pData;
+          FATAL_IF(!stream.read<uint8_t >(nullptr, stackTraceLength), "Insufficient data stream.");
+          fputs(",\"stacktrace\":", stdout);
+          print_bytes_as_base64string(pStackTraceData, stackTraceLength);
         }
 
         break;
@@ -325,40 +315,23 @@ int32_t main(void)
       case lt_t_error:
       case lt_t_warning:
       {
-        const uint16_t size = *reinterpret_cast<const uint16_t *>(pRead);
-        pRead += sizeof(uint16_t);
-        (void)size;
+        uint16_t size = 0;
+        FATAL_IF(!stream.read(&size), "Insufficient data stream.");
 
-        printf(",\"timestamp\":\"0x%" PRIX64 "\"", *reinterpret_cast<const uint64_t *>(pRead));
-        pRead += sizeof(uint64_t);
+        PRINT_X64(",", "timestamp", stream);
+        PRINT_X64(",", "subSystem", stream);
+        PRINT_X64(",", "errorCode", stream);
+        PRINT_STRING(",", "description", stream);
 
-        printf(",\"subSystem\":\"0x%" PRIX64 "\"", *reinterpret_cast<const uint64_t *>(pRead));
-        pRead += sizeof(uint64_t);
-
-        printf(",\"errorCode\":\"0x%" PRIX64 "\"", *reinterpret_cast<const uint64_t *>(pRead));
-        pRead += sizeof(uint64_t);
-
-        const uint8_t descriptionLength = *pRead;
-        pRead++;
-
-        if (descriptionLength > 0)
-        {
-          memcpy(svalue, pRead, descriptionLength);
-          pRead += descriptionLength;
-          svalue[descriptionLength] = '\0';
-
-          fputs(",\"description\":", stdout);
-          print_string_as_json(svalue);
-        }
-
-        const uint16_t stackTraceLength = *reinterpret_cast<const uint16_t *>(pRead);
-        pRead += sizeof(uint16_t);
+        uint16_t stackTraceLength = 0;
+        FATAL_IF(!stream.read(&stackTraceLength), "Insufficient data stream.");
 
         if (stackTraceLength > 0)
         {
+          const uint8_t *pStackTraceData = stream.pData;
+          FATAL_IF(!stream.read<uint8_t >(nullptr, stackTraceLength), "Insufficient data stream.");
           fputs(",\"stacktrace\":", stdout);
-          print_bytes_as_base64string(pRead, stackTraceLength);
-          pRead += stackTraceLength;
+          print_bytes_as_base64string(pStackTraceData, stackTraceLength);
         }
 
         break;
@@ -366,49 +339,32 @@ int32_t main(void)
 
       case lt_t_log:
       {
-        const uint16_t size = *reinterpret_cast<const uint16_t *>(pRead);
-        pRead += sizeof(uint16_t);
-        (void)size;
+        uint16_t size = 0;
+        FATAL_IF(!stream.read(&size), "Insufficient data stream.");
 
-        printf(",\"timestamp\":\"0x%" PRIX64 "\"", *reinterpret_cast<const uint64_t *>(pRead));
-        pRead += sizeof(uint64_t);
-
-        printf(",\"subSystem\":\"0x%" PRIX64 "\"", *reinterpret_cast<const uint64_t *>(pRead));
-        pRead += sizeof(uint64_t);
-
-        const uint8_t descriptionLength = *pRead;
-        pRead++;
-
-        if (descriptionLength > 0)
-        {
-          memcpy(svalue, pRead, descriptionLength);
-          pRead += descriptionLength;
-          svalue[descriptionLength] = '\0';
-
-          fputs(",\"description\":", stdout);
-          print_string_as_json(svalue);
-        }
+        PRINT_X64(",", "timestamp", stream);
+        PRINT_X64(",", "subSystem", stream);
+        PRINT_STRING(",", "description", stream);
 
         break;
       }
 
       case lt_t_perf_data:
       {
-        const uint16_t size = *reinterpret_cast<const uint16_t *>(pRead);
-        pRead += sizeof(uint16_t);
-        (void)size;
+        uint16_t size = 0;
+        FATAL_IF(!stream.read(&size), "Insufficient data stream.");
 
-        printf(",\"timestamp\":\"0x%" PRIX64 "\"", *reinterpret_cast<const uint64_t *>(pRead));
-        pRead += sizeof(uint64_t);
+        PRINT_X64(",", "timestamp", stream);
+        PRINT_X64(",", "subSystem", stream);
 
-        printf(",\"subSystem\":\"0x%" PRIX64 "\"", *reinterpret_cast<const uint64_t *>(pRead));
-        pRead += sizeof(uint64_t);
-
-        const uint8_t count = *pRead;
-        pRead++;
-
+        uint8_t count = 0;
+        FATAL_IF(!stream.read(&count), "Insufficient data stream.");
+        
         if (count > 0)
         {
+          const double *pPerfData = reinterpret_cast<const double *>(stream.pData);
+          FATAL_IF(!stream.read<double>(nullptr, count), "Insufficient data stream.");
+
           fputs(",\"data\":[", stdout);
 
           for (uint8_t i = 0; i < count; i++)
@@ -416,7 +372,7 @@ int32_t main(void)
             if (i > 0)
               fputs(",", stdout);
 
-            printf("%e", reinterpret_cast<const double *>(pRead)[i]);
+            printf("%e", pPerfData[i]);
           }
 
           fputs("]", stdout);
@@ -427,42 +383,181 @@ int32_t main(void)
 
       case lt_t_observed_exact_value_variable_length:
       {
-        const uint16_t size = *reinterpret_cast<const uint16_t *>(pRead);
-        pRead += sizeof(uint16_t);
-        (void)size;
+        uint16_t size = 0;
+        FATAL_IF(!stream.read(&size), "Insufficient data stream.");
 
-        const uint8_t dataType = *pRead;
-        pRead++;
+        uint8_t dataType = 0;
+        FATAL_IF(!stream.read(&dataType), "Insufficient data stream.");
 
-        printf(",\"exactValueIndex\":\"0x%" PRIX64 "\"", *reinterpret_cast<const uint64_t *>(pRead));
-        pRead += sizeof(uint64_t);
-
-        printf(",\"timestamp\":\"0x%" PRIX64 "\"", *reinterpret_cast<const uint64_t *>(pRead));
-        pRead += sizeof(uint64_t);
+        PRINT_X64(",", "exactValueIndex", stream);
+        PRINT_X64(",", "timestamp", stream);
 
         RECOVERABLE_ERROR_IF(dataType != lt_vt_string, "Invalid Value Type.");
 
         if (dataType == lt_vt_string)
-        {
-          const uint8_t length = *pRead;
-          pRead++;
-
-          if (length > 0)
-          {
-            memcpy(svalue, pRead, length);
-            pRead += length;
-            svalue[length] = '\0';
-
-            fputs(",\"value\":", stdout);
-            print_string_as_json(svalue);
-          }
-        }
+          PRINT_STRING(",", "value", stream);
 
         break;
       }
 
-      case lt_t_hardware_info:
+      case lt_t_system_info:
+      {
+        fputs(",\"info\":[", stdout);
+
+        uint16_t size = 0;
+        FATAL_IF(!stream.read(&size), "Insufficient data stream.");
+
+        bool isFirstInfo = true;
+
+        while (stream.sizeRemaining > 0)
+        {
+          if (!isFirstInfo)
+            fputs(",\n", stdout);
+
+          isFirstInfo = false;
+
+          uint8_t info = 0;
+          FATAL_IF(!stream.read(&info), "Insufficient data stream.");
+
+          printf("{\"type\":%" PRIu8 "", info);
+
+          switch (info)
+          {
+          case lt_si_cpu:
+          {
+            PRINT_STRING(",", "description", stream);
+            PRINT_U32(",", "processorCount", stream);
+
+            break;
+          }
+
+          case lt_si_ram:
+          {
+            PRINT_X64(",", "totalPhysical", stream);
+            PRINT_X64(",", "availablePhysical", stream);
+            PRINT_X64(",", "totalVirtual", stream);
+            PRINT_X64(",", "availableVirtual", stream);
+
+            break;
+          }
+
+          case lt_si_os:
+          {
+            PRINT_STRING(",", "os", stream);
+
+            break;
+          }
+
+          case lt_si_gpu:
+          {
+            PRINT_U32(",", "dedicatedVRAM", stream);
+            PRINT_U32(",", "sharedVRAM", stream);
+            PRINT_U32(",", "totalVRAM", stream);
+            PRINT_U32(",", "freeVRAM", stream);
+            PRINT_X64(",", "driverVersion", stream);
+            PRINT_U32(",", "vendorId", stream);
+            PRINT_U32(",", "deviceId", stream);
+            PRINT_U32(",", "revisionId", stream);
+            PRINT_U32(",", "boardId", stream);
+            PRINT_STRING(",", "deviceDescription", stream);
+            PRINT_STRING(",", "driverId", stream);
+
+            break;
+          }
+
+          case lt_si_lang:
+          {
+            uint8_t length = 0;
+            FATAL_IF(!stream.read(&length), "Insufficient data stream.");
+            FATAL_IF(!stream.read(svalue, length), "Insufficient data stream.");
+            svalue[length] = '\0';
+
+            size_t offset = 0;
+
+            fputs(",\"languages\":[", stdout);
+
+            while (offset < length)
+            {
+              if (offset > 0)
+                fputs(",", stdout);
+              
+              print_string_as_json(svalue + offset);
+
+              offset += strlen(svalue + offset) + 1;
+            }
+            
+            fputs("]", stdout);
+
+            break;
+          }
+
+          case lt_si_elevated:
+          {
+            PRINT_BOOL(",", "isElevated", stream);
+
+            break;
+          }
+
+          case lt_si_monitor:
+          {
+            uint8_t count = 0;
+            FATAL_IF(!stream.read(&count), "Insufficient data stream.");
+
+            fputs(",\"monitors\":[", stdout);
+
+            for (uint8_t i = 0; i < count; i++)
+            {
+              if (i > 0)
+                fputs(",\n", stdout);
+
+              fputs("{", stdout);
+
+              PRINT_I32("", "posX", stream);
+              PRINT_I32(",", "posY", stream);
+              PRINT_U32(",", "sizeX", stream);
+              PRINT_U32(",", "sizeY", stream);
+              PRINT_U32(",", "dpiX", stream);
+              PRINT_U32(",", "dpiY", stream);
+
+              fputs("}", stdout);
+            }
+
+            fputs("]", stdout);
+
+            break;
+          }
+
+          case lt_si_storage:
+          {
+            PRINT_X64(",", "freeBytesAvailable", stream);
+            PRINT_X64(",", "totalBytes", stream);
+
+            break;
+          }
+
+          case lt_si_device:
+          {
+            PRINT_STRING(",", "manufacturer", stream);
+            PRINT_STRING(",", "model", stream);
+
+            break;
+          }
+
+          default:
+          {
+            stream.sizeRemaining = 0;
+            RECOVERABLE_ERROR("Unsupported Info (0x%02" PRIX8 ")", info);
+            break;
+          }
+          }
+
+          fputs("}", stdout);
+        }
+
+        fputs("]", stdout);
+
         break;
+      }
 
       default:
       {

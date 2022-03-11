@@ -19,7 +19,7 @@ enum lt_type : uint8_t
   // followed by uint32_t versionNumber.
 
   // variable length.
-  lt_t_hardware_info,
+  lt_t_system_info,
   lt_t_crash,
   lt_t_error,
   lt_t_warning,
@@ -39,7 +39,7 @@ enum lt_type : uint8_t
 enum lt_stacktrace : uint8_t
 {
   lt_st_start,
-  // followed by DWORD hash, uint64_t count.
+  // followed by DWORD hash.
   
   lt_st_app_offset,
   // followed by uint64_t offset.
@@ -60,10 +60,65 @@ enum lt_stacktrace : uint8_t
 enum lt_value_type : uint8_t
 {
   lt_vt_reserved,
+  
   lt_vt_u64,
   lt_vt_i64,
   lt_vt_f64,
   lt_vt_string,
+};
+
+enum lt_system_info
+{
+  lt_si_reserved,
+
+  lt_si_cpu,
+  lt_si_ram,
+  lt_si_gpu,
+  lt_si_os,
+  lt_si_monitor,
+  lt_si_storage,
+  lt_si_device,
+  lt_si_lang,
+  lt_si_elevated,
+
+  lt_si_end,
+};
+
+//////////////////////////////////////////////////////////////////////////
+
+struct PointerWithSize
+{
+  const uint8_t *pData;
+  size_t size;
+
+  inline PointerWithSize(const uint8_t *pData, const size_t size) : pData(pData), size(size) { }
+};
+
+class ByteStream
+{
+public:
+  const uint8_t *pData;
+  size_t sizeRemaining;
+
+  inline ByteStream(const uint8_t *pData, const size_t size) : pData(pData), sizeRemaining(size) { }
+  inline ByteStream(const PointerWithSize &v) : pData(v.pData), sizeRemaining(v.size) { }
+
+  template <typename T>
+  inline bool read(T *pV, const size_t count = 1)
+  {
+    const size_t size = sizeof(T) * count;
+
+    if (sizeRemaining < size)
+      return false;
+    
+    if (pV != nullptr)
+      memcpy(pV, pData, size);
+    
+    pData += size;
+    sizeRemaining -= size;
+
+    return true;
+  }
 };
 
 #endif // !lt_common_h__

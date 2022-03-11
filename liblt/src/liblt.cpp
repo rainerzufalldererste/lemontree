@@ -2,11 +2,31 @@
 
 #include "lt_common.h"
 
+#include <intrin.h>
+
 #include <windows.h>
 #include <winternl.h>
-#include <shlwapi.h>
+#include <versionhelpers.h>
 
+#include <shlwapi.h>
 #pragma comment(lib, "Shlwapi.lib")
+
+#include <shellscalingapi.h>
+#pragma comment(lib, "Shcore.lib")
+
+#include <Wbemidl.h>
+#pragma comment(lib, "wbemuuid.lib")
+
+#define INITGUID
+#include <ddraw.h>
+#undef INITGUID
+
+#pragma comment(lib, "dxguid.lib")
+
+//////////////////////////////////////////////////////////////////////////
+
+#define STRINGIFY(a) #a
+#define STRINGIFY_VALUE(a) STRINGIFY(a)
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -70,6 +90,7 @@ static bool lt_init();
 static void lt_write_block(IN const uint8_t *pData, const size_t size);
 static void lt_write_block_internal(IN const uint8_t *pData, const size_t size);
 static size_t lt_write_stack_trace(OUT uint8_t *pStackTrace, const bool includeData);
+static size_t lt_write_system_info(OUT uint8_t *pData);
 
 inline uint64_t lt_time_100ns()
 {
@@ -657,6 +678,16 @@ static bool lt_init()
     lt_write_block_internal(data, pData - data);
   }
 
+  // Write System Info.
+  {
+    uint8_t data[1024 * 3];
+    static_assert(sizeof(data) >= 1 + 2 + 1 + 1 + 255 + 4 + 1 + 8 * 4 + 1 + 1 + 255 + 1 + 4 * 4 + 8 + 4 * 4 + 1 + 255 + 1 + 255 + 1 + 1 + 255 + 1 + 1 + 1 + 1 + 32 * 6 * 4 + 1 + 2 * 8 + 1 + 1 + 255 + 1 + 255, "data size insufficient.");
+
+    const size_t length = lt_write_system_info(data);
+
+    lt_write_block_internal(data, length);
+  }
+
   ReleaseMutex(_lt_context.mutex);
 
   _lt_context.initialized = true;
@@ -741,9 +772,6 @@ static size_t lt_write_stack_trace(OUT uint8_t *pStackTrace, const bool includeD
 
   uint32_t *pStackTraceHash = reinterpret_cast<uint32_t *>(pStackTrace);
   pStackTrace += sizeof(uint32_t);
-
-  *reinterpret_cast<uint64_t *>(pStackTrace) = 1; // quantity of how often this error occured (may be overwritten later).
-  pStackTrace += sizeof(uint64_t);
 
   const PEB *pProcessEnvironmentBlock = reinterpret_cast<PEB *>(__readgsqword(0x60));
   const LIST_ENTRY *pLast = nullptr;
@@ -866,4 +894,699 @@ static size_t lt_write_stack_trace(OUT uint8_t *pStackTrace, const bool includeD
   pStackTrace++;
 
   return pStackTrace - pStackTraceStart;
+}
+
+static bool lt_is_min_win_ver(const uint32_t majorVersion, const uint32_t minorVersion, const uint16_t servicePack, const uint32_t buildNumber)
+{
+  OSVERSIONINFOEXW versionInfo;
+  memset(&versionInfo, 0, sizeof(versionInfo));
+
+  versionInfo.dwOSVersionInfoSize = sizeof(versionInfo);
+
+  const uint64_t conditionMask =
+    VerSetConditionMask(
+      VerSetConditionMask(
+        VerSetConditionMask(
+          VerSetConditionMask(
+            0, VER_MAJORVERSION, VER_GREATER_EQUAL),
+          VER_MINORVERSION, VER_GREATER_EQUAL),
+        VER_SERVICEPACKMAJOR, VER_GREATER_EQUAL),
+      VER_BUILDNUMBER, VER_GREATER_EQUAL);
+
+  versionInfo.dwMajorVersion = majorVersion;
+  versionInfo.dwMinorVersion = minorVersion;
+  versionInfo.wServicePackMajor = servicePack;
+  versionInfo.dwBuildNumber = buildNumber;
+
+  return VerifyVersionInfoW(&versionInfo, VER_MAJORVERSION | VER_MINORVERSION | (VER_SERVICEPACKMAJOR * !!servicePack) | (VER_BUILDNUMBER * !!buildNumber), conditionMask) != FALSE;
+}
+
+static bool lt_from_registry(HKEY root, const char *path, const char *valueName, char *out, const size_t outCount)
+{
+  HKEY key = nullptr;
+
+  LSTATUS result = RegOpenKeyExA(root, path, 0, KEY_QUERY_VALUE, &key);
+
+  if (result != ERROR_SUCCESS)
+  {
+    if (key != nullptr)
+      RegCloseKey(key);
+
+    return false;
+  }
+
+  DWORD type = 0;
+  DWORD bytes = 0;
+
+  result = RegQueryValueExA(key, valueName, NULL, &type, NULL, &bytes);
+
+  if (result != ERROR_SUCCESS || type != REG_SZ || bytes + 1 > outCount)
+  {
+    if (key != nullptr)
+      RegCloseKey(key);
+
+    return false;
+  }
+
+  result = RegQueryValueExA(key, valueName, NULL, NULL, reinterpret_cast<BYTE *>(out), &bytes);
+
+  if (key != nullptr)
+    RegCloseKey(key);
+
+  return result == ERROR_SUCCESS;
+}
+
+static size_t lt_write_system_info(OUT uint8_t *pData)
+{
+  uint8_t *pDataStart = pData;
+
+  *pData = lt_t_system_info;
+  pData++;
+
+  uint16_t *pLength = reinterpret_cast<uint16_t *>(pData);
+  pData += sizeof(uint16_t);
+
+  // CPU.
+  {
+    int32_t CPUInfo[4];
+    __cpuid(CPUInfo, 0x80000000);
+
+    const uint32_t nExIds = (uint32_t)CPUInfo[0];
+    char cpuName[0x40];
+
+    for (uint32_t i = 0x80000000; i <= nExIds; i++)
+    {
+      __cpuid(CPUInfo, i);
+
+      const int32_t index = (i & 7) - 2;
+
+      if (index >= 0 && index <= 2)
+        memcpy(cpuName + sizeof(CPUInfo) * index, reinterpret_cast<const char *>(CPUInfo), sizeof(CPUInfo));
+    }
+
+    *pData = lt_si_cpu;
+    pData++;
+
+    const uint8_t length = (uint8_t)min(0xFF, strnlen(cpuName, sizeof(cpuName)));
+    
+    *pData = length;
+    pData++;
+
+    memcpy(pData, cpuName, length);
+    pData += length;
+
+    SYSTEM_INFO systemInfo;
+    GetSystemInfo(&systemInfo);
+
+    *reinterpret_cast<uint32_t *>(pData) = systemInfo.dwNumberOfProcessors;
+    pData += sizeof(uint32_t);
+  }
+
+  // RAM.
+  {
+    MEMORYSTATUSEX memoryStatus;
+    memoryStatus.dwLength = sizeof(memoryStatus);
+
+    if (GlobalMemoryStatusEx(&memoryStatus))
+    {
+      *pData = lt_si_ram;
+      pData++;
+
+      *reinterpret_cast<uint64_t *>(pData) = memoryStatus.ullTotalPhys;
+      pData += sizeof(uint64_t);
+      *reinterpret_cast<uint64_t *>(pData) = memoryStatus.ullAvailPhys;
+      pData += sizeof(uint64_t);
+
+      *reinterpret_cast<uint64_t *>(pData) = memoryStatus.ullTotalVirtual;
+      pData += sizeof(uint64_t);
+      *reinterpret_cast<uint64_t *>(pData) = memoryStatus.ullAvailVirtual;
+      pData += sizeof(uint64_t);
+    }
+  }
+
+  // OS.
+  do
+  {
+    char os[0x100] = "";
+    bool fromRegistry = false;
+
+    if (lt_is_min_win_ver(HIBYTE(_WIN32_WINNT_WINTHRESHOLD), LOBYTE(_WIN32_WINNT_WINTHRESHOLD), 0, 21996))
+      strncpy(os, "Windows 11", sizeof(os));
+    else if (lt_from_registry(HKEY_LOCAL_MACHINE, "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion", "ProductName", os, sizeof(os)))
+      fromRegistry = true; // Since the application linking to this library may not declare the corresponding version compatibility in the app manifest, this may also detect windows 10/11 (Windows 11 as Windows 10, but whatever...)
+    else if (IsWindows10OrGreater())
+     strncpy(os, "Windows 10", sizeof(os));
+    else if (IsWindows8Point1OrGreater())
+     strncpy(os, "Windows 8.1", sizeof(os));
+    else if (IsWindows8OrGreater())
+     strncpy(os, "Windows 8", sizeof(os));
+    else if (IsWindows7SP1OrGreater())
+     strncpy(os, "Windows 7 Service Pack 1", sizeof(os));
+    else if (IsWindows7OrGreater())
+     strncpy(os, "Windows 7", sizeof(os));
+    else if (IsWindowsVistaSP2OrGreater())
+     strncpy(os, "Windows Vista Service Pack 2", sizeof(os));
+    else if (IsWindowsVistaSP1OrGreater())
+     strncpy(os, "Windows Vista Service Pack 1", sizeof(os));
+    else if (IsWindowsVistaOrGreater())
+     strncpy(os, "Windows Vista", sizeof(os));
+    else if (IsWindowsXPSP3OrGreater())
+     strncpy(os, "Windows XP Service Pack 3", sizeof(os));
+    else if (IsWindowsXPSP2OrGreater())
+     strncpy(os, "Windows XP Service Pack 2", sizeof(os));
+    else if (IsWindowsXPSP1OrGreater())
+     strncpy(os, "Windows XP Service Pack 1", sizeof(os));
+    else if (IsWindowsXPOrGreater())
+     strncpy(os, "Windows XP", sizeof(os));
+    else
+      strncpy(os, "???", sizeof(os));
+
+    if (IsWindowsServer())
+      if (0 != strcat_s(os, sizeof(os), " (Server)"))
+        break;
+
+    if (fromRegistry || IsWindows10OrGreater())
+    {
+      char tmp[0x100];
+
+      if (!fromRegistry)
+        if (lt_from_registry(HKEY_LOCAL_MACHINE, "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion", "EditionID", tmp, sizeof(tmp)))
+          if (0 != strcat_s(os, sizeof(os), " ") || 0 != strcat_s(os, sizeof(os), tmp))
+            break;
+
+      if (lt_from_registry(HKEY_LOCAL_MACHINE, "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion", "DisplayVersion", tmp, sizeof(tmp)))
+        if (0 != strcat_s(os, sizeof(os), " ") || 0 != strcat_s(os, sizeof(os), tmp))
+          break;
+
+      if (lt_from_registry(HKEY_LOCAL_MACHINE, "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion", "CurrentBuildNumber", tmp, sizeof(tmp)) || lt_from_registry(HKEY_LOCAL_MACHINE, "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion", "CurrentBuild", tmp, sizeof(tmp)))
+        if (0 != strcat_s(os, sizeof(os), " (Build ") || 0 != strcat_s(os, sizeof(os), tmp) || 0 != strcat_s(os, sizeof(os), ")"))
+          break;
+    }
+
+    *pData = lt_si_os;
+    pData++;
+
+    const uint8_t length = (uint8_t)min(0xFF, strnlen(os, sizeof(os)));
+
+    *pData = length;
+    pData++;
+
+    memcpy(pData, os, length);
+    pData += length;
+
+  } while (false);
+
+  // GPU.
+  do
+  {
+    HRESULT hr;
+
+    HMODULE ddraw_dll = LoadLibraryW(TEXT("ddraw.dll"));
+    
+    if (ddraw_dll == nullptr)
+      break;
+
+    typedef HRESULT(DirectDrawCreateFunc)(GUID *lpGUID, LPDIRECTDRAW *lplpDD, IUnknown *pUnkOuter);
+    DirectDrawCreateFunc *pDirectDrawCreate = reinterpret_cast<DirectDrawCreateFunc *>(GetProcAddress(ddraw_dll, STRINGIFY(DirectDrawCreate)));
+    
+    if (pDirectDrawCreate == nullptr)
+    {
+      FreeLibrary(ddraw_dll);
+      break;
+    }
+
+    IDirectDraw *pDirectDraw = nullptr;
+    
+    // Create DirectDraw instance.
+    if (FAILED(hr = pDirectDrawCreate(nullptr, &pDirectDraw, nullptr)))
+    {
+      if (pDirectDraw != nullptr)
+        pDirectDraw->Release();
+
+      FreeLibrary(ddraw_dll);
+
+      break;
+    }
+
+    IDirectDraw7 *pDirectDraw7 = nullptr;
+
+    // Get IDirectDraw7 Interface.
+    if (FAILED(hr = pDirectDraw->QueryInterface(IID_IDirectDraw7, reinterpret_cast<void **>(&pDirectDraw7))))
+    {
+      if (pDirectDraw7 != nullptr)
+        pDirectDraw7->Release();
+      
+      if (pDirectDraw != nullptr)
+        pDirectDraw->Release();
+
+      FreeLibrary(ddraw_dll);
+
+      break;
+    }
+
+    DDCAPS caps;
+    memset(&caps, 0, sizeof(caps));
+    caps.dwSize = sizeof(caps);
+
+    // Query Combined Video Memory.
+    if (FAILED(hr = pDirectDraw->GetCaps(&caps, NULL)))
+    {
+      if (pDirectDraw7 != nullptr)
+        pDirectDraw7->Release();
+
+      if (pDirectDraw != nullptr)
+        pDirectDraw->Release();
+
+      FreeLibrary(ddraw_dll);
+
+      break;
+    }
+
+    DDSCAPS2 surfaceCaps;
+    memset(&surfaceCaps, 0, sizeof(surfaceCaps));
+    surfaceCaps.dwCaps = DDSCAPS_VIDEOMEMORY | DDSCAPS_LOCALVIDMEM;
+
+    DWORD dedicatedVideoMemory = 0;
+
+    // Query Dedicated Video Memory.
+    if (FAILED(hr = pDirectDraw7->GetAvailableVidMem(&surfaceCaps, &dedicatedVideoMemory, nullptr)))
+    {
+      if (pDirectDraw7 != nullptr)
+        pDirectDraw7->Release();
+
+      if (pDirectDraw != nullptr)
+        pDirectDraw->Release();
+
+      FreeLibrary(ddraw_dll);
+
+      break;
+    }
+
+    uint32_t sharedVideoMemory = 0;
+
+    if (caps.dwVidMemTotal > dedicatedVideoMemory)
+      sharedVideoMemory = caps.dwVidMemTotal - dedicatedVideoMemory;
+
+    DDDEVICEIDENTIFIER2 deviceIdentifier;
+    memset(&deviceIdentifier, 0, sizeof(deviceIdentifier));
+
+    if (FAILED(hr = pDirectDraw7->GetDeviceIdentifier(&deviceIdentifier, 0)))
+    {
+      if (pDirectDraw7 != nullptr)
+        pDirectDraw7->Release();
+
+      if (pDirectDraw != nullptr)
+        pDirectDraw->Release();
+
+      FreeLibrary(ddraw_dll);
+
+      break;
+    }
+
+    *pData = lt_si_gpu;
+    pData++;
+
+    *reinterpret_cast<uint32_t *>(pData) = dedicatedVideoMemory;
+    pData += sizeof(uint32_t);
+
+    *reinterpret_cast<uint32_t *>(pData) = sharedVideoMemory;
+    pData += sizeof(uint32_t);
+
+    *reinterpret_cast<uint32_t *>(pData) = caps.dwVidMemTotal;
+    pData += sizeof(uint32_t);
+
+    *reinterpret_cast<uint32_t *>(pData) = caps.dwVidMemFree;
+    pData += sizeof(uint32_t);
+
+    *reinterpret_cast<uint64_t *>(pData) = deviceIdentifier.liDriverVersion.QuadPart;
+    pData += sizeof(uint64_t);
+
+    *reinterpret_cast<uint32_t *>(pData) = deviceIdentifier.dwVendorId;
+    pData += sizeof(uint32_t);
+
+    *reinterpret_cast<uint32_t *>(pData) = deviceIdentifier.dwDeviceId;
+    pData += sizeof(uint32_t);
+
+    *reinterpret_cast<uint32_t *>(pData) = deviceIdentifier.dwRevision;
+    pData += sizeof(uint32_t);
+
+    *reinterpret_cast<uint32_t *>(pData) = deviceIdentifier.dwSubSysId;
+    pData += sizeof(uint32_t);
+
+    uint8_t length = (uint8_t)min(0xFF, strnlen(deviceIdentifier.szDescription, ARRAYSIZE(deviceIdentifier.szDescription)));
+
+    *pData = length;
+    pData++;
+
+    memcpy(pData, deviceIdentifier.szDescription, length);
+    pData += length;
+    
+    length = (uint8_t)min(0xFF, strnlen(deviceIdentifier.szDescription, ARRAYSIZE(deviceIdentifier.szDriver)));
+
+    *pData = length;
+    pData++;
+
+    memcpy(pData, deviceIdentifier.szDriver, length);
+    pData += length;
+
+    // Cleanup.
+    {
+      if (pDirectDraw7 != nullptr)
+        pDirectDraw7->Release();
+
+      if (pDirectDraw != nullptr)
+        pDirectDraw->Release();
+
+      FreeLibrary(ddraw_dll);
+    }
+  } while (0);
+
+  // Languanges.
+  {
+    ULONG count;
+    wchar_t languageBuffer[0x80];
+    ULONG length = ARRAYSIZE(languageBuffer);
+
+    if (GetUserPreferredUILanguages(MUI_LANGUAGE_NAME, &count, languageBuffer, &length) && count != 0 && length != 0 && languageBuffer[0] != L'\0')
+    {
+      char utf8[0x100];
+      const uint32_t bytes = WideCharToMultiByte(CP_UTF8, 0, languageBuffer, length, utf8, sizeof(utf8), nullptr, false);
+
+      if (bytes > 2)
+      {
+        *pData = lt_si_lang;
+        pData++;
+
+        const uint8_t chars = (uint8_t)min(0xFF, bytes - 2);
+        *pData = chars;
+        pData++;
+
+        memcpy(pData, utf8, chars);
+        pData += chars;
+      }
+    }
+  }
+
+  // IsElevated.
+  do
+  {
+    HANDLE processToken = nullptr;
+    if (0 == OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &processToken))
+      break;
+
+    TOKEN_ELEVATION tokenElevation;
+    DWORD size = sizeof(tokenElevation);
+    
+    if (0 == GetTokenInformation(processToken, TokenElevation, &tokenElevation, sizeof(tokenElevation), &size))
+    {
+      if (processToken != nullptr)
+        CloseHandle(processToken);
+
+      break;
+    }
+
+    const bool isElevated = (tokenElevation.TokenIsElevated == TRUE);
+
+    // Cleanup.
+    {
+      if (processToken != nullptr)
+        CloseHandle(processToken);
+    }
+
+    *pData = lt_si_elevated;
+    pData++;
+
+    *pData = isElevated ? 1 : 0;
+    pData++;
+
+  } while (0);
+
+  // Monitor.
+  {
+    struct _internal
+    {
+      size_t displayIndex = 0;
+      uint8_t *pData = nullptr;
+      uint8_t *pCount = nullptr;
+
+      static BOOL CALLBACK IncrementMonitors(HMONITOR monitor, HDC, LPRECT pRect, LPARAM pParam)
+      {
+        _internal *pData = reinterpret_cast<_internal *>(pParam);
+
+        if (pRect != nullptr && pData->displayIndex < 0x1F)
+        {
+          if (pData->displayIndex == 0)
+          {
+            *pData->pData = lt_si_monitor;
+            pData->pData++;
+
+            pData->pCount = pData->pData;
+            pData->pData++;
+          }
+
+          *reinterpret_cast<int32_t *>(pData->pData) = pRect->left;
+          pData->pData += sizeof(int32_t);
+
+          *reinterpret_cast<int32_t *>(pData->pData) = pRect->top;
+          pData->pData += sizeof(int32_t);
+
+          *reinterpret_cast<uint32_t *>(pData->pData) = pRect->right - pRect->left;
+          pData->pData += sizeof(int32_t);
+
+          *reinterpret_cast<uint32_t *>(pData->pData) = pRect->bottom - pRect->top;
+          pData->pData += sizeof(int32_t);
+
+          UINT dpiX = 0, dpiY = 0;
+
+          if (SUCCEEDED(GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &dpiX, &dpiY)))
+          {
+            *reinterpret_cast<uint32_t *>(pData->pData) = dpiX;
+            pData->pData += sizeof(int32_t);
+
+            *reinterpret_cast<uint32_t *>(pData->pData) = dpiY;
+            pData->pData += sizeof(int32_t);
+          }
+          else
+          {
+            // Just write one `uint64_t` instead of two `uint32_t`s.
+            *reinterpret_cast<uint64_t *>(pData->pData) = 0;
+            pData->pData += sizeof(uint64_t);
+          }
+
+          pData->displayIndex++;
+        }
+
+        return TRUE;
+      }
+    } data;
+
+
+    data.pData = pData;
+
+    EnumDisplayMonitors(NULL, NULL, _internal::IncrementMonitors, reinterpret_cast<LPARAM>(&data));
+
+    if (data.pCount != nullptr)
+      *data.pCount = (uint8_t)data.displayIndex;
+
+    pData = data.pData;
+  }
+
+  // Storage.
+  {
+    ULARGE_INTEGER freeBytesAvailableToApp, totalBytes;
+
+    if (GetDiskFreeSpaceExA(NULL, &freeBytesAvailableToApp, &totalBytes, NULL))
+    {
+      *pData = lt_si_storage;
+      pData++;
+
+      *reinterpret_cast<uint64_t *>(pData) = freeBytesAvailableToApp.QuadPart;
+      pData += sizeof(uint64_t);
+
+      *reinterpret_cast<uint64_t *>(pData) = totalBytes.QuadPart;
+      pData += sizeof(uint64_t);
+    }
+  }
+
+  // Device.
+  do
+  {
+    IWbemLocator *pLocator = nullptr;
+    HRESULT result = CoCreateInstance(CLSID_WbemLocator, 0, CLSCTX_INPROC_SERVER, IID_IWbemLocator, reinterpret_cast<void **>(&pLocator));
+    
+    if (FAILED(result) && result == 0x800401F0 && pLocator == nullptr) // CoInitialize hasn't been called.
+    {
+      if (FAILED(CoInitialize(NULL)))
+        break;
+
+      result = CoCreateInstance(CLSID_WbemLocator, 0, CLSCTX_INPROC_SERVER, IID_IWbemLocator, reinterpret_cast<void **>(&pLocator));
+    }
+
+    if (FAILED(result) || pLocator == nullptr)
+    {
+      if (pLocator != nullptr)
+        pLocator->Release();
+
+      break;
+    }
+
+    IWbemServices *pServices = nullptr;
+    
+    result = pLocator->ConnectServer(L"ROOT\\CIMV2", nullptr, nullptr, 0, NULL, 0, 0, &pServices);
+    
+    if (FAILED(result) || pServices == nullptr)
+    {
+      if (pServices != nullptr)
+        pServices->Release();
+
+      if (pLocator != nullptr)
+        pLocator->Release();
+
+      break;
+    }
+
+    // Set the IWbemServices proxy so that impersonation of the user (client) occurs.
+    result = CoSetProxyBlanket(pServices, RPC_C_AUTHN_WINNT, RPC_C_AUTHZ_NONE, nullptr, RPC_C_AUTHN_LEVEL_CALL, RPC_C_IMP_LEVEL_IMPERSONATE, nullptr, EOAC_NONE);
+    
+    if (FAILED(result))
+    {
+      if (pServices != nullptr)
+        pServices->Release();
+
+      if (pLocator != nullptr)
+        pLocator->Release();
+
+      break;
+    }
+
+    IEnumWbemClassObject *pEnumerator = nullptr;
+    result = pServices->ExecQuery(L"WQL", L"SELECT * FROM Win32_ComputerSystem", WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY, nullptr, &pEnumerator);
+    
+    if (FAILED(result) || pEnumerator == nullptr)
+    {
+      if (pEnumerator != nullptr)
+        pEnumerator->Release();
+      
+      if (pServices != nullptr)
+        pServices->Release();
+
+      if (pLocator != nullptr)
+        pLocator->Release();
+
+      break;
+    }
+
+    IWbemClassObject *pClassObject = nullptr;
+
+    ULONG uReturn = 0;
+    result = pEnumerator->Next(WBEM_INFINITE, 1, &pClassObject, &uReturn);
+    
+    if (FAILED(result) || pClassObject == nullptr || uReturn == 0)
+    {
+      if (pClassObject != nullptr)
+        pClassObject->Release();
+      
+      if (pEnumerator != nullptr)
+        pEnumerator->Release();
+
+      if (pServices != nullptr)
+        pServices->Release();
+
+      if (pLocator != nullptr)
+        pLocator->Release();
+
+      break;
+    }
+
+    *pData = lt_si_device;
+    pData++;
+
+    // Retrieve Manufacturer.
+    {
+      VARIANT propertyValue;
+      result = pClassObject->Get(L"Manufacturer", 0, &propertyValue, nullptr, nullptr);
+
+      if (!(FAILED(result)) && propertyValue.vt == VT_BSTR && propertyValue.bstrVal != nullptr)
+      {
+        char utf8[0x100];
+        const uint32_t bytes = WideCharToMultiByte(CP_UTF8, 0, propertyValue.bstrVal, (int32_t)wcslen(propertyValue.bstrVal), utf8, (int32_t)sizeof(utf8), nullptr, false);
+
+        if (bytes > 1)
+        {
+          const uint8_t count = (uint8_t)min(0xFF, bytes);
+          *pData = count;
+          pData++;
+
+          memcpy(pData, utf8, count);
+          pData += count;
+        }
+        else
+        {
+          *pData = 0;
+          pData++;
+        }
+      }
+      else
+      {
+        *pData = 0;
+        pData++;
+      }
+
+      VariantClear(&propertyValue);
+    }
+
+    // Retrieve Model.
+    {
+      VARIANT propertyValue;
+      result = pClassObject->Get(L"Model", 0, &propertyValue, nullptr, nullptr);
+
+      if (!(FAILED(result)) && propertyValue.vt == VT_BSTR && propertyValue.bstrVal != nullptr)
+      {
+        char utf8[0x100];
+        const uint32_t bytes = WideCharToMultiByte(CP_UTF8, 0, propertyValue.bstrVal, (int32_t)wcslen(propertyValue.bstrVal), utf8, (int32_t)sizeof(utf8), nullptr, false);
+
+        if (bytes > 1)
+        {
+          const uint8_t count = (uint8_t)min(0xFF, bytes);
+          *pData = count;
+          pData++;
+
+          memcpy(pData, utf8, count);
+          pData += count;
+        }
+        else
+        {
+          *pData = 0;
+          pData++;
+        }
+      }
+      else
+      {
+        *pData = 0;
+        pData++;
+      }
+
+      VariantClear(&propertyValue);
+    }
+
+    // Cleanup.
+    {
+      if (pClassObject != nullptr)
+        pClassObject->Release();
+
+      if (pEnumerator != nullptr)
+        pEnumerator->Release();
+
+      if (pServices != nullptr)
+        pServices->Release();
+
+      if (pLocator != nullptr)
+        pLocator->Release();
+    }
+
+  } while (false);
+
+  *pLength = (uint16_t)(pData - pDataStart);
+
+  return pData - pDataStart;
 }
