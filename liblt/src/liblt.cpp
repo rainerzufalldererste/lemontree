@@ -23,6 +23,8 @@
 
 #pragma comment(lib, "dxguid.lib")
 
+#include <dxgi1_4.h>
+
 //////////////////////////////////////////////////////////////////////////
 
 #define STRINGIFY(a) #a
@@ -956,6 +958,254 @@ static bool lt_from_registry(HKEY root, const char *path, const char *valueName,
   return result == ERROR_SUCCESS;
 }
 
+struct gpu_info_internal
+{
+  uint64_t dedicatedVideoMemory, sharedVideoMemory, totalVideoMemory, freeVideoMemory;
+  uint32_t vendorId, deviceChipsetId, deviceChipsetRevision, deviceBoardId;
+  char deviceName[sizeof(DXGI_ADAPTER_DESC2::Description)];
+};
+
+static bool lt_get_gpu_info_dxgi(OUT gpu_info_internal *pGpuInfo)
+{
+  if (pGpuInfo == nullptr)
+    return false;
+
+  typedef HRESULT(CreateDXGIFactory1Func)(REFIID riid, void **ppFactory);
+
+  HRESULT hr;
+  bool result = false;
+  HMODULE dxgi_dll = nullptr;
+  CreateDXGIFactory1Func *pCreateDXGIFactory1 = nullptr;
+  IDXGIFactory *pFactory = nullptr;
+  IDXGIAdapter *pAdapter = nullptr;
+  IDXGIAdapter3 *pAdapter3 = nullptr;
+  DXGI_QUERY_VIDEO_MEMORY_INFO nonLocalVRamInfo = {};
+  DXGI_QUERY_VIDEO_MEMORY_INFO localVRamInfo = {};
+  DXGI_ADAPTER_DESC2 adapterDescription = {};
+
+  dxgi_dll = LoadLibraryW(TEXT("dxgi.dll"));
+  
+  if (dxgi_dll == nullptr)
+    goto cleanup;
+
+  pCreateDXGIFactory1 = reinterpret_cast<CreateDXGIFactory1Func *>(GetProcAddress(dxgi_dll, STRINGIFY_VALUE(CreateDXGIFactory1)));
+  
+  if (pCreateDXGIFactory1 == nullptr)
+    goto cleanup;
+
+  if (FAILED(hr = pCreateDXGIFactory1(IID_IDXGIFactory1, (void **)&pFactory)))
+    goto cleanup;
+
+  if (FAILED(hr = pFactory->EnumAdapters(0, &pAdapter)))
+    goto cleanup;
+
+  if (FAILED(hr = pAdapter->QueryInterface(IID_IDXGIAdapter3, (void **)&pAdapter3)))
+    goto cleanup;
+
+  if (FAILED(hr = pAdapter3->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_NON_LOCAL, &nonLocalVRamInfo)))
+    goto cleanup;
+
+  if (FAILED(hr = pAdapter3->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &localVRamInfo)))
+    goto cleanup;
+
+  if (FAILED(hr = pAdapter3->GetDesc2(&adapterDescription)))
+    goto cleanup;
+
+  pGpuInfo->dedicatedVideoMemory = adapterDescription.DedicatedVideoMemory;
+  pGpuInfo->sharedVideoMemory = adapterDescription.SharedSystemMemory;
+  pGpuInfo->totalVideoMemory = adapterDescription.DedicatedSystemMemory + adapterDescription.DedicatedVideoMemory + adapterDescription.SharedSystemMemory;
+  pGpuInfo->freeVideoMemory = nonLocalVRamInfo.AvailableForReservation + localVRamInfo.AvailableForReservation;
+  pGpuInfo->vendorId = adapterDescription.VendorId;
+  pGpuInfo->deviceChipsetId = adapterDescription.DeviceId;
+  pGpuInfo->deviceChipsetRevision = adapterDescription.Revision;
+  pGpuInfo->deviceBoardId = adapterDescription.SubSysId;
+
+  memcpy(pGpuInfo->deviceName, adapterDescription.Description, sizeof(adapterDescription.Description));
+  
+  result = true;
+  goto cleanup;
+
+cleanup:
+  if (pAdapter3 != nullptr)
+    pAdapter3->Release();
+  
+  if (pAdapter != nullptr)
+    pAdapter->Release();
+  
+  if (pFactory != nullptr)
+    pFactory->Release();
+
+  if (dxgi_dll != nullptr)
+    FreeLibrary(dxgi_dll);
+
+  return result;
+}
+
+static uint8_t *lt_write_system_info_gpu(IN_OUT uint8_t *pData)
+{
+  gpu_info_internal info;
+  const bool dxgi_success = lt_get_gpu_info_dxgi(&info);
+
+  HRESULT hr;
+
+  typedef HRESULT(DirectDrawCreateFunc)(GUID *lpGUID, LPDIRECTDRAW *lplpDD, IUnknown *pUnkOuter);
+  DirectDrawCreateFunc *pDirectDrawCreate = nullptr;
+
+  IDirectDraw *pDirectDraw = nullptr;
+  IDirectDraw7 *pDirectDraw7 = nullptr;
+
+  DDCAPS caps = {};
+  DWORD dedicatedVideoMemory = 0;
+  uint32_t sharedVideoMemory = 0;
+
+  HMODULE ddraw_dll = LoadLibraryW(TEXT("ddraw.dll"));
+
+  if (ddraw_dll == nullptr)
+    goto cleanup;
+
+  pDirectDrawCreate = reinterpret_cast<DirectDrawCreateFunc *>(GetProcAddress(ddraw_dll, STRINGIFY(DirectDrawCreate)));
+
+  if (pDirectDrawCreate == nullptr)
+    goto cleanup;
+
+  // Create DirectDraw instance.
+  if (FAILED(hr = pDirectDrawCreate(nullptr, &pDirectDraw, nullptr)))
+    goto cleanup;
+
+  // Get IDirectDraw7 Interface.
+  if (FAILED(hr = pDirectDraw->QueryInterface(IID_IDirectDraw7, reinterpret_cast<void **>(&pDirectDraw7))))
+    goto cleanup;
+
+  if (!dxgi_success)
+  {
+    caps.dwSize = sizeof(caps);
+
+    // Query Combined Video Memory.
+    if (FAILED(hr = pDirectDraw->GetCaps(&caps, NULL)))
+      goto cleanup;
+
+    DDSCAPS2 surfaceCaps;
+    memset(&surfaceCaps, 0, sizeof(surfaceCaps));
+    surfaceCaps.dwCaps = DDSCAPS_VIDEOMEMORY | DDSCAPS_LOCALVIDMEM;
+
+    // Query Dedicated Video Memory.
+    if (FAILED(hr = pDirectDraw7->GetAvailableVidMem(&surfaceCaps, &dedicatedVideoMemory, nullptr)))
+      goto cleanup;
+
+    if (caps.dwVidMemTotal > dedicatedVideoMemory)
+      sharedVideoMemory = caps.dwVidMemTotal - dedicatedVideoMemory;
+  }
+
+  DDDEVICEIDENTIFIER2 deviceIdentifier;
+  memset(&deviceIdentifier, 0, sizeof(deviceIdentifier));
+
+  if (FAILED(hr = pDirectDraw7->GetDeviceIdentifier(&deviceIdentifier, 0)))
+    goto cleanup;
+
+  *pData = lt_si_gpu;
+  pData++;
+
+  if (!dxgi_success)
+  {
+    *reinterpret_cast<uint64_t *>(pData) = dedicatedVideoMemory;
+    pData += sizeof(uint64_t);
+
+    *reinterpret_cast<uint64_t *>(pData) = sharedVideoMemory;
+    pData += sizeof(uint64_t);
+
+    *reinterpret_cast<uint64_t *>(pData) = caps.dwVidMemTotal;
+    pData += sizeof(uint64_t);
+
+    *reinterpret_cast<uint64_t *>(pData) = caps.dwVidMemFree;
+    pData += sizeof(uint64_t);
+  }
+  else
+  {
+    *reinterpret_cast<uint64_t *>(pData) = info.dedicatedVideoMemory;
+    pData += sizeof(uint64_t);
+
+    *reinterpret_cast<uint64_t *>(pData) = info.sharedVideoMemory;
+    pData += sizeof(uint64_t);
+
+    *reinterpret_cast<uint64_t *>(pData) = info.totalVideoMemory;
+    pData += sizeof(uint64_t);
+
+    *reinterpret_cast<uint64_t *>(pData) = info.freeVideoMemory;
+    pData += sizeof(uint64_t);
+  }
+
+  *reinterpret_cast<uint64_t *>(pData) = deviceIdentifier.liDriverVersion.QuadPart;
+  pData += sizeof(uint64_t);
+
+  if (!dxgi_success)
+  {
+    *reinterpret_cast<uint32_t *>(pData) = deviceIdentifier.dwVendorId;
+    pData += sizeof(uint32_t);
+
+    *reinterpret_cast<uint32_t *>(pData) = deviceIdentifier.dwDeviceId;
+    pData += sizeof(uint32_t);
+
+    *reinterpret_cast<uint32_t *>(pData) = deviceIdentifier.dwRevision;
+    pData += sizeof(uint32_t);
+
+    *reinterpret_cast<uint32_t *>(pData) = deviceIdentifier.dwSubSysId;
+    pData += sizeof(uint32_t);
+
+    uint8_t length = (uint8_t)min(0xFF, strnlen(deviceIdentifier.szDescription, ARRAYSIZE(deviceIdentifier.szDescription)));
+
+    *pData = length;
+    pData++;
+
+    memcpy(pData, deviceIdentifier.szDescription, length);
+    pData += length;
+  }
+  else
+  {
+    *reinterpret_cast<uint32_t *>(pData) = info.vendorId;
+    pData += sizeof(uint32_t);
+
+    *reinterpret_cast<uint32_t *>(pData) = info.deviceChipsetId;
+    pData += sizeof(uint32_t);
+
+    *reinterpret_cast<uint32_t *>(pData) = info.deviceChipsetRevision;
+    pData += sizeof(uint32_t);
+
+    *reinterpret_cast<uint32_t *>(pData) = info.deviceBoardId;
+    pData += sizeof(uint32_t);
+
+    uint8_t length = (uint8_t)min(0xFF, strnlen(info.deviceName, ARRAYSIZE(info.deviceName)));
+
+    *pData = length;
+    pData++;
+
+    memcpy(pData, info.deviceName, length);
+    pData += length;
+  }
+
+  // Driver Name.
+  {
+    const uint8_t length = (uint8_t)min(0xFF, strnlen(deviceIdentifier.szDriver, ARRAYSIZE(deviceIdentifier.szDriver)));
+
+    *pData = length;
+    pData++;
+
+    memcpy(pData, deviceIdentifier.szDriver, length);
+    pData += length;
+  }
+
+cleanup:
+  if (pDirectDraw7 != nullptr)
+    pDirectDraw7->Release();
+
+  if (pDirectDraw != nullptr)
+    pDirectDraw->Release();
+
+  if (ddraw_dll != nullptr)
+    FreeLibrary(ddraw_dll);
+
+  return pData;
+}
+
 static size_t lt_write_system_info(OUT uint8_t *pData)
 {
   uint8_t *pDataStart = pData;
@@ -1097,169 +1347,9 @@ static size_t lt_write_system_info(OUT uint8_t *pData)
   } while (false);
 
   // GPU.
-  do
   {
-    HRESULT hr;
-
-    HMODULE ddraw_dll = LoadLibraryW(TEXT("ddraw.dll"));
-    
-    if (ddraw_dll == nullptr)
-      break;
-
-    typedef HRESULT(DirectDrawCreateFunc)(GUID *lpGUID, LPDIRECTDRAW *lplpDD, IUnknown *pUnkOuter);
-    DirectDrawCreateFunc *pDirectDrawCreate = reinterpret_cast<DirectDrawCreateFunc *>(GetProcAddress(ddraw_dll, STRINGIFY(DirectDrawCreate)));
-    
-    if (pDirectDrawCreate == nullptr)
-    {
-      FreeLibrary(ddraw_dll);
-      break;
-    }
-
-    IDirectDraw *pDirectDraw = nullptr;
-    
-    // Create DirectDraw instance.
-    if (FAILED(hr = pDirectDrawCreate(nullptr, &pDirectDraw, nullptr)))
-    {
-      if (pDirectDraw != nullptr)
-        pDirectDraw->Release();
-
-      FreeLibrary(ddraw_dll);
-
-      break;
-    }
-
-    IDirectDraw7 *pDirectDraw7 = nullptr;
-
-    // Get IDirectDraw7 Interface.
-    if (FAILED(hr = pDirectDraw->QueryInterface(IID_IDirectDraw7, reinterpret_cast<void **>(&pDirectDraw7))))
-    {
-      if (pDirectDraw7 != nullptr)
-        pDirectDraw7->Release();
-      
-      if (pDirectDraw != nullptr)
-        pDirectDraw->Release();
-
-      FreeLibrary(ddraw_dll);
-
-      break;
-    }
-
-    DDCAPS caps;
-    memset(&caps, 0, sizeof(caps));
-    caps.dwSize = sizeof(caps);
-
-    // Query Combined Video Memory.
-    if (FAILED(hr = pDirectDraw->GetCaps(&caps, NULL)))
-    {
-      if (pDirectDraw7 != nullptr)
-        pDirectDraw7->Release();
-
-      if (pDirectDraw != nullptr)
-        pDirectDraw->Release();
-
-      FreeLibrary(ddraw_dll);
-
-      break;
-    }
-
-    DDSCAPS2 surfaceCaps;
-    memset(&surfaceCaps, 0, sizeof(surfaceCaps));
-    surfaceCaps.dwCaps = DDSCAPS_VIDEOMEMORY | DDSCAPS_LOCALVIDMEM;
-
-    DWORD dedicatedVideoMemory = 0;
-
-    // Query Dedicated Video Memory.
-    if (FAILED(hr = pDirectDraw7->GetAvailableVidMem(&surfaceCaps, &dedicatedVideoMemory, nullptr)))
-    {
-      if (pDirectDraw7 != nullptr)
-        pDirectDraw7->Release();
-
-      if (pDirectDraw != nullptr)
-        pDirectDraw->Release();
-
-      FreeLibrary(ddraw_dll);
-
-      break;
-    }
-
-    uint32_t sharedVideoMemory = 0;
-
-    if (caps.dwVidMemTotal > dedicatedVideoMemory)
-      sharedVideoMemory = caps.dwVidMemTotal - dedicatedVideoMemory;
-
-    DDDEVICEIDENTIFIER2 deviceIdentifier;
-    memset(&deviceIdentifier, 0, sizeof(deviceIdentifier));
-
-    if (FAILED(hr = pDirectDraw7->GetDeviceIdentifier(&deviceIdentifier, 0)))
-    {
-      if (pDirectDraw7 != nullptr)
-        pDirectDraw7->Release();
-
-      if (pDirectDraw != nullptr)
-        pDirectDraw->Release();
-
-      FreeLibrary(ddraw_dll);
-
-      break;
-    }
-
-    *pData = lt_si_gpu;
-    pData++;
-
-    *reinterpret_cast<uint32_t *>(pData) = dedicatedVideoMemory;
-    pData += sizeof(uint32_t);
-
-    *reinterpret_cast<uint32_t *>(pData) = sharedVideoMemory;
-    pData += sizeof(uint32_t);
-
-    *reinterpret_cast<uint32_t *>(pData) = caps.dwVidMemTotal;
-    pData += sizeof(uint32_t);
-
-    *reinterpret_cast<uint32_t *>(pData) = caps.dwVidMemFree;
-    pData += sizeof(uint32_t);
-
-    *reinterpret_cast<uint64_t *>(pData) = deviceIdentifier.liDriverVersion.QuadPart;
-    pData += sizeof(uint64_t);
-
-    *reinterpret_cast<uint32_t *>(pData) = deviceIdentifier.dwVendorId;
-    pData += sizeof(uint32_t);
-
-    *reinterpret_cast<uint32_t *>(pData) = deviceIdentifier.dwDeviceId;
-    pData += sizeof(uint32_t);
-
-    *reinterpret_cast<uint32_t *>(pData) = deviceIdentifier.dwRevision;
-    pData += sizeof(uint32_t);
-
-    *reinterpret_cast<uint32_t *>(pData) = deviceIdentifier.dwSubSysId;
-    pData += sizeof(uint32_t);
-
-    uint8_t length = (uint8_t)min(0xFF, strnlen(deviceIdentifier.szDescription, ARRAYSIZE(deviceIdentifier.szDescription)));
-
-    *pData = length;
-    pData++;
-
-    memcpy(pData, deviceIdentifier.szDescription, length);
-    pData += length;
-    
-    length = (uint8_t)min(0xFF, strnlen(deviceIdentifier.szDescription, ARRAYSIZE(deviceIdentifier.szDriver)));
-
-    *pData = length;
-    pData++;
-
-    memcpy(pData, deviceIdentifier.szDriver, length);
-    pData += length;
-
-    // Cleanup.
-    {
-      if (pDirectDraw7 != nullptr)
-        pDirectDraw7->Release();
-
-      if (pDirectDraw != nullptr)
-        pDirectDraw->Release();
-
-      FreeLibrary(ddraw_dll);
-    }
-  } while (0);
+    pData = lt_write_system_info_gpu(pData);
+  }
 
   // Languanges.
   {

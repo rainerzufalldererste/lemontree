@@ -5,6 +5,7 @@
 
 #include <memory>
 #include <vector>
+#include <string>
 
 #include <windows.h>
 
@@ -46,6 +47,180 @@
 void print_string_as_json(const char *string);
 void print_string_as_json(const wchar_t *string);
 void print_bytes_as_base64string(const uint8_t *pData, const size_t size);
+
+//////////////////////////////////////////////////////////////////////////
+
+struct lt_state_identifier
+{
+  uint64_t subSystem, stateIndex, subStateIndex;
+};
+
+struct lt_operation_identifier
+{
+  uint64_t subSystem, operationType;
+};
+
+struct lt_transition_data
+{
+  uint64_t count;
+  double avgDelayS;
+  uint64_t maxDelay, minDelay;
+};
+
+struct lt_operation_transition_data : lt_transition_data
+{
+  std::vector<std::pair<uint64_t, uint64_t>> operationIndex;
+};
+
+struct lt_error_identifier
+{
+  uint64_t subSystem;
+  uint64_t errorIndex;
+};
+
+struct lt_operation_index_data
+{
+  uint64_t index, count;
+};
+
+struct lt_state_ref
+{
+  lt_state_identifier index;
+  lt_transition_data data;
+};
+
+struct lt_explicit_operation_ref
+{
+  lt_operation_identifier index;
+  lt_operation_transition_data data;
+};
+
+struct lt_operation_ref
+{
+  lt_operation_identifier index;
+  lt_transition_data data;
+};
+
+struct lt_error_ref
+{
+  lt_error_identifier index;
+  lt_transition_data data;
+};
+
+typedef lt_error_ref lt_warning_ref, lt_log_ref;
+
+struct lt_crash_ref
+{
+  uint64_t index;
+  lt_transition_data data;
+};
+
+typedef lt_crash_ref lt_value_ref;
+
+template <typename T>
+struct lt_reach_probability
+{
+  T index;
+  uint64_t hits;
+};
+
+struct lt_state
+{
+  lt_transition_data data;
+  uint64_t avgTimeSinceStart;
+
+  std::vector<lt_state_ref> parentState;
+  std::vector<lt_explicit_operation_ref> nextOperation;
+  std::vector<lt_operation_ref> previousOperation;
+  std::vector<lt_error_ref> errors;
+  std::vector<lt_warning_ref> warnings;
+  std::vector<lt_log_ref> logs;
+  std::vector<lt_crash_ref> crashes;
+
+  std::vector<lt_reach_probability<lt_state_ref>> stateReach;
+  std::vector<lt_reach_probability<lt_operation_ref>> operationReach;
+};
+
+struct lt_operation
+{
+  size_t totalCount;
+  uint64_t avgTimeSinceStart;
+
+  std::vector<lt_operation_index_data> operationIndex;
+  std::vector<lt_state_ref> previousState;
+  std::vector<lt_state_ref> nextState;
+  std::vector<lt_explicit_operation_ref> nextOperation;
+  std::vector<lt_error_ref> errors;
+  std::vector<lt_warning_ref> warnings;
+  std::vector<lt_log_ref> logs;
+  std::vector<lt_crash_ref> crashes;
+  std::vector<lt_value_ref> observedU64;
+  std::vector<lt_value_ref> observedI64;
+  std::vector<lt_value_ref> observedF64;
+  std::vector<lt_value_ref> observedString;
+  std::vector<lt_value_ref> observedRangeU64;
+  std::vector<lt_value_ref> observedRangeI64;
+  std::vector<lt_value_ref> observedRangeF64;
+};
+
+struct lt_error
+{
+  uint64_t subSystem;
+  uint64_t errorCode;
+
+  size_t descriptionLength = 0;
+  char *description = nullptr;
+
+  size_t stackTraceLength = 0;
+  uint8_t *pStackTrace = nullptr;
+};
+
+struct lt_log
+{
+  uint64_t subSystem;
+
+  size_t descriptionLength = 0;
+  char *description = nullptr;
+};
+
+struct lt_state_pack
+{
+  lt_state_identifier index;
+  lt_state state;
+};
+
+struct lt_operation_pack
+{
+  lt_operation_identifier index;
+  lt_operation operation;
+};
+
+template <typename T>
+struct lt_values
+{
+  std::vector<std::pair<T, uint64_t>> multiple;
+  std::vector<T> single;
+
+  size_t count;
+  T min, T max, T average;
+};
+
+struct lt_analyze
+{
+  uint64_t majorVersion = 0;
+  uint64_t minorVersion = 0;
+  char productName[0x100];
+
+  std::vector<uint64_t, std::vector<lt_state_pack>> states;
+  std::vector<uint64_t, std::vector<lt_operation_pack>> operations;
+  std::vector<std::pair<lt_value_ref, lt_values<uint64_t>>> observedU64;
+  std::vector<std::pair<lt_value_ref, lt_values<int64_t>>> observedI64;
+  std::vector<std::pair<lt_value_ref, lt_values<double>>> observedF64;
+  std::vector<std::pair<lt_value_ref, lt_values<std::string>>> observedString;
+  std::vector<std::pair<lt_value_ref, lt_values<uint64_t>>> observedRangeU64;
+  std::vector<std::pair<lt_value_ref, lt_values<int64_t>>> observedRangeI64;
+  std::vector<std::pair<lt_value_ref, lt_values<double>>> observedRangeF64;
+};
 
 //////////////////////////////////////////////////////////////////////////
 
