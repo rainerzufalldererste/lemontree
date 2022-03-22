@@ -42,6 +42,34 @@
     print_string_as_json(buffer256); \
   } } while (0);
 
+#define SKIP_X64(prefix, name, stream) do { uint64_t v = 0; FATAL_IF(!stream.read(&v), "Insufficient data stream"); } while (0);
+#define SKIP_U64(prefix, name, stream) do { uint64_t v = 0; FATAL_IF(!stream.read(&v), "Insufficient data stream"); } while (0);
+#define SKIP_I64(prefix, name, stream) do { int64_t v = 0; FATAL_IF(!stream.read(&v), "Insufficient data stream"); } while (0);
+#define SKIP_F64(prefix, name, stream) do { double v = 0; FATAL_IF(!stream.read(&v), "Insufficient data stream"); } while (0);
+#define SKIP_U32(prefix, name, stream) do { uint32_t v = 0; FATAL_IF(!stream.read(&v), "Insufficient data stream"); } while (0);
+#define SKIP_I32(prefix, name, stream) do { int32_t v = 0; FATAL_IF(!stream.read(&v), "Insufficient data stream"); } while (0);
+#define SKIP_U8(prefix, name, stream) do { uint8_t v = 0; FATAL_IF(!stream.read(&v), "Insufficient data stream"); } while (0);
+#define SKIP_BOOL(prefix, name, stream) do { uint8_t v = 0; FATAL_IF(!stream.read(&v), "Insufficient data stream"); } while (0);
+
+#define SKIP_STRING(prefix, name, stream) do { \
+  char buffer256[0x100]; \
+  uint8_t length = 0; \
+  FATAL_IF(!stream.read(&length), "Insufficient data stream"); \
+  if (length > 0) \
+  { FATAL_IF(!stream.read(buffer256, length), "Insufficient data stream"); \
+  } } while (0);
+
+#define READ(pStream, value) do { if (!pStream->read(&value)) return false; } while (0)
+#define WRITE(pStream, value) do { if (!pStream->write(&value)) return false; } while (0)
+#define READ_STRING(pStream, value) do { uint8_t __len__; if (!pStream->read(&__len__)) return false; if (__len__ >= sizeof(value)) return false; if (!pStream->read(value, __len__)) return false; value[__len__] = '\0'; } while (0)
+#define WRITE_STRING(pStream, value) do { \
+  const uint8_t __len__ = min(0xFF, strlen(value)); \
+  if (!pStream->write(&__len__)) \
+    return false; \
+  if (__len__ > 0 && !pStream->write(value, __len__)) \
+    return false; \
+  } while (0)
+
 //////////////////////////////////////////////////////////////////////////
 
 void print_string_as_json(const char *string);
@@ -50,26 +78,71 @@ void print_bytes_as_base64string(const uint8_t *pData, const size_t size);
 
 //////////////////////////////////////////////////////////////////////////
 
+class StreamWriter
+{
+public:
+  uint8_t *pBytes = nullptr;
+  size_t capacity = 0;
+  size_t size = 0;
+
+  StreamWriter() {}
+
+  template <typename T>
+  bool write(const T *pData, const size_t count = 1)
+  {
+    if (pData == nullptr)
+      return false;
+
+    const size_t writeSize = sizeof(T) * count;
+
+    if (size + writeSize > capacity)
+    {
+      const size_t newCapacity = (capacity + writeSize) * 2;
+      pBytes = realloc(pBytes, newCapacity);
+
+      if (pBytes == nullptr)
+        return false;
+
+      capacity = newCapacity;
+    }
+
+    memcpy(pBytes + size, pData, writeSize);
+    size += writeSize;
+  }
+};
+
+//////////////////////////////////////////////////////////////////////////
+
 struct lt_state_identifier
 {
-  uint64_t subSystem, stateIndex, subStateIndex;
+  uint64_t stateIndex, subStateIndex;
+};
+
+struct lt_full_state_identifier : lt_state_identifier
+{
+  uint64_t subSystem;
 };
 
 struct lt_operation_identifier
 {
-  uint64_t subSystem, operationType;
+  uint64_t operationType;
+};
+
+struct lt_full_operation_identifier : lt_operation_identifier
+{
+  uint64_t subSystem;
 };
 
 struct lt_transition_data
 {
-  uint64_t count;
-  double avgDelayS;
+  uint64_t count = 0;
+  double avgDelayS = 0;
   uint64_t maxDelay, minDelay;
 };
 
 struct lt_operation_transition_data : lt_transition_data
 {
-  std::vector<std::pair<uint64_t, uint64_t>> operationIndex;
+  std::vector<std::pair<uint64_t, uint64_t>> operationIndexCount;
 };
 
 struct lt_error_identifier
@@ -124,43 +197,55 @@ struct lt_reach_probability
   uint64_t hits;
 };
 
+template <typename T>
+struct lt_values
+{
+  std::vector<std::pair<T, uint64_t>> multiple;
+  std::vector<T> single;
+
+  size_t count = 0;
+  T min, max, average;
+};
+
 struct lt_state
 {
   lt_transition_data data;
-  uint64_t avgTimeSinceStart;
+  double avgTimeSinceStartS = 0;
 
-  std::vector<lt_state_ref> parentState;
+  std::vector<lt_state_ref> previousState;
+  std::vector<lt_state_ref> nextState;
   std::vector<lt_explicit_operation_ref> nextOperation;
   std::vector<lt_operation_ref> previousOperation;
-  std::vector<lt_error_ref> errors;
-  std::vector<lt_warning_ref> warnings;
-  std::vector<lt_log_ref> logs;
-  std::vector<lt_crash_ref> crashes;
 
   std::vector<lt_reach_probability<lt_state_ref>> stateReach;
   std::vector<lt_reach_probability<lt_operation_ref>> operationReach;
+
+  //std::vector<lt_error_ref> errors;
+  //std::vector<lt_warning_ref> warnings;
+  //std::vector<lt_log_ref> logs;
+  //std::vector<lt_crash_ref> crashes;
 };
 
 struct lt_operation
 {
-  size_t totalCount;
-  uint64_t avgTimeSinceStart;
+  lt_transition_data data;
+  double avgTimeSinceStartS = 0;
 
   std::vector<lt_operation_index_data> operationIndex;
   std::vector<lt_state_ref> previousState;
   std::vector<lt_state_ref> nextState;
   std::vector<lt_explicit_operation_ref> nextOperation;
-  std::vector<lt_error_ref> errors;
-  std::vector<lt_warning_ref> warnings;
-  std::vector<lt_log_ref> logs;
-  std::vector<lt_crash_ref> crashes;
-  std::vector<lt_value_ref> observedU64;
-  std::vector<lt_value_ref> observedI64;
-  std::vector<lt_value_ref> observedF64;
-  std::vector<lt_value_ref> observedString;
-  std::vector<lt_value_ref> observedRangeU64;
-  std::vector<lt_value_ref> observedRangeI64;
-  std::vector<lt_value_ref> observedRangeF64;
+  //std::vector<lt_error_ref> errors;
+  //std::vector<lt_warning_ref> warnings;
+  //std::vector<lt_log_ref> logs;
+  //std::vector<lt_crash_ref> crashes;
+  //std::vector<lt_value_ref> observedU64;
+  //std::vector<lt_value_ref> observedI64;
+  //std::vector<lt_value_ref> observedF64;
+  //std::vector<lt_value_ref> observedString;
+  //std::vector<lt_value_ref> observedRangeU64;
+  //std::vector<lt_value_ref> observedRangeI64;
+  //std::vector<lt_value_ref> observedRangeF64;
 };
 
 struct lt_error
@@ -195,32 +280,591 @@ struct lt_operation_pack
   lt_operation operation;
 };
 
-template <typename T>
-struct lt_values
-{
-  std::vector<std::pair<T, uint64_t>> multiple;
-  std::vector<T> single;
-
-  size_t count;
-  T min, T max, T average;
-};
-
 struct lt_analyze
 {
   uint64_t majorVersion = 0;
   uint64_t minorVersion = 0;
   char productName[0x100];
 
-  std::vector<uint64_t, std::vector<lt_state_pack>> states;
-  std::vector<uint64_t, std::vector<lt_operation_pack>> operations;
-  std::vector<std::pair<lt_value_ref, lt_values<uint64_t>>> observedU64;
-  std::vector<std::pair<lt_value_ref, lt_values<int64_t>>> observedI64;
-  std::vector<std::pair<lt_value_ref, lt_values<double>>> observedF64;
-  std::vector<std::pair<lt_value_ref, lt_values<std::string>>> observedString;
-  std::vector<std::pair<lt_value_ref, lt_values<uint64_t>>> observedRangeU64;
-  std::vector<std::pair<lt_value_ref, lt_values<int64_t>>> observedRangeI64;
-  std::vector<std::pair<lt_value_ref, lt_values<double>>> observedRangeF64;
+  std::vector<std::pair<uint64_t, std::vector<lt_state_pack>>> states;
+  std::vector<std::pair<uint64_t, std::vector<lt_operation_pack>>> operations;
+  //std::vector<std::pair<uint64_t, lt_values<uint64_t>>> observedU64;
+  //std::vector<std::pair<uint64_t, lt_values<int64_t>>> observedI64;
+  //std::vector<std::pair<uint64_t, lt_values<double>>> observedF64;
+  //std::vector<std::pair<uint64_t, lt_values<char[256]>>> observedString;
+  //std::vector<std::pair<uint64_t, lt_values<uint64_t>>> observedRangeU64;
+  //std::vector<std::pair<uint64_t, lt_values<int64_t>>> observedRangeI64;
+  //std::vector<std::pair<uint64_t, lt_values<double>>> observedRangeF64;
+
+  // Errors? Warnings? Crashes?
 };
+
+enum
+{
+  lt_analyze_file_version = 1,
+};
+
+template <typename T>
+bool deserialize(OUT std::vector<T> *pVector, IN ByteStream *pStream, const uint32_t version)
+{
+  uint64_t count;
+  READ(pStream, count);
+
+  for (size_t i = 0; i < count; i++)
+  {
+    T item;
+
+    if (!deserialize(&item, pStream, version))
+      return false;
+
+    pVector->push_back(std::move(item));
+  }
+}
+
+template <typename T>
+bool serialize(IN const std::vector<T> *pVector, IN StreamWriter *pStream)
+{
+  const uint64_t count = pVector->size();
+  WRITE(pStream, count);
+
+  for (const auto &_item : *pVector)
+    if (!serialize(&_item, pStream))
+      return false;
+}
+
+bool deserialize(OUT lt_state_identifier *pId, IN ByteStream *pStream, const uint32_t version)
+{
+  READ(pStream, pId->stateIndex);
+  READ(pStream, pId->subStateIndex);
+
+  return true;
+}
+
+bool serialize(IN const lt_state_identifier *pId, IN StreamWriter *pStream)
+{
+  WRITE(pStream, pId->stateIndex);
+  WRITE(pStream, pId->subStateIndex);
+
+  return true;
+}
+
+bool deserialize(OUT lt_transition_data *pData, IN ByteStream *pStream, const uint32_t version)
+{
+  READ(pStream, pData->avgDelayS);
+  READ(pStream, pData->count);
+  READ(pStream, pData->minDelay);
+  READ(pStream, pData->maxDelay);
+
+  return true;
+}
+
+bool serialize(IN const lt_transition_data *pData, IN StreamWriter *pStream)
+{
+  WRITE(pStream, pData->avgDelayS);
+  WRITE(pStream, pData->count);
+  WRITE(pStream, pData->minDelay);
+  WRITE(pStream, pData->maxDelay);
+
+  return true;
+}
+
+bool deserialize(OUT lt_state_ref *pRef, IN ByteStream *pStream, const uint32_t version)
+{
+  if (!deserialize(&pRef->index, pStream, version))
+    return false;
+
+  if (!deserialize(&pRef->data, pStream, version))
+    return false;
+
+  return true;
+}
+
+bool serialize(IN const lt_state_ref *pRef, IN StreamWriter *pStream)
+{
+  if (!serialize(&pRef->index, pStream))
+    return false;
+
+  if (!serialize(&pRef->data, pStream))
+    return false;
+
+  return true;
+}
+
+bool deserialize(OUT lt_operation_identifier *pId, IN ByteStream *pStream, const uint32_t version)
+{
+  READ(pStream, pId->operationType);
+
+  return true;
+}
+
+bool serialize(IN const lt_operation_identifier *pId, IN StreamWriter *pStream)
+{
+  WRITE(pStream, pId->operationType);
+
+  return true;
+}
+
+bool deserialize(OUT lt_operation_transition_data *pData, IN ByteStream *pStream, const uint32_t version)
+{
+  if (!deserialize(static_cast<lt_transition_data *>(pData), pStream, version))
+    return false;
+
+  // `operationIndexCount`.
+  {
+    uint64_t count;
+    READ(pStream, count);
+
+    for (size_t i = 0; i < count; i++)
+    {
+      uint64_t index, hits;
+      READ(pStream, index);
+      READ(pStream, hits);
+
+      pData->operationIndexCount.emplace_back(index, hits);
+    }
+  }
+
+  return true;
+}
+
+bool serialize(IN const lt_operation_transition_data *pData, IN StreamWriter *pStream)
+{
+  if (!serialize(static_cast<const lt_transition_data *>(pData), pStream))
+    return false;
+
+  // `operationIndexCount`.
+  {
+    const uint64_t count = pData->operationIndexCount.size();
+    WRITE(pStream, count);
+
+    for (const auto &_item : pData->operationIndexCount)
+    {
+      WRITE(pStream, _item.first);
+      WRITE(pStream, _item.second);
+    }
+  }
+
+  return true;
+}
+
+bool deserialize(OUT lt_explicit_operation_ref *pRef, IN ByteStream *pStream, const uint32_t version)
+{
+  if (!deserialize(&pRef->index, pStream, version))
+    return false;
+
+  if (!deserialize(&pRef->data, pStream, version))
+    return false;
+
+  return true;
+}
+
+bool serialize(IN const lt_explicit_operation_ref *pRef, IN StreamWriter *pStream)
+{
+  if (!serialize(&pRef->index, pStream))
+    return false;
+
+  if (!serialize(&pRef->data, pStream))
+    return false;
+
+  return true;
+}
+
+bool deserialize(OUT lt_operation_ref *pRef, IN ByteStream *pStream, const uint32_t version)
+{
+  if (!deserialize(&pRef->index, pStream, version))
+    return false;
+
+  if (!deserialize(&pRef->data, pStream, version))
+    return false;
+
+  return true;
+}
+
+bool serialize(IN const lt_operation_ref *pRef, IN StreamWriter *pStream)
+{
+  if (!serialize(&pRef->index, pStream))
+    return false;
+
+  if (!serialize(&pRef->data, pStream))
+    return false;
+
+  return true;
+}
+
+template <typename T>
+bool deserialize(OUT lt_reach_probability<T> *pProb, IN ByteStream *pStream, const uint32_t version)
+{
+  if (!deserialize(pProb->index, pStream, version))
+    return false;
+
+  READ(pStream, pProb->hits);
+
+  return true;
+}
+
+template <typename T>
+bool serialize(IN const lt_reach_probability<T> *pProb, IN StreamWriter *pStream)
+{
+  if (!serialize(pProb->index, pStream))
+    return false;
+
+  WRITE(pStream, pProb->hits);
+
+  return true;
+}
+
+bool deserialize(OUT lt_operation_index_data *pData, IN ByteStream *pStream, const uint32_t version)
+{
+  READ(pStream, pData->index);
+  READ(pStream, pData->count);
+
+  return true;
+}
+
+bool serialize(IN const lt_operation_index_data *pData, IN StreamWriter *pStream)
+{
+  WRITE(pStream, pData->index);
+  WRITE(pStream, pData->count);
+
+  return true;
+}
+
+bool deserialize(OUT lt_state_pack *pPack, IN ByteStream *pStream, const uint32_t version)
+{
+  if (!deserialize(&pPack->index, pStream, version))
+    return false;
+
+  if (!deserialize(&pPack->state.data, pStream, version))
+    return false;
+
+  READ(pStream, pPack->state.avgTimeSinceStartS);
+
+  if (!deserialize(&pPack->state.previousState, pStream, version))
+    return false;
+
+  if (!deserialize(&pPack->state.nextState, pStream, version))
+    return false;
+
+  if (!deserialize(&pPack->state.nextOperation, pStream, version))
+    return false;
+
+  if (!deserialize(&pPack->state.previousOperation, pStream, version))
+    return false;
+
+  if (!deserialize(&pPack->state.stateReach, pStream, version))
+    return false;
+
+  if (!deserialize(&pPack->state.operationReach, pStream, version))
+    return false;
+
+  return true;
+}
+
+bool serialize(IN const lt_state_pack *pPack, IN StreamWriter *pStream)
+{
+  if (!serialize(&pPack->index, pStream))
+    return false;
+
+  if (!serialize(&pPack->state.data, pStream))
+    return false;
+
+  WRITE(pStream, pPack->state.avgTimeSinceStartS);
+
+  if (!serialize(&pPack->state.previousState, pStream))
+    return false;
+
+  if (!serialize(&pPack->state.nextState, pStream))
+    return false;
+
+  if (!serialize(&pPack->state.nextOperation, pStream))
+    return false;
+
+  if (!serialize(&pPack->state.previousOperation, pStream))
+    return false;
+
+  if (!serialize(&pPack->state.stateReach, pStream))
+    return false;
+
+  if (!serialize(&pPack->state.operationReach, pStream))
+    return false;
+
+  return true;
+}
+
+bool deserialize(OUT lt_operation_pack *pPack, IN ByteStream *pStream, const uint32_t version)
+{
+  if (!deserialize(&pPack->index, pStream, version))
+    return false;
+
+  if (!deserialize(&pPack->operation.data, pStream, version))
+    return false;
+
+  READ(pStream, pPack->operation.avgTimeSinceStartS);
+
+  if (!deserialize(&pPack->operation.operationIndex, pStream, version))
+    return false;
+
+  if (!deserialize(&pPack->operation.previousState, pStream, version))
+    return false;
+
+  if (!deserialize(&pPack->operation.nextState, pStream, version))
+    return false;
+
+  if (!deserialize(&pPack->operation.nextOperation, pStream, version))
+    return false;
+
+  return true;
+}
+
+bool serialize(IN const lt_operation_pack *pPack, IN StreamWriter *pStream)
+{
+  if (!serialize(&pPack->index, pStream))
+    return false;
+
+  if (!serialize(&pPack->operation.data, pStream))
+    return false;
+
+  WRITE(pStream, pPack->operation.avgTimeSinceStartS);
+
+  if (!serialize(&pPack->operation.operationIndex, pStream))
+    return false;
+
+  if (!serialize(&pPack->operation.previousState, pStream))
+    return false;
+
+  if (!serialize(&pPack->operation.nextState, pStream))
+    return false;
+
+  if (!serialize(&pPack->operation.nextOperation, pStream))
+    return false;
+}
+
+bool deserialize(OUT lt_analyze *pAnalyze, IN ByteStream *pStream)
+{
+  uint32_t version;
+  READ(pStream, version);
+
+  if (version > lt_analyze_file_version)
+    return false;
+
+  READ(pStream, pAnalyze->majorVersion);
+  READ(pStream, pAnalyze->minorVersion);
+  READ_STRING(pStream, pAnalyze->productName);
+
+  // Read States.
+  {
+    uint64_t subSystemCount = 0;
+    READ(pStream, subSystemCount);
+
+    for (size_t i = 0; i < subSystemCount; i++)
+    {
+      uint64_t subSystem;
+      READ(pStream, subSystem);
+      
+      uint64_t stateCount;
+      READ(pStream, stateCount);
+
+      std::vector<lt_state_pack> states;
+
+      for (size_t j = 0; j < stateCount; j++)
+      {
+        lt_state_pack pack;
+
+        if (!deserialize(&pack, pStream, version))
+          return false;
+
+        states.push_back(pack);
+      }
+
+      pAnalyze->states.emplace_back(subSystem, states);
+    }
+  }
+
+  // Read Operations.
+  {
+    uint64_t subSystemCount = 0;
+    READ(pStream, subSystemCount);
+
+    for (size_t i = 0; i < subSystemCount; i++)
+    {
+      uint64_t subSystem;
+      READ(pStream, subSystem);
+
+      uint64_t operationCount;
+      READ(pStream, operationCount);
+
+      std::vector<lt_operation_pack> operations;
+
+      for (size_t j = 0; j < operationCount; j++)
+      {
+        lt_operation_pack pack;
+
+        if (!deserialize(&pack, pStream, version))
+          return false;
+
+        operations.push_back(pack);
+      }
+
+      pAnalyze->operations.emplace_back(subSystem, operations);
+    }
+  }
+
+  return true;
+}
+
+bool serialize(IN const lt_analyze *pAnalyze, OUT StreamWriter *pStream)
+{
+  const uint32_t version = lt_analyze_file_version;
+  WRITE(pStream, version);
+
+  WRITE(pStream, pAnalyze->majorVersion);
+  WRITE(pStream, pAnalyze->minorVersion);
+  WRITE_STRING(pStream, pAnalyze->productName);
+
+  // Write States.
+  {
+    const uint64_t subSystemCount = pAnalyze->states.size();
+    WRITE(pStream, subSystemCount);
+
+    for (const auto &_subState : pAnalyze->states)
+    {
+      WRITE(pStream, _subState.first);
+
+      const uint64_t stateCount = _subState.second.size();
+
+      for (const auto &_state : _subState.second)
+      {
+        if (!serialize(&_state, pStream))
+          return false;
+      }
+    }
+  }
+
+  // Write Operations.
+  {
+    const uint64_t subSystemCount = pAnalyze->operations.size();
+    WRITE(pStream, subSystemCount);
+
+    for (const auto &_subState : pAnalyze->operations)
+    {
+      WRITE(pStream, _subState.first);
+
+      const uint64_t operationCount = _subState.second.size();
+
+      for (const auto &_operation : _subState.second)
+      {
+        if (!serialize(&_operation, pStream))
+          return false;
+      }
+    }
+  }
+
+  return true;
+}
+
+//////////////////////////////////////////////////////////////////////////
+
+lt_state *get_state(IN lt_analyze *pAnalyze, const uint64_t subSystem, const uint64_t stateIndex, const uint64_t subStateIndex)
+{
+  if (pAnalyze == nullptr)
+    return nullptr;
+
+  for (auto &_subState : pAnalyze->states)
+  {
+    if (_subState.first == subSystem)
+    {
+      // Try to find the state.
+      for (auto &_item : _subState.second)
+        if (_item.index.stateIndex == stateIndex && _item.index.subStateIndex == subStateIndex)
+          return &_item.state;
+
+      // Create new state.
+      {
+        lt_state_pack pack;
+        pack.index.stateIndex = stateIndex;
+        pack.index.subStateIndex = subStateIndex;
+
+        _subState.second.push_back(std::move(pack));
+
+        return &std::get<1>(_subState).back().state;
+      }
+    }
+  }
+
+  // Create New SubSystem.
+  {
+    std::pair<uint64_t, std::vector<lt_state_pack>> subState;
+    subState.first = subSystem;
+
+    pAnalyze->states.push_back(std::move(subState));
+
+    lt_state_pack pack;
+    pack.index.stateIndex = stateIndex;
+    pack.index.subStateIndex = subStateIndex;
+
+    pAnalyze->states.back().second.push_back(std::move(pack));
+    
+    return &pAnalyze->states.back().second.back().state;
+  }
+}
+
+lt_state *get_state(IN lt_analyze *pAnalyze, IN lt_full_state_identifier *pIndex)
+{
+  if (pIndex == nullptr)
+    return nullptr;
+
+  return get_state(pAnalyze, pIndex->subSystem, pIndex->stateIndex, pIndex->subStateIndex);
+}
+
+lt_operation *get_operation(IN lt_analyze *pAnalyze, const uint64_t subSystem, const uint64_t operationType)
+{
+  if (pAnalyze == nullptr)
+    return nullptr;
+
+  for (auto &_subState : pAnalyze->operations)
+  {
+    if (_subState.first == subSystem)
+    {
+      // Try to find the state.
+      for (auto &_item : _subState.second)
+        if (_item.index.operationType == operationType)
+          return &_item.operation;
+
+      // Create new state.
+      {
+        lt_operation_pack pack;
+        pack.index.operationType = operationType;
+
+        _subState.second.push_back(std::move(pack));
+
+        return &std::get<1>(_subState).back().operation;
+      }
+    }
+  }
+
+  // Create New SubSystem.
+  {
+    std::pair<uint64_t, std::vector<lt_operation_pack>> subState;
+    subState.first = subSystem;
+
+    pAnalyze->operations.push_back(std::move(subState));
+
+    lt_operation_pack pack;
+    pack.index.operationType = operationType;
+
+    pAnalyze->operations.back().second.push_back(std::move(pack));
+
+    return &pAnalyze->operations.back().second.back().operation;
+  }
+}
+
+lt_operation *get_operation(IN lt_analyze *pAnalyze, IN lt_full_operation_identifier *pIndex)
+{
+  if (pIndex == nullptr)
+    return nullptr;
+
+  return get_operation(pAnalyze, pIndex->subSystem, pIndex->operationType);
+}
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -230,11 +874,15 @@ int32_t main(void)
 
   int32_t argc = 0;
   wchar_t **pArgv = CommandLineToArgvW(commandLine, &argc);
-  FATAL_IF(argc != 2, "Invalid Parameter.\nUsage: <LT Log File>");
+  FATAL_IF(argc != 4, "Invalid Parameter.\nUsage: <LT Log File> [-io <LT Analyze File> | -o <New LT Analyze File>]");
 
   const wchar_t *inputFileName = pArgv[1];
+  const wchar_t *outputFileName = pArgv[3];
   size_t fileSize = 0;
   uint8_t *pData = nullptr;
+  bool isNewFile = true;
+
+  lt_analyze analyze;
 
   // Read StackTrace File.
   {
@@ -265,6 +913,28 @@ int32_t main(void)
     }
 
     CloseHandle(file);
+  }
+
+  if (0 != wcsncmp(pArgv[2], L"-o", 3))
+  {
+    isNewFile = false;
+
+    HANDLE file = CreateFileW(outputFileName, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
+    FATAL_IF(file == INVALID_HANDLE_VALUE, "Failed to open analyze file. (0x%" PRIX32 ")", GetLastError());
+
+    LARGE_INTEGER _fileSize;
+    FATAL_IF(!GetFileSizeEx(file, &_fileSize), "Failed to retrieve analyze file size.");
+
+    const size_t inFileSize = (size_t)_fileSize.QuadPart;
+    uint8_t *pInData = reinterpret_cast<uint8_t *>(malloc(inFileSize));
+
+    FATAL_IF(pInData == nullptr, "Failed to allocate memory.");
+
+    ByteStream bs(pInData, inFileSize);
+
+    FATAL_IF(!deserialize(&analyze, &bs), "Failed to deserialize input analyze file.");
+
+    free(pInData);
   }
 
   std::vector<PointerWithSize> headers;
@@ -352,17 +1022,25 @@ int32_t main(void)
     }
   }
 
-  // Display Sections.
+  bool hasLastState = false;
+  bool hasLastOperation = false;
+
+  // Parse Sections.
   {
     char svalue[0x100];
 
-    fputs("{\"productName\":", stdout);
-    print_string_as_json(productName);
-    fputs(",\"remoteHost\":", stdout);
-    print_string_as_json(remoteHost);
-    printf(",\"majorVersion\":\"0x%" PRIX64 "\",\"minorVersion\":\"0x%" PRIX64 "\",\"isDebugBuild\":%" PRIu8 ",\"timestamp\":\"0x%" PRIX64 "\",\"contents\":[", majorVersion, minorVersion, isDebugBuild, startTimestamp);
-
-    bool isFirstItem = true;
+    if (isNewFile)
+    {
+      FATAL_IF(0 != strncmp(productName, analyze.productName, sizeof(productName)), "Error! Incompatible Product Name. '%s' != '%s'.", productName, analyze.productName);
+      FATAL_IF(majorVersion != analyze.majorVersion, "Error! Incompatible Major Version. 0x%" PRIX64 " != 0x%" PRIX64 ".", majorVersion, analyze.majorVersion);
+      FATAL_IF(minorVersion != analyze.minorVersion, "Error! Incompatible Major Version. 0x%" PRIX64 " != 0x%" PRIX64 ".", minorVersion, analyze.minorVersion);
+    }
+    else
+    {
+      memcpy(analyze.productName, productName, sizeof(productName));
+      analyze.majorVersion = majorVersion;
+      analyze.minorVersion = minorVersion;
+    }
 
     for (const auto &_item : headers)
     {
@@ -371,118 +1049,115 @@ int32_t main(void)
       uint8_t type = 0;
       FATAL_IF(!stream.read(&type), "Insufficient Data");
 
-      if (!isFirstItem)
-        fputs(",\n", stdout);
-
-      isFirstItem = false;
-
-      printf("{\"type\":%" PRIu8 "", type);
-
       switch (type)
       {
       case lt_t_state:
       {
-        PRINT_X64(",", "subsystem", stream);
-        PRINT_X64(",", "stateIndex", stream);
-        PRINT_X64(",", "subStateIndex", stream);
-        PRINT_X64(",", "timestamp", stream);
+        uint64_t subSystem, stateIndex, subStateIndex, timestamp;
+
+        FATAL_IF(!stream.read(&subSystem), "Insufficient Data");
+        FATAL_IF(!stream.read(&stateIndex), "Insufficient Data");
+        FATAL_IF(!stream.read(&subStateIndex), "Insufficient Data");
+        FATAL_IF(!stream.read(&timestamp), "Insufficient Data");
 
         break;
       }
 
       case lt_t_operation:
       {
-        PRINT_X64(",", "subsystem", stream);
-        PRINT_X64(",", "operationType", stream);
-        PRINT_X64(",", "operationIndex", stream);
-        PRINT_X64(",", "timestamp", stream);
+        uint64_t subSystem, operationType, operationIndex, timestamp;
+
+        FATAL_IF(!stream.read(&subSystem), "Insufficient Data");
+        FATAL_IF(!stream.read(&operationType), "Insufficient Data");
+        FATAL_IF(!stream.read(&operationIndex), "Insufficient Data");
+        FATAL_IF(!stream.read(&timestamp), "Insufficient Data");
 
         break;
       }
 
       case lt_t_observed_value:
       {
-        uint8_t dataType = 0;
-        FATAL_IF(!stream.read(&dataType), "Insufficient data steam.");
-        printf(",\"dataType\":%" PRIu8 "", dataType);
-
-        PRINT_X64(",", "valueIndex", stream);
-
-        switch (dataType)
-        {
-        case lt_vt_u64:
-          PRINT_U64(",", "value", stream);
-          break;
-        
-        case lt_vt_i64:
-          PRINT_I64(",", "value", stream);
-          break;
-
-        case lt_vt_f64:
-          PRINT_F64(",", "value", stream);
-          break;
-
-        default:
-          RECOVERABLE_ERROR("Invalid data type.");
-          break;
-        }
-
-        PRINT_X64(",", "timestamp", stream);
+        //uint8_t dataType = 0;
+        //FATAL_IF(!stream.read(&dataType), "Insufficient data steam.");
+        //printf(",\"dataType\":%" PRIu8 "", dataType);
+        //
+        //SKIP_X64(",", "valueIndex", stream);
+        //
+        //switch (dataType)
+        //{
+        //case lt_vt_u64:
+        //  SKIP_U64(",", "value", stream);
+        //  break;
+        //
+        //case lt_vt_i64:
+        //  SKIP_I64(",", "value", stream);
+        //  break;
+        //
+        //case lt_vt_f64:
+        //  SKIP_F64(",", "value", stream);
+        //  break;
+        //
+        //default:
+        //  RECOVERABLE_ERROR("Invalid data type.");
+        //  break;
+        //}
+        //
+        //SKIP_X64(",", "timestamp", stream);
 
         break;
       }
 
       case lt_t_observed_exact_value:
       {
-        uint8_t dataType = 0;
-        FATAL_IF(!stream.read(&dataType), "Insufficient data steam.");
-        printf(",\"dataType\":%" PRIu8 "", dataType);
-
-        PRINT_X64(",", "valueIndex", stream);
-
-        switch (dataType)
-        {
-        case lt_vt_u64:
-          PRINT_U64(",", "value", stream);
-          break;
-
-        case lt_vt_i64:
-          PRINT_I64(",", "value", stream);
-          break;
-
-        case lt_vt_f64:
-          PRINT_F64(",", "value", stream);
-          break;
-
-        default:
-          RECOVERABLE_ERROR("Invalid data type.");
-          break;
-        }
-
-        PRINT_X64(",", "timestamp", stream);
+        //uint8_t dataType = 0;
+        //FATAL_IF(!stream.read(&dataType), "Insufficient data steam.");
+        //printf(",\"dataType\":%" PRIu8 "", dataType);
+        //
+        //SKIP_X64(",", "valueIndex", stream);
+        //
+        //switch (dataType)
+        //{
+        //case lt_vt_u64:
+        //  SKIP_U64(",", "value", stream);
+        //  break;
+        //
+        //case lt_vt_i64:
+        //  SKIP_I64(",", "value", stream);
+        //  break;
+        //
+        //case lt_vt_f64:
+        //  SKIP_F64(",", "value", stream);
+        //  break;
+        //
+        //default:
+        //  RECOVERABLE_ERROR("Invalid data type.");
+        //  break;
+        //}
+        //
+        //SKIP_X64(",", "timestamp", stream);
 
         break;
       }
 
       case lt_t_crash:
       {
-        uint16_t size = 0;
-        FATAL_IF(!stream.read(&size), "Insufficient data stream.");
-
-        PRINT_X64(",", "timestamp", stream);
-        PRINT_X64(",", "errorCode", stream);
-        PRINT_STRING(",", "description", stream);
-
-        uint16_t stackTraceLength = 0;
-        FATAL_IF(!stream.read(&stackTraceLength), "Insufficient data stream.");
-
-        if (stackTraceLength > 0)
-        {
-          const uint8_t *pStackTraceData = stream.pData;
-          FATAL_IF(!stream.read<uint8_t >(nullptr, stackTraceLength), "Insufficient data stream.");
-          fputs(",\"stacktrace\":", stdout);
-          print_bytes_as_base64string(pStackTraceData, stackTraceLength);
-        }
+        //uint16_t size = 0;
+        //FATAL_IF(!stream.read(&size), "Insufficient data stream.");
+        //
+        //SKIP_X64(",", "timestamp", stream);
+        //SKIP_X64(",", "errorCode", stream);
+        //SKIP_STRING(",", "description", stream);
+        //
+        //uint16_t stackTraceLength = 0;
+        //FATAL_IF(!stream.read(&stackTraceLength), "Insufficient data stream.");
+        //
+        //if (stackTraceLength > 0)
+        //{
+        //  const uint8_t *pStackTraceData = stream.pData;
+        //  FATAL_IF(!stream.read<uint8_t >(nullptr, stackTraceLength), "Insufficient data stream.");
+        //  fputs(",\"stacktrace\":", stdout);
+        //  print_bytes_as_base64string(pStackTraceData, stackTraceLength);
+        //}
 
         break;
       }
@@ -490,246 +1165,246 @@ int32_t main(void)
       case lt_t_error:
       case lt_t_warning:
       {
-        uint16_t size = 0;
-        FATAL_IF(!stream.read(&size), "Insufficient data stream.");
-
-        PRINT_X64(",", "timestamp", stream);
-        PRINT_X64(",", "subSystem", stream);
-        PRINT_X64(",", "errorCode", stream);
-        PRINT_STRING(",", "description", stream);
-
-        uint16_t stackTraceLength = 0;
-        FATAL_IF(!stream.read(&stackTraceLength), "Insufficient data stream.");
-
-        if (stackTraceLength > 0)
-        {
-          const uint8_t *pStackTraceData = stream.pData;
-          FATAL_IF(!stream.read<uint8_t >(nullptr, stackTraceLength), "Insufficient data stream.");
-          fputs(",\"stacktrace\":", stdout);
-          print_bytes_as_base64string(pStackTraceData, stackTraceLength);
-        }
+        //uint16_t size = 0;
+        //FATAL_IF(!stream.read(&size), "Insufficient data stream.");
+        //
+        //SKIP_X64(",", "timestamp", stream);
+        //SKIP_X64(",", "subSystem", stream);
+        //SKIP_X64(",", "errorCode", stream);
+        //SKIP_STRING(",", "description", stream);
+        //
+        //uint16_t stackTraceLength = 0;
+        //FATAL_IF(!stream.read(&stackTraceLength), "Insufficient data stream.");
+        //
+        //if (stackTraceLength > 0)
+        //{
+        //  const uint8_t *pStackTraceData = stream.pData;
+        //  FATAL_IF(!stream.read<uint8_t >(nullptr, stackTraceLength), "Insufficient data stream.");
+        //  fputs(",\"stacktrace\":", stdout);
+        //  print_bytes_as_base64string(pStackTraceData, stackTraceLength);
+        //}
 
         break;
       }
 
       case lt_t_log:
       {
-        uint16_t size = 0;
-        FATAL_IF(!stream.read(&size), "Insufficient data stream.");
-
-        PRINT_X64(",", "timestamp", stream);
-        PRINT_X64(",", "subSystem", stream);
-        PRINT_STRING(",", "description", stream);
+        //uint16_t size = 0;
+        //FATAL_IF(!stream.read(&size), "Insufficient data stream.");
+        //
+        //SKIP_X64(",", "timestamp", stream);
+        //SKIP_X64(",", "subSystem", stream);
+        //SKIP_STRING(",", "description", stream);
 
         break;
       }
 
       case lt_t_perf_data:
       {
-        uint16_t size = 0;
-        FATAL_IF(!stream.read(&size), "Insufficient data stream.");
-
-        PRINT_X64(",", "timestamp", stream);
-        PRINT_X64(",", "subSystem", stream);
-
-        uint8_t count = 0;
-        FATAL_IF(!stream.read(&count), "Insufficient data stream.");
-        
-        if (count > 0)
-        {
-          const double *pPerfData = reinterpret_cast<const double *>(stream.pData);
-          FATAL_IF(!stream.read<double>(nullptr, count), "Insufficient data stream.");
-
-          fputs(",\"data\":[", stdout);
-
-          for (uint8_t i = 0; i < count; i++)
-          {
-            if (i > 0)
-              fputs(",", stdout);
-
-            printf("%e", pPerfData[i]);
-          }
-
-          fputs("]", stdout);
-        }
+        //uint16_t size = 0;
+        //FATAL_IF(!stream.read(&size), "Insufficient data stream.");
+        //
+        //SKIP_X64(",", "timestamp", stream);
+        //SKIP_X64(",", "subSystem", stream);
+        //
+        //uint8_t count = 0;
+        //FATAL_IF(!stream.read(&count), "Insufficient data stream.");
+        //
+        //if (count > 0)
+        //{
+        //  const double *pPerfData = reinterpret_cast<const double *>(stream.pData);
+        //  FATAL_IF(!stream.read<double>(nullptr, count), "Insufficient data stream.");
+        //
+        //  fputs(",\"data\":[", stdout);
+        //
+        //  for (uint8_t i = 0; i < count; i++)
+        //  {
+        //    if (i > 0)
+        //      fputs(",", stdout);
+        //
+        //    printf("%e", pPerfData[i]);
+        //  }
+        //
+        //  fputs("]", stdout);
+        //}
 
         break;
       }
 
       case lt_t_observed_exact_value_variable_length:
       {
-        uint16_t size = 0;
-        FATAL_IF(!stream.read(&size), "Insufficient data stream.");
-
-        uint8_t dataType = 0;
-        FATAL_IF(!stream.read(&dataType), "Insufficient data stream.");
-
-        PRINT_X64(",", "exactValueIndex", stream);
-        PRINT_X64(",", "timestamp", stream);
-
-        RECOVERABLE_ERROR_IF(dataType != lt_vt_string, "Invalid Value Type.");
-
-        if (dataType == lt_vt_string)
-          PRINT_STRING(",", "value", stream);
+        //uint16_t size = 0;
+        //FATAL_IF(!stream.read(&size), "Insufficient data stream.");
+        //
+        //uint8_t dataType = 0;
+        //FATAL_IF(!stream.read(&dataType), "Insufficient data stream.");
+        //
+        //SKIP_X64(",", "exactValueIndex", stream);
+        //SKIP_X64(",", "timestamp", stream);
+        //
+        //RECOVERABLE_ERROR_IF(dataType != lt_vt_string, "Invalid Value Type.");
+        //
+        //if (dataType == lt_vt_string)
+        //  SKIP_STRING(",", "value", stream);
 
         break;
       }
 
       case lt_t_system_info:
       {
-        fputs(",\"info\":[", stdout);
-
-        uint16_t size = 0;
-        FATAL_IF(!stream.read(&size), "Insufficient data stream.");
-
-        bool isFirstInfo = true;
-
-        while (stream.sizeRemaining > 0)
-        {
-          if (!isFirstInfo)
-            fputs(",\n", stdout);
-
-          isFirstInfo = false;
-
-          uint8_t info = 0;
-          FATAL_IF(!stream.read(&info), "Insufficient data stream.");
-
-          printf("{\"type\":%" PRIu8 "", info);
-
-          switch (info)
-          {
-          case lt_si_cpu:
-          {
-            PRINT_STRING(",", "description", stream);
-            PRINT_U32(",", "processorCount", stream);
-
-            break;
-          }
-
-          case lt_si_ram:
-          {
-            PRINT_X64(",", "totalPhysical", stream);
-            PRINT_X64(",", "availablePhysical", stream);
-            PRINT_X64(",", "totalVirtual", stream);
-            PRINT_X64(",", "availableVirtual", stream);
-
-            break;
-          }
-
-          case lt_si_os:
-          {
-            PRINT_STRING(",", "os", stream);
-
-            break;
-          }
-
-          case lt_si_gpu:
-          {
-            PRINT_U64(",", "dedicatedVRAM", stream);
-            PRINT_U64(",", "sharedVRAM", stream);
-            PRINT_U64(",", "totalVRAM", stream);
-            PRINT_U64(",", "freeVRAM", stream);
-            PRINT_X64(",", "driverVersion", stream);
-            PRINT_U32(",", "vendorId", stream);
-            PRINT_U32(",", "deviceId", stream);
-            PRINT_U32(",", "revisionId", stream);
-            PRINT_U32(",", "boardId", stream);
-            PRINT_STRING(",", "deviceDescription", stream);
-            PRINT_STRING(",", "driverId", stream);
-
-            break;
-          }
-
-          case lt_si_lang:
-          {
-            uint8_t length = 0;
-            FATAL_IF(!stream.read(&length), "Insufficient data stream.");
-            FATAL_IF(!stream.read(svalue, length), "Insufficient data stream.");
-            svalue[length] = '\0';
-
-            size_t offset = 0;
-
-            fputs(",\"languages\":[", stdout);
-
-            while (offset < length)
-            {
-              if (offset > 0)
-                fputs(",", stdout);
-              
-              print_string_as_json(svalue + offset);
-
-              offset += strlen(svalue + offset) + 1;
-            }
-            
-            fputs("]", stdout);
-
-            break;
-          }
-
-          case lt_si_elevated:
-          {
-            PRINT_BOOL(",", "isElevated", stream);
-
-            break;
-          }
-
-          case lt_si_monitor:
-          {
-            uint8_t count = 0;
-            FATAL_IF(!stream.read(&count), "Insufficient data stream.");
-
-            fputs(",\"monitors\":[", stdout);
-
-            for (uint8_t i = 0; i < count; i++)
-            {
-              if (i > 0)
-                fputs(",\n", stdout);
-
-              fputs("{", stdout);
-
-              PRINT_I32("", "posX", stream);
-              PRINT_I32(",", "posY", stream);
-              PRINT_U32(",", "sizeX", stream);
-              PRINT_U32(",", "sizeY", stream);
-              PRINT_U32(",", "dpiX", stream);
-              PRINT_U32(",", "dpiY", stream);
-
-              fputs("}", stdout);
-            }
-
-            fputs("]", stdout);
-
-            break;
-          }
-
-          case lt_si_storage:
-          {
-            PRINT_X64(",", "freeBytesAvailable", stream);
-            PRINT_X64(",", "totalBytes", stream);
-
-            break;
-          }
-
-          case lt_si_device:
-          {
-            PRINT_STRING(",", "manufacturer", stream);
-            PRINT_STRING(",", "model", stream);
-
-            break;
-          }
-
-          default:
-          {
-            stream.sizeRemaining = 0;
-            RECOVERABLE_ERROR("Unsupported Info (0x%02" PRIX8 ")", info);
-            break;
-          }
-          }
-
-          fputs("}", stdout);
-        }
-
-        fputs("]", stdout);
+        //fputs(",\"info\":[", stdout);
+        //
+        //uint16_t size = 0;
+        //FATAL_IF(!stream.read(&size), "Insufficient data stream.");
+        //
+        //bool isFirstInfo = true;
+        //
+        //while (stream.sizeRemaining > 0)
+        //{
+        //  if (!isFirstInfo)
+        //    fputs(",\n", stdout);
+        //
+        //  isFirstInfo = false;
+        //
+        //  uint8_t info = 0;
+        //  FATAL_IF(!stream.read(&info), "Insufficient data stream.");
+        //
+        //  printf("{\"type\":%" PRIu8 "", info);
+        //
+        //  switch (info)
+        //  {
+        //  case lt_si_cpu:
+        //  {
+        //    SKIP_STRING(",", "description", stream);
+        //    SKIP_U32(",", "processorCount", stream);
+        //
+        //    break;
+        //  }
+        //
+        //  case lt_si_ram:
+        //  {
+        //    SKIP_X64(",", "totalPhysical", stream);
+        //    SKIP_X64(",", "availablePhysical", stream);
+        //    SKIP_X64(",", "totalVirtual", stream);
+        //    SKIP_X64(",", "availableVirtual", stream);
+        //
+        //    break;
+        //  }
+        //
+        //  case lt_si_os:
+        //  {
+        //    SKIP_STRING(",", "os", stream);
+        //
+        //    break;
+        //  }
+        //
+        //  case lt_si_gpu:
+        //  {
+        //    SKIP_U64(",", "dedicatedVRAM", stream);
+        //    SKIP_U64(",", "sharedVRAM", stream);
+        //    SKIP_U64(",", "totalVRAM", stream);
+        //    SKIP_U64(",", "freeVRAM", stream);
+        //    SKIP_X64(",", "driverVersion", stream);
+        //    SKIP_U32(",", "vendorId", stream);
+        //    SKIP_U32(",", "deviceId", stream);
+        //    SKIP_U32(",", "revisionId", stream);
+        //    SKIP_U32(",", "boardId", stream);
+        //    SKIP_STRING(",", "deviceDescription", stream);
+        //    SKIP_STRING(",", "driverId", stream);
+        //
+        //    break;
+        //  }
+        //
+        //  case lt_si_lang:
+        //  {
+        //    uint8_t length = 0;
+        //    FATAL_IF(!stream.read(&length), "Insufficient data stream.");
+        //    FATAL_IF(!stream.read(svalue, length), "Insufficient data stream.");
+        //    svalue[length] = '\0';
+        //
+        //    size_t offset = 0;
+        //
+        //    fputs(",\"languages\":[", stdout);
+        //
+        //    while (offset < length)
+        //    {
+        //      if (offset > 0)
+        //        fputs(",", stdout);
+        //      
+        //      print_string_as_json(svalue + offset);
+        //
+        //      offset += strlen(svalue + offset) + 1;
+        //    }
+        //    
+        //    fputs("]", stdout);
+        //
+        //    break;
+        //  }
+        //
+        //  case lt_si_elevated:
+        //  {
+        //    SKIP_BOOL(",", "isElevated", stream);
+        //
+        //    break;
+        //  }
+        //
+        //  case lt_si_monitor:
+        //  {
+        //    uint8_t count = 0;
+        //    FATAL_IF(!stream.read(&count), "Insufficient data stream.");
+        //
+        //    fputs(",\"monitors\":[", stdout);
+        //
+        //    for (uint8_t i = 0; i < count; i++)
+        //    {
+        //      if (i > 0)
+        //        fputs(",\n", stdout);
+        //
+        //      fputs("{", stdout);
+        //
+        //      SKIP_I32("", "posX", stream);
+        //      SKIP_I32(",", "posY", stream);
+        //      SKIP_U32(",", "sizeX", stream);
+        //      SKIP_U32(",", "sizeY", stream);
+        //      SKIP_U32(",", "dpiX", stream);
+        //      SKIP_U32(",", "dpiY", stream);
+        //
+        //      fputs("}", stdout);
+        //    }
+        //
+        //    fputs("]", stdout);
+        //
+        //    break;
+        //  }
+        //
+        //  case lt_si_storage:
+        //  {
+        //    SKIP_X64(",", "freeBytesAvailable", stream);
+        //    SKIP_X64(",", "totalBytes", stream);
+        //
+        //    break;
+        //  }
+        //
+        //  case lt_si_device:
+        //  {
+        //    SKIP_STRING(",", "manufacturer", stream);
+        //    SKIP_STRING(",", "model", stream);
+        //
+        //    break;
+        //  }
+        //
+        //  default:
+        //  {
+        //    stream.sizeRemaining = 0;
+        //    RECOVERABLE_ERROR("Unsupported Info (0x%02" PRIX8 ")", info);
+        //    break;
+        //  }
+        //  }
+        //
+        //  fputs("}", stdout);
+        //}
+        //
+        //fputs("]", stdout);
 
         break;
       }
