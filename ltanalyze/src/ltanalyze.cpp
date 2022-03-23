@@ -126,6 +126,20 @@ public:
   }
 };
 
+template <typename TIndex, typename TValue>
+class soa_list
+{
+public:
+  std::vector<TIndex> index;
+  std::vector<TValue> value;
+
+  inline size_t size() const { return index.size(); }
+  inline void push_back(const TIndex &index, const TValue &value) { index.push_back(index); value.push_back(value); }
+  inline void push_back(TIndex &&index, TValue &&value) { index.push_back(std::forward(index)); value.push_back(std::forward(value)); }
+  inline void emplace_back(const TIndex &index, const TValue &value) { index.emplace_back(index); value.push_back(value); }
+  inline void emplace_back(TIndex &&index, TValue &&value) { index.emplace_back(std::forward(index)); value.push_back(std::forward(value)); }
+};
+
 //////////////////////////////////////////////////////////////////////////
 
 struct lt_state_identifier
@@ -157,7 +171,7 @@ struct lt_transition_data
 
 struct lt_operation_transition_data : lt_transition_data
 {
-  std::vector<std::pair<uint64_t, uint64_t>> operationIndexCount;
+  soa_list<uint64_t, uint64_t> operationIndexCount;
 };
 
 struct lt_error_identifier
@@ -227,13 +241,13 @@ struct lt_state
   lt_transition_data data;
   double avgTimeSinceStartS = 0;
 
-  std::vector<lt_state_ref> previousState;
-  std::vector<lt_state_ref> nextState;
-  std::vector<lt_explicit_operation_ref> operations;
-  std::vector<lt_operation_ref> previousOperation;
+  soa_list<lt_state_identifier, lt_transition_data> previousState;
+  soa_list<lt_state_identifier, lt_transition_data> nextState;
+  soa_list<lt_operation_identifier, lt_operation_transition_data> operations;
+  soa_list<lt_operation_identifier, lt_transition_data> previousOperation;
 
-  std::vector<lt_state_ref> stateReach;
-  std::vector<lt_operation_ref> operationReach;
+  soa_list<lt_state_identifier, lt_transition_data> stateReach;
+  soa_list<lt_operation_identifier, lt_transition_data> operationReach;
 
   //std::vector<lt_error_ref> errors;
   //std::vector<lt_warning_ref> warnings;
@@ -247,9 +261,10 @@ struct lt_operation
   double avgTimeSinceStartS = 0;
 
   std::vector<lt_operation_index_data> operationIndex;
-  std::vector<lt_state_ref> previousState;
-  std::vector<lt_state_ref> nextState;
-  std::vector<lt_explicit_operation_ref> nextOperation;
+  soa_list<lt_state_identifier, lt_transition_data> parentState;
+  soa_list<lt_state_identifier, lt_transition_data> nextState;
+  soa_list<lt_operation_identifier, lt_transition_data> lastOperation;
+  soa_list<lt_operation_identifier, lt_operation_transition_data> nextOperation;
   //std::vector<lt_error_ref> errors;
   //std::vector<lt_warning_ref> warnings;
   //std::vector<lt_log_ref> logs;
@@ -351,6 +366,47 @@ bool serialize(IN const std::vector<T> *pVector, IN StreamWriter *pStream)
   return true;
 }
 
+template <typename T, typename T2>
+bool deserialize(OUT soa_list<T, T2> *pList, IN ByteStream *pStream, const uint32_t version)
+{
+  uint64_t count;
+  READ(pStream, count);
+
+  for (size_t i = 0; i < count; i++)
+  {
+    T index;
+    T2 value;
+
+    if (!deserialize(&index, pStream, version))
+      return false;
+
+    if (!deserialize(&value, pStream, version))
+      return false;
+
+    pList->push_back(std::move(index), std::move(value));
+  }
+
+  return true;
+}
+
+template <typename T, typename T2>
+bool serialize(IN const soa_list<T, T2> *pList, IN StreamWriter *pStream)
+{
+  const uint64_t count = pList->size();
+  WRITE(pStream, count);
+
+  for (size_t i = 0; i < pList->size(); i++)
+  {
+    if (!serialize(&pList->index[i], pStream))
+      return false;
+
+    if (!serialize(&pList->value[i], pStream))
+      return false;
+  }
+
+  return true;
+}
+
 bool deserialize(OUT lt_state_identifier *pId, IN ByteStream *pStream, const uint32_t /* version */)
 {
   READ(pStream, pId->stateIndex);
@@ -439,7 +495,8 @@ bool deserialize(OUT lt_operation_transition_data *pData, IN ByteStream *pStream
       READ(pStream, index);
       READ(pStream, hits);
 
-      pData->operationIndexCount.emplace_back(index, hits);
+      pData->operationIndexCount.index.push_back(index);
+      pData->operationIndexCount.value.push_back(hits);
     }
   }
 
@@ -456,10 +513,10 @@ bool serialize(IN const lt_operation_transition_data *pData, IN StreamWriter *pS
     const uint64_t count = pData->operationIndexCount.size();
     WRITE(pStream, count);
 
-    for (const auto &_item : pData->operationIndexCount)
+    for (size_t i = 0; i < pData->operationIndexCount.size(); i++)
     {
-      WRITE(pStream, _item.first);
-      WRITE(pStream, _item.second);
+      WRITE(pStream, pData->operationIndexCount.index[i]);
+      WRITE(pStream, pData->operationIndexCount.value[i]);
     }
   }
 
@@ -623,10 +680,13 @@ bool deserialize(OUT lt_operation_pack *pPack, IN ByteStream *pStream, const uin
   if (!deserialize(&pPack->operation.operationIndex, pStream, version))
     return false;
 
-  if (!deserialize(&pPack->operation.previousState, pStream, version))
+  if (!deserialize(&pPack->operation.parentState, pStream, version))
     return false;
 
   if (!deserialize(&pPack->operation.nextState, pStream, version))
+    return false;
+
+  if (!deserialize(&pPack->operation.lastOperation, pStream, version))
     return false;
 
   if (!deserialize(&pPack->operation.nextOperation, pStream, version))
@@ -648,10 +708,13 @@ bool serialize(IN const lt_operation_pack *pPack, IN StreamWriter *pStream)
   if (!serialize(&pPack->operation.operationIndex, pStream))
     return false;
 
-  if (!serialize(&pPack->operation.previousState, pStream))
+  if (!serialize(&pPack->operation.parentState, pStream))
     return false;
 
   if (!serialize(&pPack->operation.nextState, pStream))
+    return false;
+
+  if (!serialize(&pPack->operation.lastOperation, pStream))
     return false;
 
   if (!serialize(&pPack->operation.nextOperation, pStream))
@@ -901,6 +964,67 @@ lt_transition_data *get_transition_data(std::vector<lt_state_ref> *pList, const 
   return &pList->back().data;
 }
 
+lt_transition_data *get_transition_data(soa_list<lt_state_identifier, lt_transition_data> *pList, const lt_state_identifier *pId)
+{
+  for (size_t i = 0; i < pList->size(); i++)
+    if (pList->index[i].stateIndex == pId->stateIndex && pList->index[i].subStateIndex == pId->subStateIndex)
+      return &pList->value[i];
+
+  pList->push_back(*pId, lt_transition_data());
+
+  return &pList->value.back();
+}
+
+lt_transition_data *get_transition_data(std::vector<lt_operation_ref> *pList, const lt_operation_identifier *pId)
+{
+  for (auto &_item : *pList)
+    if (_item.index.operationType == pId->operationType)
+      return &_item.data;
+
+  lt_operation_ref ref;
+  ref.index = *pId;
+
+  pList->push_back(std::move(ref));
+
+  return &pList->back().data;
+}
+
+lt_transition_data *get_transition_data(soa_list<lt_operation_identifier, lt_transition_data> *pList, const lt_operation_identifier *pId)
+{
+  for (size_t i = 0; i < pList->size(); i++)
+    if (pList->index[i].operationType == pId->operationType)
+      return &pList->value[i];
+
+  pList->push_back(*pId, lt_transition_data());
+
+  return &pList->value.back();
+}
+
+lt_operation_transition_data *get_operation_transition_data(std::vector<lt_explicit_operation_ref> *pList, const lt_operation_identifier *pId)
+{
+  for (auto &_item : *pList)
+    if (_item.index.operationType == pId->operationType)
+      return &_item.data;
+
+  lt_explicit_operation_ref ref;
+  ref.index = *pId;
+
+  pList->push_back(std::move(ref));
+
+  return &pList->back().data;
+}
+
+lt_operation_transition_data *get_operation_transition_data(soa_list<lt_operation_identifier, lt_operation_transition_data> *pList, const lt_operation_identifier *pId)
+{
+  for (size_t i = 0; i < pList->size(); i++)
+    if (pList->index[i].operationType == pId->operationType)
+      return &pList->value[i];
+
+  pList->push_back(*pId, lt_operation_transition_data());
+
+  return &pList->value.back();
+}
+
 void update_transition_data(lt_transition_data *pTransition, const uint64_t delay)
 {
   pTransition->avgDelayS = adjust(pTransition->avgDelayS, to_seconds(delay), pTransition->count);
@@ -917,6 +1041,25 @@ void update_transition_data(lt_transition_data *pTransition, const uint64_t dela
   }
 
   pTransition->count++;
+}
+
+void update_operation_transition_data(lt_operation_transition_data *pTransition, const uint64_t delay, const uint64_t operationIndex)
+{
+  update_transition_data(pTransition, delay);
+
+  // Update Operation Count.
+  {
+    for (size_t i = 0; i < pTransition->operationIndexCount.size(); i++)
+    {
+      if (pTransition->operationIndexCount.index[i] == operationIndex)
+      {
+        pTransition->operationIndexCount.value[i]++;
+        return;
+      }
+    }
+
+    pTransition->operationIndexCount.emplace_back(operationIndex, 1);
+  }
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -1133,8 +1276,6 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
         FATAL_IF(!stream.read(&timestamp), "Insufficient Data");
 
         lt_sub_system *pSubSystem = get_sub_system(&state, subSystem);
-        FATAL_IF(pSubSystem == nullptr, "Unable to get subSystem.");
-
         lt_state *pSelf = get_state(pAnalyze, subSystem, id.stateIndex, id.subStateIndex);
 
         if (pSubSystem->hasLastState)
@@ -1159,6 +1300,15 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
           update_transition_data(get_transition_data(&pState->stateReach, &id), stateDelay);
         }
 
+        if (pSubSystem->hasLastOperation)
+        {
+          lt_operation *pOp = get_operation(pAnalyze, subSystem, pSubSystem->lastOperation.operationType);
+
+          const uint64_t lastOperationDelay = timestamp - pSubSystem->lastStateTimestamp;
+
+          update_transition_data(get_transition_data(&pOp->nextState, &id), lastOperationDelay);
+        }
+
         pSubSystem->hasLastState = true;
         pSubSystem->lastState = id;
         pSubSystem->lastStateTimestamp = timestamp;
@@ -1170,12 +1320,63 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
 
       case lt_t_operation:
       {
-        uint64_t subSystem, operationType, operationIndex, timestamp;
+        uint64_t subSystem, operationIndex, timestamp;
+        lt_operation_identifier id;
 
         FATAL_IF(!stream.read(&subSystem), "Insufficient Data");
-        FATAL_IF(!stream.read(&operationType), "Insufficient Data");
+        FATAL_IF(!stream.read(&id.operationType), "Insufficient Data");
         FATAL_IF(!stream.read(&operationIndex), "Insufficient Data");
         FATAL_IF(!stream.read(&timestamp), "Insufficient Data");
+
+        lt_sub_system *pSubSystem = get_sub_system(&state, subSystem);
+        lt_operation *pSelf = get_operation(pAnalyze, subSystem, id.operationType);
+
+        if (pSubSystem->hasLastState)
+        {
+          lt_state *pLastState = get_state(pAnalyze, subSystem, pSubSystem->lastState.stateIndex, pSubSystem->lastState.subStateIndex);
+
+          pLastState->avgTimeSinceStartS = adjust(pLastState->avgTimeSinceStartS, to_seconds(timestamp - startTimestamp), pLastState->data.count);
+
+          const uint64_t lastStateDelay = timestamp - pSubSystem->lastStateTimestamp;
+
+          update_operation_transition_data(get_operation_transition_data(&pLastState->operations, &id), lastStateDelay, operationIndex);
+          update_transition_data(get_transition_data(&pSelf->parentState, &pSubSystem->lastState), lastStateDelay);
+        }
+
+        for (auto &_states : pSubSystem->previousStates)
+        {
+          lt_state *pState = get_state(pAnalyze, subSystem, _states.first.stateIndex, _states.first.subStateIndex);
+
+          const uint64_t stateDelay = timestamp - _states.second;
+
+          update_transition_data(get_transition_data(&pState->operationReach, &id), stateDelay);
+        }
+
+        if (pSubSystem->hasLastOperation)
+        {
+          lt_operation *pOp = get_operation(pAnalyze, subSystem, pSubSystem->lastOperation.operationType);
+
+          pOp->avgTimeSinceStartS = adjust(pOp->avgTimeSinceStartS, to_seconds(timestamp - startTimestamp), pOp->data.count);
+
+          const uint64_t lastOperationDelay = timestamp - pSubSystem->lastStateTimestamp;
+
+          update_transition_data(&pOp->data, lastOperationDelay);
+          update_operation_transition_data(get_operation_transition_data(&pOp->nextOperation, &id), lastOperationDelay, operationIndex);
+          update_transition_data(get_transition_data(&pSelf->lastOperation, &id), lastOperationDelay);
+        }
+
+        for (auto &_states : pSubSystem->previousStates)
+        {
+          lt_state *pState = get_state(pAnalyze, subSystem, _states.first.stateIndex, _states.first.subStateIndex);
+
+          const uint64_t stateDelay = timestamp - _states.second;
+
+          update_transition_data(get_transition_data(&pState->operationReach, &id), stateDelay);
+        }
+
+        pSubSystem->hasLastOperation = true;
+        pSubSystem->lastOperation = id;
+        pSubSystem->lastOperationTimestamp = timestamp;
 
         break;
       }
