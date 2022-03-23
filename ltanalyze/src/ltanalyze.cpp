@@ -59,22 +59,22 @@
   { FATAL_IF(!stream.read(buffer256, length), "Insufficient data stream"); \
   } } while (0);
 
-#define READ(pStream, value) do { if (!pStream->read(&value)) return false; } while (0)
-#define WRITE(pStream, value) do { if (!pStream->write(&value)) return false; } while (0)
-#define READ_STRING(pStream, value) do { uint8_t __len__; if (!pStream->read(&__len__)) return false; if (__len__ >= sizeof(value)) return false; if (!pStream->read(value, __len__)) return false; value[__len__] = '\0'; } while (0)
+#define READ(pStream, value) do { if (!pStream->read(&(value))) return false; } while (0)
+#define WRITE(pStream, value) do { if (!pStream->write(&(value))) return false; } while (0)
+#define READ_STRING(pStream, value) do { uint8_t __len__; if (!pStream->read(&__len__)) return false; if (__len__ >= sizeof(value)) return false; if (!pStream->read((value), __len__)) return false; (value)[__len__] = '\0'; } while (0)
 #define WRITE_STRING(pStream, value) do { \
   const uint8_t __len__ = (uint8_t)min(0xFF, strlen(value)); \
   if (!pStream->write(&__len__)) \
     return false; \
-  if (__len__ > 0 && !pStream->write(value, __len__)) \
+  if (__len__ > 0 && !pStream->write((value), __len__)) \
     return false; \
   } while (0)
 
 //////////////////////////////////////////////////////////////////////////
 
-void print_string_as_json(const char *string);
-void print_string_as_json(const wchar_t *string);
-void print_bytes_as_base64string(const uint8_t *pData, const size_t size);
+void print_string_as_json(FILE *pFile, const char *string);
+void print_string_as_json(FILE *pFile, const wchar_t *string);
+void print_bytes_as_base64string(FILE *pFile, const uint8_t *pData, const size_t size);
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -127,17 +127,57 @@ public:
 };
 
 template <typename TIndex, typename TValue>
-class soa_list
+class SoaList
 {
 public:
   std::vector<TIndex> index;
   std::vector<TValue> value;
 
   inline size_t size() const { return index.size(); }
-  inline void push_back(const TIndex &index, const TValue &value) { index.push_back(index); value.push_back(value); }
-  inline void push_back(TIndex &&index, TValue &&value) { index.push_back(std::forward(index)); value.push_back(std::forward(value)); }
-  inline void emplace_back(const TIndex &index, const TValue &value) { index.emplace_back(index); value.push_back(value); }
-  inline void emplace_back(TIndex &&index, TValue &&value) { index.emplace_back(std::forward(index)); value.push_back(std::forward(value)); }
+  inline void push_back(const TIndex &idx, const TValue &val) { index.push_back(idx); value.push_back(val); }
+  inline void push_back(TIndex &&idx, TValue &&val) { index.push_back((idx)); value.push_back((val)); }
+  inline void emplace_back(const TIndex &idx, const TValue &val) { index.emplace_back(idx); value.emplace_back(val); }
+  inline void emplace_back(TIndex &&idx, TValue &&val) { index.emplace_back((idx)); value.emplace_back((val)); }
+};
+
+class JsonWriter
+{
+  enum JsonContainerType : uint8_t
+  {
+    JCT_Body = 0b00,
+    JCT_BodyWithContents = 0b01,
+    JCT_Array = 0b10,
+    JCT_ArrayWithContents = 0b11,
+  };
+
+  std::vector<uint8_t> stack;
+  FILE *pFile = nullptr;
+
+  inline void space() { for (const auto &_ : stack) { (void)_; fputs("  ", pFile); } }
+  inline void line() { if ((stack.back() & 1) != 0) fputs("\n, ", pFile); else stack.back()++; space(); }
+
+public:
+  inline JsonWriter(FILE *pFile) : pFile(pFile) { fputs("{", pFile); stack.push_back(JCT_Body); }
+
+  inline void begin_body() { line(); fputs("{\n", pFile); stack.push_back(JCT_Body); }
+  inline void begin_object(const char *name) { line(); fprintf(pFile, "\"%s\": {\n", name); stack.push_back(JCT_Body); }
+  inline void begin_array(const char *name) { line(); fprintf(pFile, "\"%s\": [\n", name); stack.push_back(JCT_Array); }
+  inline void end() { const uint8_t back = stack.back(); stack.pop_back(); space(); if ((back & 0b10) == JCT_Array) fputs("]\n", pFile); else fputs("}\n", pFile); }
+
+  inline void _write(const char *value) { print_string_as_json(pFile, value); }
+  inline void _write(const wchar_t *value) { print_string_as_json(pFile, value); }
+  inline void _write(const uint64_t value) { line(); fprintf(pFile, "\"0x%" PRIX64 "\"", value); }
+  inline void _write(const int64_t value) { line(); fprintf(pFile, "\"%" PRIi64 "\"", value); }
+  inline void _write(const uint32_t value) { line(); fprintf(pFile, "%" PRIu32 "", value); }
+  inline void _write(const int32_t value) { line(); fprintf(pFile, "%" PRIi32 "", value); }
+  
+  inline void write_array_base64(const uint8_t *pData, const size_t length) { line(); print_bytes_as_base64string(pFile, pData, length); }
+
+  template <typename T>
+  inline void write_array(const char *value) { line(); _write(value); }
+
+  template <typename T>
+  inline void write(const char *name, const T value) { line(); fprintf("\"%s\": ", pFile); _write(value); }
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -171,7 +211,7 @@ struct lt_transition_data
 
 struct lt_operation_transition_data : lt_transition_data
 {
-  soa_list<uint64_t, uint64_t> operationIndexCount;
+  SoaList<uint64_t, uint64_t> operationIndexCount;
 };
 
 struct lt_error_identifier
@@ -241,13 +281,13 @@ struct lt_state
   lt_transition_data data;
   double avgTimeSinceStartS = 0;
 
-  soa_list<lt_state_identifier, lt_transition_data> previousState;
-  soa_list<lt_state_identifier, lt_transition_data> nextState;
-  soa_list<lt_operation_identifier, lt_operation_transition_data> operations;
-  soa_list<lt_operation_identifier, lt_transition_data> previousOperation;
+  SoaList<lt_state_identifier, lt_transition_data> previousState;
+  SoaList<lt_state_identifier, lt_transition_data> nextState;
+  SoaList<lt_operation_identifier, lt_operation_transition_data> operations;
+  SoaList<lt_operation_identifier, lt_transition_data> previousOperation;
 
-  soa_list<lt_state_identifier, lt_transition_data> stateReach;
-  soa_list<lt_operation_identifier, lt_transition_data> operationReach;
+  SoaList<lt_state_identifier, lt_transition_data> stateReach;
+  SoaList<lt_operation_identifier, lt_transition_data> operationReach;
 
   //std::vector<lt_error_ref> errors;
   //std::vector<lt_warning_ref> warnings;
@@ -260,11 +300,11 @@ struct lt_operation
   lt_transition_data data;
   double avgTimeSinceStartS = 0;
 
-  std::vector<lt_operation_index_data> operationIndex;
-  soa_list<lt_state_identifier, lt_transition_data> parentState;
-  soa_list<lt_state_identifier, lt_transition_data> nextState;
-  soa_list<lt_operation_identifier, lt_transition_data> lastOperation;
-  soa_list<lt_operation_identifier, lt_operation_transition_data> nextOperation;
+  SoaList<uint64_t, uint64_t> operationIndexCount;
+  SoaList<lt_state_identifier, lt_transition_data> parentState;
+  SoaList<lt_state_identifier, lt_transition_data> nextState;
+  SoaList<lt_operation_identifier, lt_transition_data> lastOperation;
+  SoaList<lt_operation_identifier, lt_operation_transition_data> nextOperation;
   //std::vector<lt_error_ref> errors;
   //std::vector<lt_warning_ref> warnings;
   //std::vector<lt_log_ref> logs;
@@ -367,7 +407,7 @@ bool serialize(IN const std::vector<T> *pVector, IN StreamWriter *pStream)
 }
 
 template <typename T, typename T2>
-bool deserialize(OUT soa_list<T, T2> *pList, IN ByteStream *pStream, const uint32_t version)
+bool deserialize(OUT SoaList<T, T2> *pList, IN ByteStream *pStream, const uint32_t version)
 {
   uint64_t count;
   READ(pStream, count);
@@ -390,7 +430,7 @@ bool deserialize(OUT soa_list<T, T2> *pList, IN ByteStream *pStream, const uint3
 }
 
 template <typename T, typename T2>
-bool serialize(IN const soa_list<T, T2> *pList, IN StreamWriter *pStream)
+bool serialize(IN const SoaList<T, T2> *pList, IN StreamWriter *pStream)
 {
   const uint64_t count = pList->size();
   WRITE(pStream, count);
@@ -403,6 +443,20 @@ bool serialize(IN const soa_list<T, T2> *pList, IN StreamWriter *pStream)
     if (!serialize(&pList->value[i], pStream))
       return false;
   }
+
+  return true;
+}
+
+bool deserialize(OUT uint64_t *pValue, IN ByteStream *pStream, const uint32_t /* version */)
+{
+  READ(pStream, *pValue);
+
+  return true;
+}
+
+bool serialize(IN const uint64_t *pValue, IN StreamWriter *pStream)
+{
+  WRITE(pStream, *pValue);
 
   return true;
 }
@@ -484,21 +538,8 @@ bool deserialize(OUT lt_operation_transition_data *pData, IN ByteStream *pStream
   if (!deserialize(static_cast<lt_transition_data *>(pData), pStream, version))
     return false;
 
-  // `operationIndexCount`.
-  {
-    uint64_t count;
-    READ(pStream, count);
-
-    for (size_t i = 0; i < count; i++)
-    {
-      uint64_t index, hits;
-      READ(pStream, index);
-      READ(pStream, hits);
-
-      pData->operationIndexCount.index.push_back(index);
-      pData->operationIndexCount.value.push_back(hits);
-    }
-  }
+  if (!deserialize(&pData->operationIndexCount, pStream, version))
+    return false;
 
   return true;
 }
@@ -507,18 +548,9 @@ bool serialize(IN const lt_operation_transition_data *pData, IN StreamWriter *pS
 {
   if (!serialize(static_cast<const lt_transition_data *>(pData), pStream))
     return false;
-
-  // `operationIndexCount`.
-  {
-    const uint64_t count = pData->operationIndexCount.size();
-    WRITE(pStream, count);
-
-    for (size_t i = 0; i < pData->operationIndexCount.size(); i++)
-    {
-      WRITE(pStream, pData->operationIndexCount.index[i]);
-      WRITE(pStream, pData->operationIndexCount.value[i]);
-    }
-  }
+  
+  if (!serialize(&pData->operationIndexCount, pStream))
+    return false;
 
   return true;
 }
@@ -677,7 +709,7 @@ bool deserialize(OUT lt_operation_pack *pPack, IN ByteStream *pStream, const uin
 
   READ(pStream, pPack->operation.avgTimeSinceStartS);
 
-  if (!deserialize(&pPack->operation.operationIndex, pStream, version))
+  if (!deserialize(&pPack->operation.operationIndexCount, pStream, version))
     return false;
 
   if (!deserialize(&pPack->operation.parentState, pStream, version))
@@ -705,7 +737,7 @@ bool serialize(IN const lt_operation_pack *pPack, IN StreamWriter *pStream)
 
   WRITE(pStream, pPack->operation.avgTimeSinceStartS);
 
-  if (!serialize(&pPack->operation.operationIndex, pStream))
+  if (!serialize(&pPack->operation.operationIndexCount, pStream))
     return false;
 
   if (!serialize(&pPack->operation.parentState, pStream))
@@ -964,7 +996,7 @@ lt_transition_data *get_transition_data(std::vector<lt_state_ref> *pList, const 
   return &pList->back().data;
 }
 
-lt_transition_data *get_transition_data(soa_list<lt_state_identifier, lt_transition_data> *pList, const lt_state_identifier *pId)
+lt_transition_data *get_transition_data(SoaList<lt_state_identifier, lt_transition_data> *pList, const lt_state_identifier *pId)
 {
   for (size_t i = 0; i < pList->size(); i++)
     if (pList->index[i].stateIndex == pId->stateIndex && pList->index[i].subStateIndex == pId->subStateIndex)
@@ -989,7 +1021,7 @@ lt_transition_data *get_transition_data(std::vector<lt_operation_ref> *pList, co
   return &pList->back().data;
 }
 
-lt_transition_data *get_transition_data(soa_list<lt_operation_identifier, lt_transition_data> *pList, const lt_operation_identifier *pId)
+lt_transition_data *get_transition_data(SoaList<lt_operation_identifier, lt_transition_data> *pList, const lt_operation_identifier *pId)
 {
   for (size_t i = 0; i < pList->size(); i++)
     if (pList->index[i].operationType == pId->operationType)
@@ -1014,7 +1046,7 @@ lt_operation_transition_data *get_operation_transition_data(std::vector<lt_expli
   return &pList->back().data;
 }
 
-lt_operation_transition_data *get_operation_transition_data(soa_list<lt_operation_identifier, lt_operation_transition_data> *pList, const lt_operation_identifier *pId)
+lt_operation_transition_data *get_operation_transition_data(SoaList<lt_operation_identifier, lt_operation_transition_data> *pList, const lt_operation_identifier *pId)
 {
   for (size_t i = 0; i < pList->size(); i++)
     if (pList->index[i].operationType == pId->operationType)
@@ -1692,6 +1724,8 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
   }
 
   free(pData);
+
+  return true;
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -1791,16 +1825,15 @@ int32_t main(void)
 
 //////////////////////////////////////////////////////////////////////////
 
-void print_string_as_json(const char *string)
+void print_string_as_json(FILE *pFile, const char *string)
 {
-
   if (string == nullptr)
   {
-    fputs("null", stdout);
+    fputs("null", pFile);
     return;
   }
 
-  fputs("\"", stdout);
+  fputs("\"", pFile);
 
   char singleChar[2];
   singleChar[1] = '\0';
@@ -1816,37 +1849,37 @@ void print_string_as_json(const char *string)
 
     switch (singleChar[0])
     {
-    case '\\': fputs("\\\\", stdout); break;
-    case '\"': fputs("\\\"", stdout); break;
-    case '\b': fputs("\\b", stdout); break;
-    case '\f': fputs("\\f", stdout); break;
-    case '\n': fputs("\\n", stdout); break;
-    case '\r': fputs("\\r", stdout); break;
-    case '\t': fputs("\\t", stdout); break;
+    case '\\': fputs("\\\\", pFile); break;
+    case '\"': fputs("\\\"", pFile); break;
+    case '\b': fputs("\\b", pFile); break;
+    case '\f': fputs("\\f", pFile); break;
+    case '\n': fputs("\\n", pFile); break;
+    case '\r': fputs("\\r", pFile); break;
+    case '\t': fputs("\\t", pFile); break;
     default:
     {
       if (singleChar[0] > 0 && singleChar[0] <= 0x1F)
-        printf("\\u00%02" PRIX8, singleChar[0]);
+        fprintf(pFile, "\\u00%02" PRIX8, singleChar[0]);
       else
-        fputs(singleChar, stdout);
+        fputs(singleChar, pFile);
 
       break;
     }
     }
   }
 
-  fputs("\"", stdout);
+  fputs("\"", pFile);
 }
 
-void print_string_as_json(const wchar_t *string)
+void print_string_as_json(FILE *pFile, const wchar_t *string)
 {
   if (string == nullptr)
   {
-    fputs("null", stdout);
+    fputs("null", pFile);
     return;
   }
 
-  fputs("\"", stdout);
+  fputs("\"", pFile);
 
   wchar_t singleChar[2];
   singleChar[1] = L'\0';
@@ -1862,37 +1895,37 @@ void print_string_as_json(const wchar_t *string)
 
     switch (singleChar[0])
     {
-    case L'\\': fputs("\\\\", stdout); break;
-    case L'\"': fputs("\\\"", stdout); break;
-    case L'\b': fputs("\\b", stdout); break;
-    case L'\f': fputs("\\f", stdout); break;
-    case L'\n': fputs("\\n", stdout); break;
-    case L'\r': fputs("\\r", stdout); break;
-    case L'\t': fputs("\\t", stdout); break;
+    case L'\\': fputs("\\\\", pFile); break;
+    case L'\"': fputs("\\\"", pFile); break;
+    case L'\b': fputs("\\b", pFile); break;
+    case L'\f': fputs("\\f", pFile); break;
+    case L'\n': fputs("\\n", pFile); break;
+    case L'\r': fputs("\\r", pFile); break;
+    case L'\t': fputs("\\t", pFile); break;
     default:
     {
       if (singleChar[0] > 0 && singleChar[0] <= 0x1F)
-        printf("\\u00%02" PRIX8, singleChar[0]);
+        fprintf(pFile, "\\u00%02" PRIX8, singleChar[0]);
       else
-        fputws(singleChar, stdout);
+        fputws(singleChar, pFile);
 
       break;
     }
     }
   }
 
-  fputs("\"", stdout);
+  fputs("\"", pFile);
 }
 
-void print_bytes_as_base64string(const uint8_t *pData, const size_t size)
+void print_bytes_as_base64string(FILE *pFile, const uint8_t *pData, const size_t size)
 {
   if (pData == nullptr)
   {
-    fputs("null", stdout);
+    fputs("null", pFile);
     return;
   }
 
-  fputs("\"", stdout);
+  fputs("\"", pFile);
 
   // Encode to Base64.
   {
@@ -1926,7 +1959,7 @@ void print_bytes_as_base64string(const uint8_t *pData, const size_t size)
       next[2] = lut[(triple >> 6) & 0x3F];
       next[3] = lut[triple & 0x3F];
 
-      fputs(next, stdout);
+      fputs(next, pFile);
     }
   }
 
@@ -1936,8 +1969,8 @@ void print_bytes_as_base64string(const uint8_t *pData, const size_t size)
 
     if (bytesMod3 != 0)
       for (size_t i = 0; i < 3 - bytesMod3; i++)
-        fputs("=", stdout);
+        fputs("=", pFile);
   }
 
-  fputs("\"", stdout);
+  fputs("\"", pFile);
 }
