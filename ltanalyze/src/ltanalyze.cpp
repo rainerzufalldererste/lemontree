@@ -63,7 +63,7 @@
 #define WRITE(pStream, value) do { if (!pStream->write(&value)) return false; } while (0)
 #define READ_STRING(pStream, value) do { uint8_t __len__; if (!pStream->read(&__len__)) return false; if (__len__ >= sizeof(value)) return false; if (!pStream->read(value, __len__)) return false; value[__len__] = '\0'; } while (0)
 #define WRITE_STRING(pStream, value) do { \
-  const uint8_t __len__ = min(0xFF, strlen(value)); \
+  const uint8_t __len__ = (uint8_t)min(0xFF, strlen(value)); \
   if (!pStream->write(&__len__)) \
     return false; \
   if (__len__ > 0 && !pStream->write(value, __len__)) \
@@ -75,6 +75,19 @@
 void print_string_as_json(const char *string);
 void print_string_as_json(const wchar_t *string);
 void print_bytes_as_base64string(const uint8_t *pData, const size_t size);
+
+//////////////////////////////////////////////////////////////////////////
+
+template <typename T>
+T adjust(const T _old, const T _new, const uint64_t oldCount)
+{
+  return (T)(_old + (_new - _old) * (1.0 / (oldCount + 1)));
+}
+
+double to_seconds(uint64_t timestampDiff)
+{
+  return timestampDiff * 1e-7;
+}
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -98,7 +111,7 @@ public:
     if (size + writeSize > capacity)
     {
       const size_t newCapacity = (capacity + writeSize) * 2;
-      pBytes = realloc(pBytes, newCapacity);
+      pBytes = reinterpret_cast<uint8_t *>(realloc(pBytes, newCapacity));
 
       if (pBytes == nullptr)
         return false;
@@ -108,6 +121,8 @@ public:
 
     memcpy(pBytes + size, pData, writeSize);
     size += writeSize;
+
+    return true;
   }
 };
 
@@ -137,7 +152,7 @@ struct lt_transition_data
 {
   uint64_t count = 0;
   double avgDelayS = 0;
-  uint64_t maxDelay, minDelay;
+  uint64_t maxDelay = 0, minDelay = 0;
 };
 
 struct lt_operation_transition_data : lt_transition_data
@@ -214,11 +229,11 @@ struct lt_state
 
   std::vector<lt_state_ref> previousState;
   std::vector<lt_state_ref> nextState;
-  std::vector<lt_explicit_operation_ref> nextOperation;
+  std::vector<lt_explicit_operation_ref> operations;
   std::vector<lt_operation_ref> previousOperation;
 
-  std::vector<lt_reach_probability<lt_state_ref>> stateReach;
-  std::vector<lt_reach_probability<lt_operation_ref>> operationReach;
+  std::vector<lt_state_ref> stateReach;
+  std::vector<lt_operation_ref> operationReach;
 
   //std::vector<lt_error_ref> errors;
   //std::vector<lt_warning_ref> warnings;
@@ -319,6 +334,8 @@ bool deserialize(OUT std::vector<T> *pVector, IN ByteStream *pStream, const uint
 
     pVector->push_back(std::move(item));
   }
+
+  return true;
 }
 
 template <typename T>
@@ -330,9 +347,11 @@ bool serialize(IN const std::vector<T> *pVector, IN StreamWriter *pStream)
   for (const auto &_item : *pVector)
     if (!serialize(&_item, pStream))
       return false;
+
+  return true;
 }
 
-bool deserialize(OUT lt_state_identifier *pId, IN ByteStream *pStream, const uint32_t version)
+bool deserialize(OUT lt_state_identifier *pId, IN ByteStream *pStream, const uint32_t /* version */)
 {
   READ(pStream, pId->stateIndex);
   READ(pStream, pId->subStateIndex);
@@ -348,7 +367,7 @@ bool serialize(IN const lt_state_identifier *pId, IN StreamWriter *pStream)
   return true;
 }
 
-bool deserialize(OUT lt_transition_data *pData, IN ByteStream *pStream, const uint32_t version)
+bool deserialize(OUT lt_transition_data *pData, IN ByteStream *pStream, const uint32_t /* version */)
 {
   READ(pStream, pData->avgDelayS);
   READ(pStream, pData->count);
@@ -390,7 +409,7 @@ bool serialize(IN const lt_state_ref *pRef, IN StreamWriter *pStream)
   return true;
 }
 
-bool deserialize(OUT lt_operation_identifier *pId, IN ByteStream *pStream, const uint32_t version)
+bool deserialize(OUT lt_operation_identifier *pId, IN ByteStream *pStream, const uint32_t /* version */)
 {
   READ(pStream, pId->operationType);
 
@@ -513,7 +532,7 @@ bool serialize(IN const lt_reach_probability<T> *pProb, IN StreamWriter *pStream
   return true;
 }
 
-bool deserialize(OUT lt_operation_index_data *pData, IN ByteStream *pStream, const uint32_t version)
+bool deserialize(OUT lt_operation_index_data *pData, IN ByteStream *pStream, const uint32_t /* version */)
 {
   READ(pStream, pData->index);
   READ(pStream, pData->count);
@@ -545,7 +564,7 @@ bool deserialize(OUT lt_state_pack *pPack, IN ByteStream *pStream, const uint32_
   if (!deserialize(&pPack->state.nextState, pStream, version))
     return false;
 
-  if (!deserialize(&pPack->state.nextOperation, pStream, version))
+  if (!deserialize(&pPack->state.operations, pStream, version))
     return false;
 
   if (!deserialize(&pPack->state.previousOperation, pStream, version))
@@ -576,7 +595,7 @@ bool serialize(IN const lt_state_pack *pPack, IN StreamWriter *pStream)
   if (!serialize(&pPack->state.nextState, pStream))
     return false;
 
-  if (!serialize(&pPack->state.nextOperation, pStream))
+  if (!serialize(&pPack->state.operations, pStream))
     return false;
 
   if (!serialize(&pPack->state.previousOperation, pStream))
@@ -637,6 +656,8 @@ bool serialize(IN const lt_operation_pack *pPack, IN StreamWriter *pStream)
 
   if (!serialize(&pPack->operation.nextOperation, pStream))
     return false;
+
+  return true;
 }
 
 bool deserialize(OUT lt_analyze *pAnalyze, IN ByteStream *pStream)
@@ -866,23 +887,100 @@ lt_operation *get_operation(IN lt_analyze *pAnalyze, IN lt_full_operation_identi
   return get_operation(pAnalyze, pIndex->subSystem, pIndex->operationType);
 }
 
+lt_transition_data *get_transition_data(std::vector<lt_state_ref> *pList, const lt_state_identifier *pId)
+{
+  for (auto &_item : *pList)
+    if (_item.index.stateIndex == pId->stateIndex && _item.index.subStateIndex == pId->subStateIndex)
+      return &_item.data;
+
+  lt_state_ref ref;
+  ref.index = *pId;
+
+  pList->push_back(std::move(ref));
+
+  return &pList->back().data;
+}
+
+void update_transition_data(lt_transition_data *pTransition, const uint64_t delay)
+{
+  pTransition->avgDelayS = adjust(pTransition->avgDelayS, to_seconds(delay), pTransition->count);
+
+  if (pTransition->count > 0)
+  {
+    pTransition->maxDelay = max(pTransition->maxDelay, delay);
+    pTransition->minDelay = max(pTransition->minDelay, delay);
+  }
+  else
+  {
+    pTransition->maxDelay = delay;
+    pTransition->minDelay = delay;
+  }
+
+  pTransition->count++;
+}
+
 //////////////////////////////////////////////////////////////////////////
 
-int32_t main(void)
+struct lt_sub_system
 {
-  const wchar_t *commandLine = GetCommandLineW();
+  uint64_t subSystem;
+  bool hasLastState = false;
+  bool hasLastOperation = false;
 
-  int32_t argc = 0;
-  wchar_t **pArgv = CommandLineToArgvW(commandLine, &argc);
-  FATAL_IF(argc != 4, "Invalid Parameter.\nUsage: <LT Log File> [-io <LT Analyze File> | -o <New LT Analyze File>]");
+  lt_state_identifier lastState;
+  lt_operation_identifier lastOperation;
+  uint64_t lastStateTimestamp;
+  uint64_t lastOperationTimestamp;
 
-  const wchar_t *inputFileName = pArgv[1];
-  const wchar_t *outputFileName = pArgv[3];
+  std::vector<std::pair<lt_state_identifier, uint64_t>> previousStates;
+
+  inline lt_sub_system(const uint64_t subSystem) : subSystem(subSystem) {}
+};
+
+struct lt_analyze_state
+{
+  std::vector<lt_sub_system> subSystems;
+};
+
+lt_sub_system *get_sub_system(IN lt_analyze_state *pState, const uint64_t subSystem)
+{
+  for (auto &_subState : pState->subSystems)
+    if (_subState.subSystem == subSystem)
+      return &_subState;
+
+  // Add SubSystem.
+  {
+    pState->subSystems.emplace_back(subSystem);
+    
+    return &pState->subSystems.back();
+  }
+}
+
+void update_previous_state_timing(lt_sub_system *pSubSystem, lt_state_identifier *pId, const uint64_t timestamp)
+{
+  for (auto &_item : pSubSystem->previousStates)
+  {
+    if (_item.first.stateIndex == pId->stateIndex && _item.first.subStateIndex == pId->subStateIndex)
+    {
+      _item.second = timestamp;
+      return;
+    }
+  }
+
+  // Add Pair.
+  {
+    pSubSystem->previousStates.emplace_back(*pId, timestamp);
+  }
+}
+
+//////////////////////////////////////////////////////////////////////////
+
+bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNewFile)
+{
+  lt_analyze_state state;
+
   size_t fileSize = 0;
   uint8_t *pData = nullptr;
-  bool isNewFile = true;
-
-  lt_analyze analyze;
 
   // Read StackTrace File.
   {
@@ -913,28 +1011,6 @@ int32_t main(void)
     }
 
     CloseHandle(file);
-  }
-
-  if (0 != wcsncmp(pArgv[2], L"-o", 3))
-  {
-    isNewFile = false;
-
-    HANDLE file = CreateFileW(outputFileName, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
-    FATAL_IF(file == INVALID_HANDLE_VALUE, "Failed to open analyze file. (0x%" PRIX32 ")", GetLastError());
-
-    LARGE_INTEGER _fileSize;
-    FATAL_IF(!GetFileSizeEx(file, &_fileSize), "Failed to retrieve analyze file size.");
-
-    const size_t inFileSize = (size_t)_fileSize.QuadPart;
-    uint8_t *pInData = reinterpret_cast<uint8_t *>(malloc(inFileSize));
-
-    FATAL_IF(pInData == nullptr, "Failed to allocate memory.");
-
-    ByteStream bs(pInData, inFileSize);
-
-    FATAL_IF(!deserialize(&analyze, &bs), "Failed to deserialize input analyze file.");
-
-    free(pInData);
   }
 
   std::vector<PointerWithSize> headers;
@@ -1022,24 +1098,19 @@ int32_t main(void)
     }
   }
 
-  bool hasLastState = false;
-  bool hasLastOperation = false;
-
   // Parse Sections.
   {
-    char svalue[0x100];
-
-    if (isNewFile)
+    if (!isNewFile)
     {
-      FATAL_IF(0 != strncmp(productName, analyze.productName, sizeof(productName)), "Error! Incompatible Product Name. '%s' != '%s'.", productName, analyze.productName);
-      FATAL_IF(majorVersion != analyze.majorVersion, "Error! Incompatible Major Version. 0x%" PRIX64 " != 0x%" PRIX64 ".", majorVersion, analyze.majorVersion);
-      FATAL_IF(minorVersion != analyze.minorVersion, "Error! Incompatible Major Version. 0x%" PRIX64 " != 0x%" PRIX64 ".", minorVersion, analyze.minorVersion);
+      FATAL_IF(0 != strncmp(productName, pAnalyze->productName, sizeof(productName)), "Error! Incompatible Product Name. '%s' != '%s'.", productName, pAnalyze->productName);
+      FATAL_IF(majorVersion != pAnalyze->majorVersion, "Error! Incompatible Major Version. 0x%" PRIX64 " != 0x%" PRIX64 ".", majorVersion, pAnalyze->majorVersion);
+      FATAL_IF(minorVersion != pAnalyze->minorVersion, "Error! Incompatible Major Version. 0x%" PRIX64 " != 0x%" PRIX64 ".", minorVersion, pAnalyze->minorVersion);
     }
     else
     {
-      memcpy(analyze.productName, productName, sizeof(productName));
-      analyze.majorVersion = majorVersion;
-      analyze.minorVersion = minorVersion;
+      memcpy(pAnalyze->productName, productName, sizeof(productName));
+      pAnalyze->majorVersion = majorVersion;
+      pAnalyze->minorVersion = minorVersion;
     }
 
     for (const auto &_item : headers)
@@ -1053,12 +1124,46 @@ int32_t main(void)
       {
       case lt_t_state:
       {
-        uint64_t subSystem, stateIndex, subStateIndex, timestamp;
+        lt_state_identifier id;
+        uint64_t subSystem, timestamp;
 
         FATAL_IF(!stream.read(&subSystem), "Insufficient Data");
-        FATAL_IF(!stream.read(&stateIndex), "Insufficient Data");
-        FATAL_IF(!stream.read(&subStateIndex), "Insufficient Data");
+        FATAL_IF(!stream.read(&id.stateIndex), "Insufficient Data");
+        FATAL_IF(!stream.read(&id.subStateIndex), "Insufficient Data");
         FATAL_IF(!stream.read(&timestamp), "Insufficient Data");
+
+        lt_sub_system *pSubSystem = get_sub_system(&state, subSystem);
+        FATAL_IF(pSubSystem == nullptr, "Unable to get subSystem.");
+
+        lt_state *pSelf = get_state(pAnalyze, subSystem, id.stateIndex, id.subStateIndex);
+
+        if (pSubSystem->hasLastState)
+        {
+          lt_state *pLastState = get_state(pAnalyze, subSystem, pSubSystem->lastState.stateIndex, pSubSystem->lastState.subStateIndex);
+
+          pLastState->avgTimeSinceStartS = adjust(pLastState->avgTimeSinceStartS, to_seconds(timestamp - startTimestamp), pLastState->data.count);
+
+          const uint64_t lastStateDelay = timestamp - pSubSystem->lastStateTimestamp;
+
+          update_transition_data(&pLastState->data, lastStateDelay);
+          update_transition_data(get_transition_data(&pLastState->nextState, &id), lastStateDelay);
+          update_transition_data(get_transition_data(&pSelf->nextState, &pSubSystem->lastState), lastStateDelay);
+        }
+
+        for (auto &_states : pSubSystem->previousStates)
+        {
+          lt_state *pState = get_state(pAnalyze, subSystem, _states.first.stateIndex, _states.first.subStateIndex);
+
+          const uint64_t stateDelay = timestamp - _states.second;
+
+          update_transition_data(get_transition_data(&pState->stateReach, &id), stateDelay);
+        }
+
+        pSubSystem->hasLastState = true;
+        pSubSystem->lastState = id;
+        pSubSystem->lastStateTimestamp = timestamp;
+
+        update_previous_state_timing(pSubSystem, &id, timestamp);
 
         break;
       }
@@ -1252,24 +1357,13 @@ int32_t main(void)
 
       case lt_t_system_info:
       {
-        //fputs(",\"info\":[", stdout);
-        //
         //uint16_t size = 0;
         //FATAL_IF(!stream.read(&size), "Insufficient data stream.");
         //
-        //bool isFirstInfo = true;
-        //
         //while (stream.sizeRemaining > 0)
         //{
-        //  if (!isFirstInfo)
-        //    fputs(",\n", stdout);
-        //
-        //  isFirstInfo = false;
-        //
         //  uint8_t info = 0;
         //  FATAL_IF(!stream.read(&info), "Insufficient data stream.");
-        //
-        //  printf("{\"type\":%" PRIu8 "", info);
         //
         //  switch (info)
         //  {
@@ -1324,19 +1418,12 @@ int32_t main(void)
         //
         //    size_t offset = 0;
         //
-        //    fputs(",\"languages\":[", stdout);
-        //
         //    while (offset < length)
         //    {
-        //      if (offset > 0)
-        //        fputs(",", stdout);
-        //      
         //      print_string_as_json(svalue + offset);
         //
         //      offset += strlen(svalue + offset) + 1;
         //    }
-        //    
-        //    fputs("]", stdout);
         //
         //    break;
         //  }
@@ -1353,26 +1440,15 @@ int32_t main(void)
         //    uint8_t count = 0;
         //    FATAL_IF(!stream.read(&count), "Insufficient data stream.");
         //
-        //    fputs(",\"monitors\":[", stdout);
-        //
         //    for (uint8_t i = 0; i < count; i++)
         //    {
-        //      if (i > 0)
-        //        fputs(",\n", stdout);
-        //
-        //      fputs("{", stdout);
-        //
         //      SKIP_I32("", "posX", stream);
         //      SKIP_I32(",", "posY", stream);
         //      SKIP_U32(",", "sizeX", stream);
         //      SKIP_U32(",", "sizeY", stream);
         //      SKIP_U32(",", "dpiX", stream);
         //      SKIP_U32(",", "dpiY", stream);
-        //
-        //      fputs("}", stdout);
         //    }
-        //
-        //    fputs("]", stdout);
         //
         //    break;
         //  }
@@ -1400,11 +1476,7 @@ int32_t main(void)
         //    break;
         //  }
         //  }
-        //
-        //  fputs("}", stdout);
         //}
-        //
-        //fputs("]", stdout);
 
         break;
       }
@@ -1415,11 +1487,102 @@ int32_t main(void)
         break;
       }
       }
+    }
+  }
 
-      fputs("}", stdout);
+  free(pData);
+}
+
+//////////////////////////////////////////////////////////////////////////
+
+int32_t main(void)
+{
+  const wchar_t *commandLine = GetCommandLineW();
+
+  int32_t argc = 0;
+  wchar_t **pArgv = CommandLineToArgvW(commandLine, &argc);
+  FATAL_IF(argc != 4, "Invalid Parameter.\nUsage: [-io <LT Analyze File> | -o <New LT Analyze File>] <LT Log File> ...");
+
+  const wchar_t *outputFileName = pArgv[2];
+  bool isNewFile = true;
+
+  lt_analyze analyze;
+
+  // Read Analyze File (if -o)
+  if (0 != wcsncmp(pArgv[1], L"-o", 3))
+  {
+    isNewFile = false;
+
+    HANDLE file = CreateFileW(outputFileName, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
+    FATAL_IF(file == INVALID_HANDLE_VALUE, "Failed to open analyze file. (0x%" PRIX32 ")", GetLastError());
+
+    LARGE_INTEGER _fileSize;
+    FATAL_IF(!GetFileSizeEx(file, &_fileSize), "Failed to retrieve analyze file size.");
+
+    const size_t inFileSize = (size_t)_fileSize.QuadPart;
+    uint8_t *pInData = reinterpret_cast<uint8_t *>(malloc(inFileSize));
+
+    FATAL_IF(pInData == nullptr, "Failed to allocate memory.");
+
+    size_t bytesRemaining = inFileSize;
+    size_t offset = 0;
+
+    while (bytesRemaining > 0)
+    {
+      const DWORD bytesToRead = (DWORD)min(bytesRemaining, MAXDWORD);
+      DWORD bytesRead = 0;
+
+      FATAL_IF(!ReadFile(file, pInData + offset, bytesToRead, &bytesRead, nullptr), "Failed to read log file. (0x%" PRIX32 ")", GetLastError());
+      FATAL_IF(bytesRead == 0, "Failed to read from log file.");
+
+      offset += bytesRead;
+      bytesRemaining -= bytesRead;
     }
 
-    fputs("]}", stdout);
+    ByteStream bs(pInData, inFileSize);
+
+    FATAL_IF(!deserialize(&analyze, &bs), "Failed to deserialize input analyze file.");
+
+    free(pInData);
+    CloseHandle(file);
+  }
+
+  // Analyze Files.
+  for (int32_t i = 3; i < argc; i++)
+  {
+    FATAL_IF(analyze_file(pArgv[i], &analyze, isNewFile), "Failed to analyze file %ws", pArgv[i]);
+
+    isNewFile = false;
+  }
+
+  // Write analyze file.
+  {
+    StreamWriter writer;
+
+    FATAL_IF(!serialize(&analyze, &writer), "Failed to serialize analyze file.");
+
+    HANDLE file = CreateFileW(outputFileName, GENERIC_WRITE, 0, nullptr, OPEN_ALWAYS, 0, nullptr);
+    FATAL_IF(file == INVALID_HANDLE_VALUE, "Failed to open analyze file. (0x%" PRIX32 ")", GetLastError());
+
+    size_t remainingFileSize = writer.size;
+    const uint8_t *pBytes = writer.pBytes;
+
+    while (true)
+    {
+      const DWORD writeSize = (DWORD)min(MAXDWORD, remainingFileSize);
+      DWORD writtenSize = 0;
+
+      FATAL_IF(!WriteFile(file, pBytes, writeSize, &writtenSize, nullptr), "Failed to write analyze file with 0x%" PRIX32 ".", GetLastError());
+      FATAL_IF(writtenSize == 0, "Failed to write.");
+
+      if (remainingFileSize <= writtenSize)
+        break;
+
+      remainingFileSize -= writtenSize;
+      pBytes += writtenSize;
+    }
+
+    CloseHandle(file);
   }
 
   return 0;
