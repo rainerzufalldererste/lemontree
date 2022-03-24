@@ -59,14 +59,14 @@
   { FATAL_IF(!stream.read(buffer256, length), "Insufficient data stream"); \
   } } while (0);
 
-#define READ(pStream, value) do { if (!pStream->read(&(value))) return false; } while (0)
-#define WRITE(pStream, value) do { if (!pStream->write(&(value))) return false; } while (0)
-#define READ_STRING(pStream, value) do { uint8_t __len__; if (!pStream->read(&__len__)) return false; if (__len__ >= sizeof(value)) return false; if (!pStream->read((value), __len__)) return false; (value)[__len__] = '\0'; } while (0)
-#define WRITE_STRING(pStream, value) do { \
+#define READ(pWriter, value) do { if (!pWriter->read(&(value))) return false; } while (0)
+#define WRITE(pWriter, value) do { if (!pWriter->write(&(value))) return false; } while (0)
+#define READ_STRING(pWriter, value) do { uint8_t __len__; if (!pWriter->read(&__len__)) return false; if (__len__ >= sizeof(value)) return false; if (!pWriter->read((value), __len__)) return false; (value)[__len__] = '\0'; } while (0)
+#define WRITE_STRING(pWriter, value) do { \
   const uint8_t __len__ = (uint8_t)min(0xFF, strlen(value)); \
-  if (!pStream->write(&__len__)) \
+  if (!pWriter->write(&__len__)) \
     return false; \
-  if (__len__ > 0 && !pStream->write((value), __len__)) \
+  if (__len__ > 0 && !pWriter->write((value), __len__)) \
     return false; \
   } while (0)
 
@@ -152,32 +152,37 @@ class JsonWriter
 
   std::vector<uint8_t> stack;
   FILE *pFile = nullptr;
+  bool lastWasNameOnly = false;
 
   inline void space() { for (const auto &_ : stack) { (void)_; fputs("  ", pFile); } }
-  inline void line() { if ((stack.back() & 1) != 0) fputs("\n, ", pFile); else stack.back()++; space(); }
-
-public:
-  inline JsonWriter(FILE *pFile) : pFile(pFile) { fputs("{", pFile); stack.push_back(JCT_Body); }
-
-  inline void begin_body() { line(); fputs("{\n", pFile); stack.push_back(JCT_Body); }
-  inline void begin_object(const char *name) { line(); fprintf(pFile, "\"%s\": {\n", name); stack.push_back(JCT_Body); }
-  inline void begin_array(const char *name) { line(); fprintf(pFile, "\"%s\": [\n", name); stack.push_back(JCT_Array); }
-  inline void end() { const uint8_t back = stack.back(); stack.pop_back(); space(); if ((back & 0b10) == JCT_Array) fputs("]\n", pFile); else fputs("}\n", pFile); }
+  inline void line() { if (lastWasNameOnly) { lastWasNameOnly = false; return; } if ((stack.back() & 1) != 0) fputs(",\n", pFile); else { fputs("\n", pFile); stack.back()++; } space(); }
 
   inline void _write(const char *value) { print_string_as_json(pFile, value); }
   inline void _write(const wchar_t *value) { print_string_as_json(pFile, value); }
-  inline void _write(const uint64_t value) { line(); fprintf(pFile, "\"0x%" PRIX64 "\"", value); }
-  inline void _write(const int64_t value) { line(); fprintf(pFile, "\"%" PRIi64 "\"", value); }
-  inline void _write(const uint32_t value) { line(); fprintf(pFile, "%" PRIu32 "", value); }
-  inline void _write(const int32_t value) { line(); fprintf(pFile, "%" PRIi32 "", value); }
+  inline void _write(const uint64_t value) { fprintf(pFile, "\"0x%" PRIX64 "\"", value); }
+  inline void _write(const int64_t value) { fprintf(pFile, "\"%" PRIi64 "\"", value); }
+  inline void _write(const uint32_t value) { fprintf(pFile, "%" PRIu32 "", value); }
+  inline void _write(const int32_t value) { fprintf(pFile, "%" PRIi32 "", value); }
+  inline void _write(const double value) { fprintf(pFile, "%e", value); }
+
+public:
+  inline JsonWriter(FILE *pFile) : pFile(pFile) { }
+
+  inline void begin_body() { if (stack.size()) line(); fputs("{", pFile); stack.push_back(JCT_Body); }
+  inline void begin_object(const char *name) { line(); fprintf(pFile, "\"%s\": {", name); stack.push_back(JCT_Body); }
+  inline void begin_array(const char *name) { line(); fprintf(pFile, "\"%s\": [", name); stack.push_back(JCT_Array); }
+  inline void begin_array() { line(); fputs("[", pFile); stack.push_back(JCT_Array); }
+  inline void end() { FATAL_IF(lastWasNameOnly, "Invalid JsonWriter State."); const uint8_t back = stack.back(); stack.pop_back(); fputs("\n", pFile);  space(); if ((back & 0b10) == JCT_Array) fputs("]", pFile); else fputs("}", pFile); }
   
   inline void write_array_base64(const uint8_t *pData, const size_t length) { line(); print_bytes_as_base64string(pFile, pData, length); }
 
   template <typename T>
-  inline void write_array(const char *value) { line(); _write(value); }
+  inline void write_value(T value) { line(); _write(value); }
 
   template <typename T>
-  inline void write(const char *name, const T value) { line(); fprintf("\"%s\": ", pFile); _write(value); }
+  inline void write(const char *name, const T value) { line(); fprintf(pFile, "\"%s\": ", name); _write(value); }
+  
+  inline void write_name(const char *name) { line(); fprintf(pFile, "\"%s\": ", name); lastWasNameOnly = true; }
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -220,28 +225,28 @@ struct lt_error_identifier
   uint64_t errorIndex;
 };
 
-struct lt_operation_index_data
-{
-  uint64_t index, count;
-};
+//struct lt_operation_index_data
+//{
+//  uint64_t index, count;
+//};
 
-struct lt_state_ref
-{
-  lt_state_identifier index;
-  lt_transition_data data;
-};
+//struct lt_state_ref
+//{
+//  lt_state_identifier index;
+//  lt_transition_data data;
+//};
 
-struct lt_explicit_operation_ref
-{
-  lt_operation_identifier index;
-  lt_operation_transition_data data;
-};
+//struct lt_explicit_operation_ref
+//{
+//  lt_operation_identifier index;
+//  lt_operation_transition_data data;
+//};
 
-struct lt_operation_ref
-{
-  lt_operation_identifier index;
-  lt_transition_data data;
-};
+//struct lt_operation_ref
+//{
+//  lt_operation_identifier index;
+//  lt_transition_data data;
+//};
 
 struct lt_error_ref
 {
@@ -259,12 +264,12 @@ struct lt_crash_ref
 
 typedef lt_crash_ref lt_value_ref;
 
-template <typename T>
-struct lt_reach_probability
-{
-  T index;
-  uint64_t hits;
-};
+//template <typename T>
+//struct lt_reach_probability
+//{
+//  T index;
+//  uint64_t hits;
+//};
 
 template <typename T>
 struct lt_values
@@ -406,6 +411,20 @@ bool serialize(IN const std::vector<T> *pVector, IN StreamWriter *pStream)
   return true;
 }
 
+template <typename T>
+bool jsonify(IN const std::vector<T> *pVector, IN JsonWriter *pWriter)
+{
+  pWriter->begin_array();
+
+  for (const auto &_item : *pVector)
+    if (!jsonify(&_item, pWriter))
+      return false;
+
+  pWriter->end();
+
+  return true;
+}
+
 template <typename T, typename T2>
 bool deserialize(OUT SoaList<T, T2> *pList, IN ByteStream *pStream, const uint32_t version)
 {
@@ -447,6 +466,33 @@ bool serialize(IN const SoaList<T, T2> *pList, IN StreamWriter *pStream)
   return true;
 }
 
+template <typename T, typename T2>
+bool jsonify(IN const SoaList<T, T2> *pList, IN JsonWriter *pWriter)
+{
+  pWriter->begin_array();
+
+  for (size_t i = 0; i < pList->size(); i++)
+  {
+    pWriter->begin_body();
+
+    pWriter->write_name("index");
+
+    if (!jsonify(&pList->index[i], pWriter))
+      return false;
+
+    pWriter->write_name("value");
+
+    if (!jsonify(&pList->value[i], pWriter))
+      return false;
+
+    pWriter->end();
+  }
+
+  pWriter->end();
+
+  return true;
+}
+
 bool deserialize(OUT uint64_t *pValue, IN ByteStream *pStream, const uint32_t /* version */)
 {
   READ(pStream, *pValue);
@@ -457,6 +503,13 @@ bool deserialize(OUT uint64_t *pValue, IN ByteStream *pStream, const uint32_t /*
 bool serialize(IN const uint64_t *pValue, IN StreamWriter *pStream)
 {
   WRITE(pStream, *pValue);
+
+  return true;
+}
+
+bool jsonify(IN const uint64_t *pValue, IN JsonWriter *pWriter)
+{
+  pWriter->write_value(*pValue);
 
   return true;
 }
@@ -473,6 +526,18 @@ bool serialize(IN const lt_state_identifier *pId, IN StreamWriter *pStream)
 {
   WRITE(pStream, pId->stateIndex);
   WRITE(pStream, pId->subStateIndex);
+
+  return true;
+}
+
+bool jsonify(IN const lt_state_identifier *pValue, IN JsonWriter *pWriter)
+{
+  pWriter->begin_body();
+  
+  pWriter->write("state", pValue->stateIndex);
+  pWriter->write("subState", pValue->subStateIndex);
+  
+  pWriter->end();
 
   return true;
 }
@@ -497,27 +562,41 @@ bool serialize(IN const lt_transition_data *pData, IN StreamWriter *pStream)
   return true;
 }
 
-bool deserialize(OUT lt_state_ref *pRef, IN ByteStream *pStream, const uint32_t version)
+bool jsonify(IN const lt_transition_data *pValue, IN JsonWriter *pWriter)
 {
-  if (!deserialize(&pRef->index, pStream, version))
-    return false;
+  pWriter->begin_body();
 
-  if (!deserialize(&pRef->data, pStream, version))
-    return false;
+  pWriter->write("avgDelay", pValue->avgDelayS);
+  pWriter->write("minDelay", to_seconds(pValue->minDelay));
+  pWriter->write("maxDelay", to_seconds(pValue->maxDelay));
+  pWriter->write("count", pValue->count);
+
+  pWriter->end();
 
   return true;
 }
 
-bool serialize(IN const lt_state_ref *pRef, IN StreamWriter *pStream)
-{
-  if (!serialize(&pRef->index, pStream))
-    return false;
-
-  if (!serialize(&pRef->data, pStream))
-    return false;
-
-  return true;
-}
+//bool deserialize(OUT lt_state_ref *pRef, IN ByteStream *pWriter, const uint32_t version)
+//{
+//  if (!deserialize(&pRef->index, pWriter, version))
+//    return false;
+//
+//  if (!deserialize(&pRef->data, pWriter, version))
+//    return false;
+//
+//  return true;
+//}
+//
+//bool serialize(IN const lt_state_ref *pRef, IN StreamWriter *pWriter)
+//{
+//  if (!serialize(&pRef->index, pWriter))
+//    return false;
+//
+//  if (!serialize(&pRef->data, pWriter))
+//    return false;
+//
+//  return true;
+//}
 
 bool deserialize(OUT lt_operation_identifier *pId, IN ByteStream *pStream, const uint32_t /* version */)
 {
@@ -529,6 +608,13 @@ bool deserialize(OUT lt_operation_identifier *pId, IN ByteStream *pStream, const
 bool serialize(IN const lt_operation_identifier *pId, IN StreamWriter *pStream)
 {
   WRITE(pStream, pId->operationType);
+
+  return true;
+}
+
+bool jsonify(IN const lt_operation_identifier *pValue, IN JsonWriter *pWriter)
+{
+  pWriter->write_value(pValue->operationType);
 
   return true;
 }
@@ -555,87 +641,106 @@ bool serialize(IN const lt_operation_transition_data *pData, IN StreamWriter *pS
   return true;
 }
 
-bool deserialize(OUT lt_explicit_operation_ref *pRef, IN ByteStream *pStream, const uint32_t version)
+bool jsonify(IN const lt_operation_transition_data *pValue, IN JsonWriter *pWriter)
 {
-  if (!deserialize(&pRef->index, pStream, version))
+  pWriter->begin_body();
+
+  pWriter->write("avgDelay", pValue->avgDelayS);
+  pWriter->write("minDelay", to_seconds(pValue->minDelay));
+  pWriter->write("maxDelay", to_seconds(pValue->maxDelay));
+  pWriter->write("count", pValue->count);
+
+  pWriter->write_name("operations");
+
+  if (!jsonify(&pValue->operationIndexCount, pWriter))
     return false;
 
-  if (!deserialize(&pRef->data, pStream, version))
-    return false;
-
+  pWriter->end();
+  
   return true;
 }
 
-bool serialize(IN const lt_explicit_operation_ref *pRef, IN StreamWriter *pStream)
-{
-  if (!serialize(&pRef->index, pStream))
-    return false;
-
-  if (!serialize(&pRef->data, pStream))
-    return false;
-
-  return true;
-}
-
-bool deserialize(OUT lt_operation_ref *pRef, IN ByteStream *pStream, const uint32_t version)
-{
-  if (!deserialize(&pRef->index, pStream, version))
-    return false;
-
-  if (!deserialize(&pRef->data, pStream, version))
-    return false;
-
-  return true;
-}
-
-bool serialize(IN const lt_operation_ref *pRef, IN StreamWriter *pStream)
-{
-  if (!serialize(&pRef->index, pStream))
-    return false;
-
-  if (!serialize(&pRef->data, pStream))
-    return false;
-
-  return true;
-}
-
-template <typename T>
-bool deserialize(OUT lt_reach_probability<T> *pProb, IN ByteStream *pStream, const uint32_t version)
-{
-  if (!deserialize(pProb->index, pStream, version))
-    return false;
-
-  READ(pStream, pProb->hits);
-
-  return true;
-}
-
-template <typename T>
-bool serialize(IN const lt_reach_probability<T> *pProb, IN StreamWriter *pStream)
-{
-  if (!serialize(pProb->index, pStream))
-    return false;
-
-  WRITE(pStream, pProb->hits);
-
-  return true;
-}
-
-bool deserialize(OUT lt_operation_index_data *pData, IN ByteStream *pStream, const uint32_t /* version */)
-{
-  READ(pStream, pData->index);
-  READ(pStream, pData->count);
-
-  return true;
-}
-
-bool serialize(IN const lt_operation_index_data *pData, IN StreamWriter *pStream)
-{
-  WRITE(pStream, pData->index);
-  WRITE(pStream, pData->count);
-
-  return true;
-}
+//bool deserialize(OUT lt_explicit_operation_ref *pRef, IN ByteStream *pWriter, const uint32_t version)
+//{
+//  if (!deserialize(&pRef->index, pWriter, version))
+//    return false;
+//
+//  if (!deserialize(&pRef->data, pWriter, version))
+//    return false;
+//
+//  return true;
+//}
+//
+//bool serialize(IN const lt_explicit_operation_ref *pRef, IN StreamWriter *pWriter)
+//{
+//  if (!serialize(&pRef->index, pWriter))
+//    return false;
+//
+//  if (!serialize(&pRef->data, pWriter))
+//    return false;
+//
+//  return true;
+//}
+//
+//bool deserialize(OUT lt_operation_ref *pRef, IN ByteStream *pWriter, const uint32_t version)
+//{
+//  if (!deserialize(&pRef->index, pWriter, version))
+//    return false;
+//
+//  if (!deserialize(&pRef->data, pWriter, version))
+//    return false;
+//
+//  return true;
+//}
+//
+//bool serialize(IN const lt_operation_ref *pRef, IN StreamWriter *pWriter)
+//{
+//  if (!serialize(&pRef->index, pWriter))
+//    return false;
+//
+//  if (!serialize(&pRef->data, pWriter))
+//    return false;
+//
+//  return true;
+//}
+//
+//template <typename T>
+//bool deserialize(OUT lt_reach_probability<T> *pProb, IN ByteStream *pWriter, const uint32_t version)
+//{
+//  if (!deserialize(pProb->index, pWriter, version))
+//    return false;
+//
+//  READ(pWriter, pProb->hits);
+//
+//  return true;
+//}
+//
+//template <typename T>
+//bool serialize(IN const lt_reach_probability<T> *pProb, IN StreamWriter *pWriter)
+//{
+//  if (!serialize(pProb->index, pWriter))
+//    return false;
+//
+//  WRITE(pWriter, pProb->hits);
+//
+//  return true;
+//}
+//
+//bool deserialize(OUT lt_operation_index_data *pData, IN ByteStream *pWriter, const uint32_t /* version */)
+//{
+//  READ(pWriter, pData->index);
+//  READ(pWriter, pData->count);
+//
+//  return true;
+//}
+//
+//bool serialize(IN const lt_operation_index_data *pData, IN StreamWriter *pWriter)
+//{
+//  WRITE(pWriter, pData->index);
+//  WRITE(pWriter, pData->count);
+//
+//  return true;
+//}
 
 bool deserialize(OUT lt_state_pack *pPack, IN ByteStream *pStream, const uint32_t version)
 {
@@ -699,6 +804,56 @@ bool serialize(IN const lt_state_pack *pPack, IN StreamWriter *pStream)
   return true;
 }
 
+bool jsonify(IN const lt_state_pack *pPack, IN JsonWriter *pWriter)
+{
+  pWriter->begin_body();
+
+  pWriter->write_name("index");
+
+  if (!jsonify(&pPack->index, pWriter))
+    return false;
+
+  pWriter->write("avgDelay", pPack->state.data.avgDelayS);
+  pWriter->write("minDelay", to_seconds(pPack->state.data.minDelay));
+  pWriter->write("maxDelay", to_seconds(pPack->state.data.maxDelay));
+  pWriter->write("count", pPack->state.data.count);
+  pWriter->write("avgStartDelay", pPack->state.avgTimeSinceStartS);
+
+  pWriter->write_name("previousState");
+
+  if (!jsonify(&pPack->state.previousState, pWriter))
+    return false;
+
+  pWriter->write_name("nextState");
+
+  if (!jsonify(&pPack->state.nextState, pWriter))
+    return false;
+
+  pWriter->write_name("operations");
+
+  if (!jsonify(&pPack->state.operations, pWriter))
+    return false;
+
+  pWriter->write_name("previousOperation");
+
+  if (!jsonify(&pPack->state.previousOperation, pWriter))
+    return false;
+
+  pWriter->write_name("stateReach");
+
+  if (!jsonify(&pPack->state.stateReach, pWriter))
+    return false;
+
+  pWriter->write_name("operationReach");
+
+  if (!jsonify(&pPack->state.operationReach, pWriter))
+    return false;
+
+  pWriter->end();
+
+  return true;
+}
+
 bool deserialize(OUT lt_operation_pack *pPack, IN ByteStream *pStream, const uint32_t version)
 {
   if (!deserialize(&pPack->index, pStream, version))
@@ -754,6 +909,52 @@ bool serialize(IN const lt_operation_pack *pPack, IN StreamWriter *pStream)
 
   return true;
 }
+
+bool jsonify(IN const lt_operation_pack *pPack, IN JsonWriter *pWriter)
+{
+  pWriter->begin_body();
+
+  pWriter->write_name("index");
+
+  if (!jsonify(&pPack->index, pWriter))
+    return false;
+
+  pWriter->write("avgDelay", pPack->operation.data.avgDelayS);
+  pWriter->write("minDelay", to_seconds(pPack->operation.data.minDelay));
+  pWriter->write("maxDelay", to_seconds(pPack->operation.data.maxDelay));
+  pWriter->write("count", pPack->operation.data.count);
+  pWriter->write("avgStartDelay", pPack->operation.avgTimeSinceStartS);
+
+  pWriter->write_name("operationIndexCount");
+
+  if (!jsonify(&pPack->operation.operationIndexCount, pWriter))
+    return false;
+
+  pWriter->write_name("parentState");
+
+  if (!jsonify(&pPack->operation.parentState, pWriter))
+    return false;
+
+  pWriter->write_name("nextState");
+
+  if (!jsonify(&pPack->operation.nextState, pWriter))
+    return false;
+
+  pWriter->write_name("lastOperation");
+
+  if (!jsonify(&pPack->operation.lastOperation, pWriter))
+    return false;
+
+  pWriter->write_name("nextOperation");
+
+  if (!jsonify(&pPack->operation.nextOperation, pWriter))
+    return false;
+
+  pWriter->end();
+  
+  return true;
+}
+
 
 bool deserialize(OUT lt_analyze *pAnalyze, IN ByteStream *pStream)
 {
@@ -878,6 +1079,69 @@ bool serialize(IN const lt_analyze *pAnalyze, OUT StreamWriter *pStream)
   return true;
 }
 
+bool jsonify(IN const lt_analyze *pAnalyze, OUT JsonWriter *pWriter)
+{
+  pWriter->begin_body();
+
+  pWriter->write("outputVersion", 1);
+
+  pWriter->write("productName", pAnalyze->productName);
+  pWriter->write("majorVersion", pAnalyze->majorVersion);
+  pWriter->write("minorVersion", pAnalyze->minorVersion);
+  
+  // Write States.
+  {
+    pWriter->begin_array("states");
+
+    for (const auto &_subState : pAnalyze->states)
+    {
+      pWriter->begin_body();
+
+      pWriter->write("subSystem", _subState.first);
+      pWriter->begin_array("states");
+
+      for (const auto &_state : _subState.second)
+      {
+        if (!jsonify(&_state, pWriter))
+          return false;
+      }
+
+      pWriter->end();
+      pWriter->end();
+    }
+
+    pWriter->end();
+  }
+
+  // Write Operations.
+  {
+    pWriter->begin_array("operations");
+
+    for (const auto &_subState : pAnalyze->operations)
+    {
+      pWriter->begin_body();
+
+      pWriter->write("subSystem", _subState.first);
+      pWriter->begin_array("operations");
+
+      for (const auto &_operation : _subState.second)
+      {
+        if (!jsonify(&_operation, pWriter))
+          return false;
+      }
+
+      pWriter->end();
+      pWriter->end();
+    }
+
+    pWriter->end();
+  }
+
+  pWriter->end();
+
+  return true;
+}
+
 //////////////////////////////////////////////////////////////////////////
 
 lt_state *get_state(IN lt_analyze *pAnalyze, const uint64_t subSystem, const uint64_t stateIndex, const uint64_t subStateIndex)
@@ -982,19 +1246,19 @@ lt_operation *get_operation(IN lt_analyze *pAnalyze, IN lt_full_operation_identi
   return get_operation(pAnalyze, pIndex->subSystem, pIndex->operationType);
 }
 
-lt_transition_data *get_transition_data(std::vector<lt_state_ref> *pList, const lt_state_identifier *pId)
-{
-  for (auto &_item : *pList)
-    if (_item.index.stateIndex == pId->stateIndex && _item.index.subStateIndex == pId->subStateIndex)
-      return &_item.data;
-
-  lt_state_ref ref;
-  ref.index = *pId;
-
-  pList->push_back(std::move(ref));
-
-  return &pList->back().data;
-}
+//lt_transition_data *get_transition_data(std::vector<lt_state_ref> *pList, const lt_state_identifier *pId)
+//{
+//  for (auto &_item : *pList)
+//    if (_item.index.stateIndex == pId->stateIndex && _item.index.subStateIndex == pId->subStateIndex)
+//      return &_item.data;
+//
+//  lt_state_ref ref;
+//  ref.index = *pId;
+//
+//  pList->push_back(std::move(ref));
+//
+//  return &pList->back().data;
+//}
 
 lt_transition_data *get_transition_data(SoaList<lt_state_identifier, lt_transition_data> *pList, const lt_state_identifier *pId)
 {
@@ -1007,19 +1271,19 @@ lt_transition_data *get_transition_data(SoaList<lt_state_identifier, lt_transiti
   return &pList->value.back();
 }
 
-lt_transition_data *get_transition_data(std::vector<lt_operation_ref> *pList, const lt_operation_identifier *pId)
-{
-  for (auto &_item : *pList)
-    if (_item.index.operationType == pId->operationType)
-      return &_item.data;
-
-  lt_operation_ref ref;
-  ref.index = *pId;
-
-  pList->push_back(std::move(ref));
-
-  return &pList->back().data;
-}
+//lt_transition_data *get_transition_data(std::vector<lt_operation_ref> *pList, const lt_operation_identifier *pId)
+//{
+//  for (auto &_item : *pList)
+//    if (_item.index.operationType == pId->operationType)
+//      return &_item.data;
+//
+//  lt_operation_ref ref;
+//  ref.index = *pId;
+//
+//  pList->push_back(std::move(ref));
+//
+//  return &pList->back().data;
+//}
 
 lt_transition_data *get_transition_data(SoaList<lt_operation_identifier, lt_transition_data> *pList, const lt_operation_identifier *pId)
 {
@@ -1032,19 +1296,19 @@ lt_transition_data *get_transition_data(SoaList<lt_operation_identifier, lt_tran
   return &pList->value.back();
 }
 
-lt_operation_transition_data *get_operation_transition_data(std::vector<lt_explicit_operation_ref> *pList, const lt_operation_identifier *pId)
-{
-  for (auto &_item : *pList)
-    if (_item.index.operationType == pId->operationType)
-      return &_item.data;
-
-  lt_explicit_operation_ref ref;
-  ref.index = *pId;
-
-  pList->push_back(std::move(ref));
-
-  return &pList->back().data;
-}
+//lt_operation_transition_data *get_operation_transition_data(std::vector<lt_explicit_operation_ref> *pList, const lt_operation_identifier *pId)
+//{
+//  for (auto &_item : *pList)
+//    if (_item.index.operationType == pId->operationType)
+//      return &_item.data;
+//
+//  lt_explicit_operation_ref ref;
+//  ref.index = *pId;
+//
+//  pList->push_back(std::move(ref));
+//
+//  return &pList->back().data;
+//}
 
 lt_operation_transition_data *get_operation_transition_data(SoaList<lt_operation_identifier, lt_operation_transition_data> *pList, const lt_operation_identifier *pId)
 {
@@ -1064,7 +1328,7 @@ void update_transition_data(lt_transition_data *pTransition, const uint64_t dela
   if (pTransition->count > 0)
   {
     pTransition->maxDelay = max(pTransition->maxDelay, delay);
-    pTransition->minDelay = max(pTransition->minDelay, delay);
+    pTransition->minDelay = min(pTransition->minDelay, delay);
   }
   else
   {
@@ -1785,7 +2049,7 @@ int32_t main(void)
   // Analyze Files.
   for (int32_t i = 3; i < argc; i++)
   {
-    FATAL_IF(analyze_file(pArgv[i], &analyze, isNewFile), "Failed to analyze file %ws", pArgv[i]);
+    FATAL_IF(!analyze_file(pArgv[i], &analyze, isNewFile), "Failed to analyze file %ws", pArgv[i]);
 
     isNewFile = false;
   }
@@ -1818,6 +2082,13 @@ int32_t main(void)
     }
 
     CloseHandle(file);
+  }
+
+  // Write analyze json file.
+  {
+    JsonWriter writer(stdout);
+
+    FATAL_IF(!jsonify(&analyze, &writer), "Failed to jsonify analyze data.");
   }
 
   return 0;
