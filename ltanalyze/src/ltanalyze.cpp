@@ -1230,6 +1230,20 @@ void update_operation_transition_data(lt_operation_transition_data *pTransition,
   }
 }
 
+void update_operation_index_counts(SoaList<uint64_t, uint64_t> *pIndices, const uint64_t operationIndex)
+{
+  for (size_t i = 0; i < pIndices->size(); i++)
+  {
+    if (pIndices->index[i] == operationIndex)
+    {
+      pIndices->value[i]++;
+      return;
+    }
+  }
+
+  pIndices->emplace_back(operationIndex, 1);
+}
+
 //////////////////////////////////////////////////////////////////////////
 
 struct lt_sub_system
@@ -1456,7 +1470,7 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
 
           update_transition_data(&pLastState->data, lastStateDelay);
           update_transition_data(get_transition_data(&pLastState->nextState, &id), lastStateDelay);
-          update_transition_data(get_transition_data(&pSelf->nextState, &pSubSystem->lastState), lastStateDelay);
+          update_transition_data(get_transition_data(&pSelf->previousState, &pSubSystem->lastState), lastStateDelay);
         }
 
         for (auto &_states : pSubSystem->previousStates)
@@ -1475,6 +1489,7 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
           const uint64_t lastOperationDelay = timestamp - pSubSystem->lastOperationTimestamp;
 
           update_transition_data(get_transition_data(&pOp->nextState, &id), lastOperationDelay);
+          update_transition_data(get_transition_data(&pSelf->previousOperation, &pSubSystem->lastOperation), lastOperationDelay);
         }
 
         pSubSystem->hasLastState = true;
@@ -1500,6 +1515,7 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
         lt_operation *pSelf = get_operation(pAnalyze, subSystem, id.operationType);
 
         pSelf->avgTimeSinceStartS = adjust(pSelf->avgTimeSinceStartS, to_seconds(timestamp - startTimestamp), pSelf->data.count);
+        update_operation_index_counts(&pSelf->operationIndexCount, operationIndex);
 
         if (pSubSystem->hasLastState)
         {
