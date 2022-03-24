@@ -172,7 +172,7 @@ public:
   inline void begin_object(const char *name) { line(); fprintf(pFile, "\"%s\": {", name); stack.push_back(JCT_Body); }
   inline void begin_array(const char *name) { line(); fprintf(pFile, "\"%s\": [", name); stack.push_back(JCT_Array); }
   inline void begin_array() { line(); fputs("[", pFile); stack.push_back(JCT_Array); }
-  inline void end() { FATAL_IF(lastWasNameOnly, "Invalid JsonWriter State."); const uint8_t back = stack.back(); stack.pop_back(); fputs("\n", pFile);  space(); if ((back & 0b10) == JCT_Array) fputs("]", pFile); else fputs("}", pFile); }
+  inline void end() { FATAL_IF(lastWasNameOnly, "Invalid JsonWriter State."); const uint8_t back = stack.back(); stack.pop_back(); if (back & 1) { fputs("\n", pFile); space(); } if ((back & 0b10) == JCT_Array) fputs("]", pFile); else fputs("}", pFile); }
   
   inline void write_array_base64(const uint8_t *pData, const size_t length) { line(); print_bytes_as_base64string(pFile, pData, length); }
 
@@ -343,17 +343,17 @@ struct lt_log
   char *description = nullptr;
 };
 
-struct lt_state_pack
-{
-  lt_state_identifier index;
-  lt_state state;
-};
-
-struct lt_operation_pack
-{
-  lt_operation_identifier index;
-  lt_operation operation;
-};
+//struct lt_state_pack
+//{
+//  lt_state_identifier index;
+//  lt_state state;
+//};
+//
+//struct lt_operation_pack
+//{
+//  lt_operation_identifier index;
+//  lt_operation operation;
+//};
 
 struct lt_analyze
 {
@@ -361,8 +361,8 @@ struct lt_analyze
   uint64_t minorVersion = 0;
   char productName[0x100];
 
-  std::vector<std::pair<uint64_t, std::vector<lt_state_pack>>> states;
-  std::vector<std::pair<uint64_t, std::vector<lt_operation_pack>>> operations;
+  SoaList<uint64_t, SoaList<lt_state_identifier, lt_state>> states;
+  SoaList<uint64_t, SoaList<lt_operation_identifier, lt_operation>> operations;
   //std::vector<std::pair<uint64_t, lt_values<uint64_t>>> observedU64;
   //std::vector<std::pair<uint64_t, lt_values<int64_t>>> observedI64;
   //std::vector<std::pair<uint64_t, lt_values<double>>> observedF64;
@@ -742,111 +742,100 @@ bool jsonify(IN const lt_operation_transition_data *pValue, IN JsonWriter *pWrit
 //  return true;
 //}
 
-bool deserialize(OUT lt_state_pack *pPack, IN ByteStream *pStream, const uint32_t version)
+bool deserialize(OUT lt_state *pValue, IN ByteStream *pStream, const uint32_t version)
 {
-  if (!deserialize(&pPack->index, pStream, version))
+  if (!deserialize(&pValue->data, pStream, version))
     return false;
 
-  if (!deserialize(&pPack->state.data, pStream, version))
+  READ(pStream, pValue->avgTimeSinceStartS);
+
+  if (!deserialize(&pValue->previousState, pStream, version))
     return false;
 
-  READ(pStream, pPack->state.avgTimeSinceStartS);
-
-  if (!deserialize(&pPack->state.previousState, pStream, version))
+  if (!deserialize(&pValue->nextState, pStream, version))
     return false;
 
-  if (!deserialize(&pPack->state.nextState, pStream, version))
+  if (!deserialize(&pValue->operations, pStream, version))
     return false;
 
-  if (!deserialize(&pPack->state.operations, pStream, version))
+  if (!deserialize(&pValue->previousOperation, pStream, version))
     return false;
 
-  if (!deserialize(&pPack->state.previousOperation, pStream, version))
+  if (!deserialize(&pValue->stateReach, pStream, version))
     return false;
 
-  if (!deserialize(&pPack->state.stateReach, pStream, version))
-    return false;
-
-  if (!deserialize(&pPack->state.operationReach, pStream, version))
+  if (!deserialize(&pValue->operationReach, pStream, version))
     return false;
 
   return true;
 }
 
-bool serialize(IN const lt_state_pack *pPack, IN StreamWriter *pStream)
+bool serialize(IN const lt_state *pValue, IN StreamWriter *pStream)
 {
-  if (!serialize(&pPack->index, pStream))
+  if (!serialize(&pValue->data, pStream))
     return false;
 
-  if (!serialize(&pPack->state.data, pStream))
+  WRITE(pStream, pValue->avgTimeSinceStartS);
+
+  if (!serialize(&pValue->previousState, pStream))
     return false;
 
-  WRITE(pStream, pPack->state.avgTimeSinceStartS);
-
-  if (!serialize(&pPack->state.previousState, pStream))
+  if (!serialize(&pValue->nextState, pStream))
     return false;
 
-  if (!serialize(&pPack->state.nextState, pStream))
+  if (!serialize(&pValue->operations, pStream))
     return false;
 
-  if (!serialize(&pPack->state.operations, pStream))
+  if (!serialize(&pValue->previousOperation, pStream))
     return false;
 
-  if (!serialize(&pPack->state.previousOperation, pStream))
+  if (!serialize(&pValue->stateReach, pStream))
     return false;
 
-  if (!serialize(&pPack->state.stateReach, pStream))
-    return false;
-
-  if (!serialize(&pPack->state.operationReach, pStream))
+  if (!serialize(&pValue->operationReach, pStream))
     return false;
 
   return true;
 }
 
-bool jsonify(IN const lt_state_pack *pPack, IN JsonWriter *pWriter)
+bool jsonify(IN const lt_state *pValue, IN JsonWriter *pWriter)
 {
   pWriter->begin_body();
 
-  pWriter->write_name("index");
-
-  if (!jsonify(&pPack->index, pWriter))
-    return false;
-
-  pWriter->write("avgDelay", pPack->state.data.avgDelayS);
-  pWriter->write("minDelay", to_seconds(pPack->state.data.minDelay));
-  pWriter->write("maxDelay", to_seconds(pPack->state.data.maxDelay));
-  pWriter->write("count", pPack->state.data.count);
-  pWriter->write("avgStartDelay", pPack->state.avgTimeSinceStartS);
+  pWriter->write("avgDelay", pValue->data.avgDelayS);
+  pWriter->write("minDelay", to_seconds(pValue->data.minDelay));
+  pWriter->write("maxDelay", to_seconds(pValue->data.maxDelay));
+  pWriter->write("count", pValue->data.count);
+  pWriter->write("avgStartDelay", pValue->avgTimeSinceStartS);
 
   pWriter->write_name("previousState");
 
-  if (!jsonify(&pPack->state.previousState, pWriter))
+  if (!jsonify(&pValue->previousState, pWriter))
     return false;
 
   pWriter->write_name("nextState");
 
-  if (!jsonify(&pPack->state.nextState, pWriter))
+  if (!jsonify(&pValue->nextState, pWriter))
     return false;
 
   pWriter->write_name("operations");
 
-  if (!jsonify(&pPack->state.operations, pWriter))
+  if (!jsonify(&pValue->operations, pWriter))
     return false;
 
   pWriter->write_name("previousOperation");
 
-  if (!jsonify(&pPack->state.previousOperation, pWriter))
+  if (!jsonify(&pValue->previousOperation, pWriter))
     return false;
 
   pWriter->write_name("stateReach");
 
-  if (!jsonify(&pPack->state.stateReach, pWriter))
+  if (!jsonify(&pValue->stateReach, pWriter))
     return false;
 
   pWriter->write_name("operationReach");
 
-  if (!jsonify(&pPack->state.operationReach, pWriter))
+  if (!jsonify(&pValue->operationReach, pWriter))
     return false;
 
   pWriter->end();
@@ -854,100 +843,89 @@ bool jsonify(IN const lt_state_pack *pPack, IN JsonWriter *pWriter)
   return true;
 }
 
-bool deserialize(OUT lt_operation_pack *pPack, IN ByteStream *pStream, const uint32_t version)
+bool deserialize(OUT lt_operation *pValue, IN ByteStream *pStream, const uint32_t version)
 {
-  if (!deserialize(&pPack->index, pStream, version))
+  if (!deserialize(&pValue->data, pStream, version))
     return false;
 
-  if (!deserialize(&pPack->operation.data, pStream, version))
+  READ(pStream, pValue->avgTimeSinceStartS);
+
+  if (!deserialize(&pValue->operationIndexCount, pStream, version))
     return false;
 
-  READ(pStream, pPack->operation.avgTimeSinceStartS);
-
-  if (!deserialize(&pPack->operation.operationIndexCount, pStream, version))
+  if (!deserialize(&pValue->parentState, pStream, version))
     return false;
 
-  if (!deserialize(&pPack->operation.parentState, pStream, version))
+  if (!deserialize(&pValue->nextState, pStream, version))
     return false;
 
-  if (!deserialize(&pPack->operation.nextState, pStream, version))
+  if (!deserialize(&pValue->lastOperation, pStream, version))
     return false;
 
-  if (!deserialize(&pPack->operation.lastOperation, pStream, version))
-    return false;
-
-  if (!deserialize(&pPack->operation.nextOperation, pStream, version))
+  if (!deserialize(&pValue->nextOperation, pStream, version))
     return false;
 
   return true;
 }
 
-bool serialize(IN const lt_operation_pack *pPack, IN StreamWriter *pStream)
+bool serialize(IN const lt_operation *pValue, IN StreamWriter *pStream)
 {
-  if (!serialize(&pPack->index, pStream))
+  if (!serialize(&pValue->data, pStream))
     return false;
 
-  if (!serialize(&pPack->operation.data, pStream))
+  WRITE(pStream, pValue->avgTimeSinceStartS);
+
+  if (!serialize(&pValue->operationIndexCount, pStream))
     return false;
 
-  WRITE(pStream, pPack->operation.avgTimeSinceStartS);
-
-  if (!serialize(&pPack->operation.operationIndexCount, pStream))
+  if (!serialize(&pValue->parentState, pStream))
     return false;
 
-  if (!serialize(&pPack->operation.parentState, pStream))
+  if (!serialize(&pValue->nextState, pStream))
     return false;
 
-  if (!serialize(&pPack->operation.nextState, pStream))
+  if (!serialize(&pValue->lastOperation, pStream))
     return false;
 
-  if (!serialize(&pPack->operation.lastOperation, pStream))
-    return false;
-
-  if (!serialize(&pPack->operation.nextOperation, pStream))
+  if (!serialize(&pValue->nextOperation, pStream))
     return false;
 
   return true;
 }
 
-bool jsonify(IN const lt_operation_pack *pPack, IN JsonWriter *pWriter)
+bool jsonify(IN const lt_operation *pValue, IN JsonWriter *pWriter)
 {
   pWriter->begin_body();
 
-  pWriter->write_name("index");
-
-  if (!jsonify(&pPack->index, pWriter))
-    return false;
-
-  pWriter->write("avgDelay", pPack->operation.data.avgDelayS);
-  pWriter->write("minDelay", to_seconds(pPack->operation.data.minDelay));
-  pWriter->write("maxDelay", to_seconds(pPack->operation.data.maxDelay));
-  pWriter->write("count", pPack->operation.data.count);
-  pWriter->write("avgStartDelay", pPack->operation.avgTimeSinceStartS);
+  pWriter->write("avgDelay", pValue->data.avgDelayS);
+  pWriter->write("minDelay", to_seconds(pValue->data.minDelay));
+  pWriter->write("maxDelay", to_seconds(pValue->data.maxDelay));
+  pWriter->write("count", pValue->data.count);
+  pWriter->write("avgStartDelay", pValue->avgTimeSinceStartS);
 
   pWriter->write_name("operationIndexCount");
 
-  if (!jsonify(&pPack->operation.operationIndexCount, pWriter))
+  if (!jsonify(&pValue->operationIndexCount, pWriter))
     return false;
 
   pWriter->write_name("parentState");
 
-  if (!jsonify(&pPack->operation.parentState, pWriter))
+  if (!jsonify(&pValue->parentState, pWriter))
     return false;
 
   pWriter->write_name("nextState");
 
-  if (!jsonify(&pPack->operation.nextState, pWriter))
+  if (!jsonify(&pValue->nextState, pWriter))
     return false;
 
   pWriter->write_name("lastOperation");
 
-  if (!jsonify(&pPack->operation.lastOperation, pWriter))
+  if (!jsonify(&pValue->lastOperation, pWriter))
     return false;
 
   pWriter->write_name("nextOperation");
 
-  if (!jsonify(&pPack->operation.nextOperation, pWriter))
+  if (!jsonify(&pValue->nextOperation, pWriter))
     return false;
 
   pWriter->end();
@@ -970,60 +948,14 @@ bool deserialize(OUT lt_analyze *pAnalyze, IN ByteStream *pStream)
 
   // Read States.
   {
-    uint64_t subSystemCount = 0;
-    READ(pStream, subSystemCount);
-
-    for (size_t i = 0; i < subSystemCount; i++)
-    {
-      uint64_t subSystem;
-      READ(pStream, subSystem);
-      
-      uint64_t stateCount;
-      READ(pStream, stateCount);
-
-      std::vector<lt_state_pack> states;
-
-      for (size_t j = 0; j < stateCount; j++)
-      {
-        lt_state_pack pack;
-
-        if (!deserialize(&pack, pStream, version))
-          return false;
-
-        states.push_back(pack);
-      }
-
-      pAnalyze->states.emplace_back(subSystem, states);
-    }
+    if (!deserialize(&pAnalyze->states, pStream, version))
+      return false;
   }
 
   // Read Operations.
   {
-    uint64_t subSystemCount = 0;
-    READ(pStream, subSystemCount);
-
-    for (size_t i = 0; i < subSystemCount; i++)
-    {
-      uint64_t subSystem;
-      READ(pStream, subSystem);
-
-      uint64_t operationCount;
-      READ(pStream, operationCount);
-
-      std::vector<lt_operation_pack> operations;
-
-      for (size_t j = 0; j < operationCount; j++)
-      {
-        lt_operation_pack pack;
-
-        if (!deserialize(&pack, pStream, version))
-          return false;
-
-        operations.push_back(pack);
-      }
-
-      pAnalyze->operations.emplace_back(subSystem, operations);
-    }
+    if (!deserialize(&pAnalyze->operations, pStream, version))
+      return false;
   }
 
   return true;
@@ -1040,40 +972,14 @@ bool serialize(IN const lt_analyze *pAnalyze, OUT StreamWriter *pStream)
 
   // Write States.
   {
-    const uint64_t subSystemCount = pAnalyze->states.size();
-    WRITE(pStream, subSystemCount);
-
-    for (const auto &_subState : pAnalyze->states)
-    {
-      WRITE(pStream, _subState.first);
-
-      const uint64_t stateCount = _subState.second.size();
-
-      for (const auto &_state : _subState.second)
-      {
-        if (!serialize(&_state, pStream))
-          return false;
-      }
-    }
+    if (!serialize(&pAnalyze->states, pStream))
+      return false;
   }
 
   // Write Operations.
   {
-    const uint64_t subSystemCount = pAnalyze->operations.size();
-    WRITE(pStream, subSystemCount);
-
-    for (const auto &_subState : pAnalyze->operations)
-    {
-      WRITE(pStream, _subState.first);
-
-      const uint64_t operationCount = _subState.second.size();
-
-      for (const auto &_operation : _subState.second)
-      {
-        if (!serialize(&_operation, pStream))
-          return false;
-      }
-    }
+    if (!serialize(&pAnalyze->operations, pStream))
+      return false;
   }
 
   return true;
@@ -1091,50 +997,18 @@ bool jsonify(IN const lt_analyze *pAnalyze, OUT JsonWriter *pWriter)
   
   // Write States.
   {
-    pWriter->begin_array("states");
+    pWriter->write_name("states");
 
-    for (const auto &_subState : pAnalyze->states)
-    {
-      pWriter->begin_body();
-
-      pWriter->write("subSystem", _subState.first);
-      pWriter->begin_array("states");
-
-      for (const auto &_state : _subState.second)
-      {
-        if (!jsonify(&_state, pWriter))
-          return false;
-      }
-
-      pWriter->end();
-      pWriter->end();
-    }
-
-    pWriter->end();
+    if (!jsonify(&pAnalyze->states, pWriter))
+      return false;
   }
 
   // Write Operations.
   {
-    pWriter->begin_array("operations");
+    pWriter->write_name("operations");
 
-    for (const auto &_subState : pAnalyze->operations)
-    {
-      pWriter->begin_body();
-
-      pWriter->write("subSystem", _subState.first);
-      pWriter->begin_array("operations");
-
-      for (const auto &_operation : _subState.second)
-      {
-        if (!jsonify(&_operation, pWriter))
-          return false;
-      }
-
-      pWriter->end();
-      pWriter->end();
-    }
-
-    pWriter->end();
+    if (!jsonify(&pAnalyze->operations, pWriter))
+      return false;
   }
 
   pWriter->end();
@@ -1149,42 +1023,41 @@ lt_state *get_state(IN lt_analyze *pAnalyze, const uint64_t subSystem, const uin
   if (pAnalyze == nullptr)
     return nullptr;
 
-  for (auto &_subState : pAnalyze->states)
+  for (size_t i = 0; i < pAnalyze->states.size(); i++)
   {
-    if (_subState.first == subSystem)
+    if (pAnalyze->states.index[i] == subSystem)
     {
+      auto &list = pAnalyze->states.value[i];
+
       // Try to find the state.
-      for (auto &_item : _subState.second)
-        if (_item.index.stateIndex == stateIndex && _item.index.subStateIndex == subStateIndex)
-          return &_item.state;
+      for (size_t j = 0; j < list.size(); j++)
+        if (list.index[j].stateIndex == stateIndex && list.index[j].subStateIndex == subStateIndex)
+          return &list.value[j];
 
       // Create new state.
       {
-        lt_state_pack pack;
-        pack.index.stateIndex = stateIndex;
-        pack.index.subStateIndex = subStateIndex;
+        lt_state_identifier index;
+        index.stateIndex = stateIndex;
+        index.subStateIndex = subStateIndex;
 
-        _subState.second.push_back(std::move(pack));
+        list.push_back(std::move(index), lt_state());
 
-        return &std::get<1>(_subState).back().state;
+        return &list.value.back();
       }
     }
   }
 
   // Create New SubSystem.
   {
-    std::pair<uint64_t, std::vector<lt_state_pack>> subState;
-    subState.first = subSystem;
+    pAnalyze->states.push_back(subSystem, SoaList<lt_state_identifier, lt_state>());
 
-    pAnalyze->states.push_back(std::move(subState));
+    lt_state_identifier index;
+    index.stateIndex = stateIndex;
+    index.subStateIndex = subStateIndex;
 
-    lt_state_pack pack;
-    pack.index.stateIndex = stateIndex;
-    pack.index.subStateIndex = subStateIndex;
+    pAnalyze->states.value.back().push_back(std::move(index), lt_state());
 
-    pAnalyze->states.back().second.push_back(std::move(pack));
-    
-    return &pAnalyze->states.back().second.back().state;
+    return &pAnalyze->states.value.back().value.back();
   }
 }
 
@@ -1201,40 +1074,39 @@ lt_operation *get_operation(IN lt_analyze *pAnalyze, const uint64_t subSystem, c
   if (pAnalyze == nullptr)
     return nullptr;
 
-  for (auto &_subState : pAnalyze->operations)
+  for (size_t i = 0; i < pAnalyze->operations.size(); i++)
   {
-    if (_subState.first == subSystem)
+    if (pAnalyze->operations.index[i] == subSystem)
     {
+      auto &list = pAnalyze->operations.value[i];
+
       // Try to find the state.
-      for (auto &_item : _subState.second)
-        if (_item.index.operationType == operationType)
-          return &_item.operation;
+      for (size_t j = 0; j < list.size(); j++)
+        if (list.index[j].operationType == operationType)
+          return &list.value[j];
 
       // Create new state.
       {
-        lt_operation_pack pack;
-        pack.index.operationType = operationType;
+        lt_operation_identifier index;
+        index.operationType = operationType;
 
-        _subState.second.push_back(std::move(pack));
+        list.push_back(std::move(index), lt_operation());
 
-        return &std::get<1>(_subState).back().operation;
+        return &list.value.back();
       }
     }
   }
 
   // Create New SubSystem.
   {
-    std::pair<uint64_t, std::vector<lt_operation_pack>> subState;
-    subState.first = subSystem;
+    pAnalyze->operations.push_back(subSystem, SoaList<lt_operation_identifier, lt_operation>());
 
-    pAnalyze->operations.push_back(std::move(subState));
+    lt_operation_identifier index;
+    index.operationType = operationType;
 
-    lt_operation_pack pack;
-    pack.index.operationType = operationType;
+    pAnalyze->operations.value.back().push_back(std::move(index), lt_operation());
 
-    pAnalyze->operations.back().second.push_back(std::move(pack));
-
-    return &pAnalyze->operations.back().second.back().operation;
+    return &pAnalyze->operations.value.back().value.back();
   }
 }
 
@@ -1574,11 +1446,11 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
         lt_sub_system *pSubSystem = get_sub_system(&state, subSystem);
         lt_state *pSelf = get_state(pAnalyze, subSystem, id.stateIndex, id.subStateIndex);
 
+        pSelf->avgTimeSinceStartS = adjust(pSelf->avgTimeSinceStartS, to_seconds(timestamp - startTimestamp), pSelf->data.count);
+
         if (pSubSystem->hasLastState)
         {
           lt_state *pLastState = get_state(pAnalyze, subSystem, pSubSystem->lastState.stateIndex, pSubSystem->lastState.subStateIndex);
-
-          pLastState->avgTimeSinceStartS = adjust(pLastState->avgTimeSinceStartS, to_seconds(timestamp - startTimestamp), pLastState->data.count);
 
           const uint64_t lastStateDelay = timestamp - pSubSystem->lastStateTimestamp;
 
@@ -1600,7 +1472,7 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
         {
           lt_operation *pOp = get_operation(pAnalyze, subSystem, pSubSystem->lastOperation.operationType);
 
-          const uint64_t lastOperationDelay = timestamp - pSubSystem->lastStateTimestamp;
+          const uint64_t lastOperationDelay = timestamp - pSubSystem->lastOperationTimestamp;
 
           update_transition_data(get_transition_data(&pOp->nextState, &id), lastOperationDelay);
         }
@@ -1627,11 +1499,11 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
         lt_sub_system *pSubSystem = get_sub_system(&state, subSystem);
         lt_operation *pSelf = get_operation(pAnalyze, subSystem, id.operationType);
 
+        pSelf->avgTimeSinceStartS = adjust(pSelf->avgTimeSinceStartS, to_seconds(timestamp - startTimestamp), pSelf->data.count);
+
         if (pSubSystem->hasLastState)
         {
           lt_state *pLastState = get_state(pAnalyze, subSystem, pSubSystem->lastState.stateIndex, pSubSystem->lastState.subStateIndex);
-
-          pLastState->avgTimeSinceStartS = adjust(pLastState->avgTimeSinceStartS, to_seconds(timestamp - startTimestamp), pLastState->data.count);
 
           const uint64_t lastStateDelay = timestamp - pSubSystem->lastStateTimestamp;
 
@@ -1654,20 +1526,11 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
 
           pOp->avgTimeSinceStartS = adjust(pOp->avgTimeSinceStartS, to_seconds(timestamp - startTimestamp), pOp->data.count);
 
-          const uint64_t lastOperationDelay = timestamp - pSubSystem->lastStateTimestamp;
+          const uint64_t lastOperationDelay = timestamp - pSubSystem->lastOperationTimestamp;
 
           update_transition_data(&pOp->data, lastOperationDelay);
           update_operation_transition_data(get_operation_transition_data(&pOp->nextOperation, &id), lastOperationDelay, operationIndex);
           update_transition_data(get_transition_data(&pSelf->lastOperation, &id), lastOperationDelay);
-        }
-
-        for (auto &_states : pSubSystem->previousStates)
-        {
-          lt_state *pState = get_state(pAnalyze, subSystem, _states.first.stateIndex, _states.first.subStateIndex);
-
-          const uint64_t stateDelay = timestamp - _states.second;
-
-          update_transition_data(get_transition_data(&pState->operationReach, &id), stateDelay);
         }
 
         pSubSystem->hasLastOperation = true;
