@@ -45,10 +45,10 @@ h1.Page {
 
 .PieChartContainer {
   border-radius: 100%;
-  height: calc(var(--size, 200) * 1px);
+  height: calc(var(--size, 200) * 1pt);
   overflow: hidden;
   position: relative;
-  width: calc(var(--size, 200) * 1px);
+  width: calc(var(--size, 200) * 1pt);
   margin: 15pt;
   float: left;
 }
