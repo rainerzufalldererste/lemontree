@@ -1,0 +1,196 @@
+body {
+  background: #111;
+  color: #fff;
+}
+
+.main {
+  background: #222;
+  width: 80%;
+  max-width: 900pt;
+  margin: 20pt auto;
+  padding: 5pt 50pt 35pt 50pt;
+  font-family: "Segoe UI", sans-serif;
+  font-weight: 400;
+  border-top: #ff5161 solid 2pt;
+  min-height: 300pt;
+}
+
+a {
+  color: #838383;
+}
+
+a.Button, a.StateLink, a.OperationLink {
+  display: inline;
+  background: #545454;
+  padding: 2pt 5pt;
+  margin: 0 5pt 5pt 0;
+  border-radius: 2pt;
+  color: #fff;
+  text-decoration: none;
+  font-weight: 200;
+}
+
+a.Button:hover, a.Button:active, a.StateLink:hover, a.StateLink:active, a.OperationLink:hover, a.OperationLink:active {
+  background: #ff5161;
+}
+
+h1.Page {
+  text-transform: uppercase;
+  color: #555;
+  font-weight: 900;
+  letter-spacing: 2pt;
+  font-size: 90%;
+  float: right;
+}
+
+.PieChartContainer {
+  border-radius: 100%;
+  height: calc(var(--size, 200) * 1px);
+  overflow: hidden;
+  position: relative;
+  width: calc(var(--size, 200) * 1px);
+  margin: 15pt;
+  float: left;
+}
+
+.DataInfo::after { 
+  content: " ";
+  display: block; 
+  height: 0; 
+  clear: both;
+}
+
+.PieSegment {
+  --a: calc(var(--over50, 0) * -100%);
+  --b: calc((1 + var(--over50, 0)) * 100%);
+  --degrees: calc((var(--offset, 0) / 100) * 360);
+  -webkit-clip-path: polygon(var(--a) var(--a), var(--b) var(--a), var(--b) var(--b), var(--a) var(--b));
+  clip-path: polygon(var(--a) var(--a), var(--b) var(--a), var(--b) var(--b), var(--a) var(--b));
+  height: 100%;
+  position: absolute;
+  transform: translate(0, -50%) rotate(90deg) rotate(calc(var(--degrees) * 1deg));
+  transform-origin: 50% 100%;
+  width: 100%;
+  z-index: calc(1 + var(--over50));
+}
+
+.PieSegment:before {
+  --degrees: calc((var(--value, 45) / 100) * 360);
+  transform: translate(0, 100%) rotate(calc(var(--degrees) * 1deg));
+  transform-origin: 50% 0%;
+}
+
+.PieSegment:after, .PieSegment:before {
+  background: var(--bg, #e74c3c);
+  content: '';
+  height: 100%;
+  position: absolute;
+  width: 100%;
+}
+
+.PieSegment:after {
+  opacity: var(--over50, 0);
+}
+
+.PieDescriptionContainer {
+  background: #333;
+  display: inline-block;
+  padding: 10pt 15pt;
+}
+
+p.DataPercentage {
+  font-size: 30pt;
+  display: block;
+  margin: 0;
+  float: left;
+  padding: 0 10pt 0 0;
+}
+
+p.DataCount {
+  font-weight: 600;
+  display: block;
+  margin: 5pt;
+}
+
+p.DataCount::before {
+  content: "Count: ";
+}
+
+p.DataDelay, p.DataDelayMin, p.DataDelayMax {
+  display: inline-block;
+  margin: 0 5pt;
+  padding: 0;
+}
+
+p.DataDelay {
+  color: #666;
+}
+
+p.DataDelayMin {
+  color: #686;
+}
+
+p.DataDelayMax {
+  color: #866;
+}
+
+.DataInfo {
+  border-top: #aaa 2pt solid;
+  margin: 5pt 0;
+  background: #282828;
+  padding: 0 20pt 20pt 20pt;
+}
+
+.DataInfo h1 {
+  font-size: 20pt;
+  color: #e3e3e3;
+  font-family: Consolas, monospace;
+}
+
+p.Bar {
+  width: calc(var(--value, 0) * 3pt);
+  height: 10pt;
+  color: #fff;
+  background: linear-gradient(90deg, #1f61b3, #79dded);
+  border-radius: 10pt;
+  padding: 0 5pt 5pt 5pt;
+  text-align: right;
+  margin: 0 10pt 0 0;
+}
+
+p.Bar2 {
+  width: calc(var(--value, 0) * 1.5pt);
+  height: 10pt;
+  color: #fff;
+  background: linear-gradient(90deg, #1f61b3, #79dded);
+  border-radius: 10pt;
+  padding: 0 5pt 5pt 5pt;
+  text-align: right;
+  margin: 0 10pt 0 0;
+}
+
+p.StartDelay::before {
+  content: "Start Delay: ";
+}
+
+p.StartDelay {
+  color: #666;
+  margin: 0 5pt;
+  padding: 0;
+}
+
+.LineGraphLine {
+  width: calc(var(--value, 0) * 2.5pt);
+  height: 10pt;
+  display: inline-block;
+  margin: 0;
+  padding: 0;
+}
+
+p.DataName {
+  display: inline-block;
+  background: #4e4e4e;
+  padding: 5pt;
+  margin: 10pt 1pt 0 0;
+  border-radius: 2pt;
+}

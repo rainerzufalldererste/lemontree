@@ -1879,7 +1879,7 @@ int32_t main(void)
 
   int32_t argc = 0;
   wchar_t **pArgv = CommandLineToArgvW(commandLine, &argc);
-  FATAL_IF(argc != 4, "Invalid Parameter.\nUsage: [-io <LT Analyze File> | -o <New LT Analyze File>] <LT Log File> ...");
+  FATAL_IF(argc < 4, "Invalid Parameter.\nUsage: [-io <LT Analyze File> | -o <New LT Analyze File>] <LT Log File> ...");
 
   const wchar_t *outputFileName = pArgv[2];
   bool isNewFile = true;

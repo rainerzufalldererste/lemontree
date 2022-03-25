@@ -271,7 +271,7 @@ public class Analysis
       double percentage = ((double)x.value.count.value / (double)total) * 100.0;
       string color = colors[index++ % colors.Length];
 
-      pieChart.AddElement(new HContainer() { Class = "PieSegment", Style = $"--offset: {offset}; --value: {percentage}; --bg: {color};" + (percentage > 50 ? " --over50: 1;" : "") });
+      pieChart.AddElement(new HContainer() { Class = "PieSegment", Style = $"--offset: {offset}; --value: {percentage}; --bg: {color};" + (percentage > 50 ? " --over50: 1;" : ""), Title = $"{info.GetName(subSystem, x.index)} ({x.value.count})" });
       description.AddElement(new HContainer() { Class = "PieDescriptionContainer", Elements = { GetElementName(info, subSystem, x.index), new HText($"{percentage:0.##}%") { Class = "DataPercentage", Style= $"color:{color};" }, new HText($"{x.value.count}") { Class = "DataCount" }, new HText($"{x.value.avgDelay:0.####}s") { Class = "DataDelay" }, new HText($"{x.value.minDelay:0.####}s") { Class = "DataDelayMin" }, new HText($"{x.value.maxDelay:0.####}s") { Class = "DataDelayMax" } } });
 
       offset += percentage;
@@ -300,7 +300,7 @@ public class Analysis
       double percentage = ((double)x.value / (double)total) * 100.0;
       string color = colors[index++ % colors.Length];
 
-      pieChart.AddElement(new HContainer() { Class = "PieSegment", Style = $"--offset: {offset}; --value: {percentage}; --bg: {color};" + (percentage > 50 ? " --over50: 1;" : ""), Title = x.index.ToString() });
+      pieChart.AddElement(new HContainer() { Class = "PieSegment", Style = $"--offset: {offset}; --value: {percentage}; --bg: {color};" + (percentage > 50 ? " --over50: 1;" : ""), Title = $"{x.index} ({x.value})"  });
       description.AddElement(new HContainer() { Class = "PieDescriptionContainer", Elements = { new HText(x.index.ToString()) { Class = "DataName" }, new HText($"{percentage:0.##}%") { Class = "DataPercentage", Style= $"color:{color};" }, new HText($"{x.value}") { Class = "DataCount" } } });
 
       offset += percentage;
@@ -350,7 +350,7 @@ public class Analysis
       double percentage = ((double)x.value / (double)total) * 100.0;
       string color = colors[index++ % colors.Length];
 
-      graph.AddElement(new HContainer() { Class = "LineGraphLine", Style = $"--value:{percentage}; background:{color}", Title = x.value.ToString() });
+      graph.AddElement(new HContainer() { Class = "LineGraphLine", Style = $"--value:{percentage}; background:{color}", Title = $"{x.index} ({x.value})" });
     }
 
     return graph;
@@ -440,6 +440,16 @@ public class Info
   public string productName;
   public List<Ref<uint64_t, List<string>>> states;
   public List<Ref<uint64_t, List<string>>> operations;
+
+  public string GetName(uint64_t subSystem, object x)
+  {
+    if (x is uint64_t)
+      return GetOperationName(subSystem, (uint64_t)x);
+    else if (x is StateId)
+      return GetStateName(subSystem, ((StateId)x).state, ((StateId)x).subState);
+    else
+      throw new ArrayTypeMismatchException();
+  }
 
   public string GetStateName(uint64_t subSystem, uint64_t stateIndex, uint64_t subStateIndex)
   {
