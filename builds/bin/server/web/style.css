@@ -123,15 +123,23 @@ p.DataDelay, p.DataDelayMin, p.DataDelayMax {
 }
 
 p.DataDelay {
-  color: #666;
+  color: #f3f3f3;
+  font-weight: bold;
 }
 
 p.DataDelayMin {
   color: #686;
 }
 
+p.DataDelayMin::after
+{
+  content: " ~";
+  color: #666;
+}
+
 p.DataDelayMax {
   color: #866;
+  margin-left: -1pt;
 }
 
 .DataInfo {
@@ -158,29 +166,18 @@ p.Bar {
   margin: 0 10pt 0 0;
 }
 
-p.Bar2 {
-  width: calc(var(--value, 0) * 1.5pt);
-  height: 10pt;
-  color: #fff;
-  background: linear-gradient(90deg, #1f61b3, #79dded);
-  border-radius: 10pt;
-  padding: 0 5pt 5pt 5pt;
-  text-align: right;
-  margin: 0 10pt 0 0;
-}
-
 p.StartDelay::before {
-  content: "Start Delay: ";
+  content: "Start Delay: ~";
 }
 
 p.StartDelay {
-  color: #666;
+  color: #b3b3b3;
   margin: 0 5pt;
   padding: 0;
 }
 
 .LineGraphLine {
-  width: calc(var(--value, 0) * 2.5pt);
+  width: calc(100% / 100 * var(--value, 1));
   height: 10pt;
   display: inline-block;
   margin: 0;
@@ -193,4 +190,20 @@ p.DataName {
   padding: 5pt;
   margin: 10pt 1pt 0 0;
   border-radius: 2pt;
+}
+
+.NoData {
+  color: #888;
+  font-weight: bold;
+  font-family: Consolas, monospace;
+  background: #282828;
+  padding: 1pt 10pt;
+}
+
+.NoData p::before {
+  content: "[[ "
+}
+
+.NoData p::after {
+  content: " ]]"
 }

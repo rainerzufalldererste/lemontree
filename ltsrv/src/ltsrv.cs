@@ -20,6 +20,10 @@ public class ltsrv
 
     Console.WriteLine("Deserialized Analysis.");
 
+    _Analysis.Sort();
+
+    Console.WriteLine("Sorted Analysis.");
+
     for (int i = 1; i < args.Length;)
     {
       switch (args[i])
@@ -118,7 +122,7 @@ public class StateInfo : ElementResponse
     yield return ltsrv._Analysis.DisplayInfo(s);
     yield return ltsrv._Analysis.ToPieChart((uint64_t)subSystem, s.nextState, "Next State", ltsrv._Info);
     yield return ltsrv._Analysis.ToPieChart((uint64_t)subSystem, s.previousState, "Previous State", ltsrv._Info);
-    yield return ltsrv._Analysis.ToBarGraph((uint64_t)subSystem, s.operations, "Operations", ltsrv._Info);
+    yield return ltsrv._Analysis.ToPieChart((uint64_t)subSystem, s.operations, "Operations", ltsrv._Info);
     yield return ltsrv._Analysis.ToPieChart((uint64_t)subSystem, s.previousOperation, "Previous Operation", ltsrv._Info);
     yield return ltsrv._Analysis.ToBarGraph((uint64_t)subSystem, s.stateReach, "State Reach", ltsrv._Info);
     yield return ltsrv._Analysis.ToBarGraph((uint64_t)subSystem, s.operationReach, "Operation Reach", ltsrv._Info);
@@ -177,10 +181,10 @@ public class OperationInfo : ElementResponse
 
     yield return ltsrv._Analysis.DisplayInfo(s);
     yield return ltsrv._Analysis.ToPieChart(s.operationIndexCount, "Operation Index");
-    yield return ltsrv._Analysis.ToBarGraph((uint64_t)subSystem, s.nextOperation, "Next Operation", ltsrv._Info);
+    yield return ltsrv._Analysis.ToPieChart((uint64_t)subSystem, s.nextOperation, "Next Operation", ltsrv._Info);
     yield return ltsrv._Analysis.ToPieChart((uint64_t)subSystem, s.parentState, "Parent State", ltsrv._Info);
     yield return ltsrv._Analysis.ToPieChart((uint64_t)subSystem, s.nextState, "Next State", ltsrv._Info);
-    yield return ltsrv._Analysis.ToPieChart((uint64_t)subSystem, s.lastOperation, "Last Operation", ltsrv._Info);
+    yield return ltsrv._Analysis.ToPieChart((uint64_t)subSystem, s.lastOperation, "Previous Operation", ltsrv._Info);
   }
 }
 
@@ -253,20 +257,22 @@ public class Analysis
 
   public HContainer ToPieChart<T>(uint64_t subSystem, List<Ref<T, TransitionData>> list, string name, Info info)
   {
+    if (list.Count == 0)
+      return new HContainer() { Class = "NoData", Elements = { new HText($"No '{name}' Data Available.") } };
+
     HContainer pieChart = new HContainer() { Class = "PieChartContainer" };
     HContainer description = new HContainer() { Class = "PieChartDescription" };
 
-    var l = list.OrderByDescending(a => a.value.count);
     ulong total = 0;
 
-    foreach (var x in l)
+    foreach (var x in list)
       total += x.value.count;
 
     double offset = 0;
     int index = 0;
     string[] colors = { "#fff378", "#ffd070", "#ffaf7c", "#ff9293", "#fd80ac", "#d279c0", "#9777c9", "#4c75c2" };
 
-    foreach (var x in l)
+    foreach (var x in list)
     {
       double percentage = ((double)x.value.count.value / (double)total) * 100.0;
       string color = colors[index++ % colors.Length];
@@ -282,20 +288,22 @@ public class Analysis
 
   public HContainer ToPieChart(List<Ref<uint64_t, uint64_t>> list, string name)
   {
+    if (list.Count == 0)
+      return new HContainer() { Class = "NoData", Elements = { new HText($"No '{name}' Data Available.") } };
+
     HContainer pieChart = new HContainer() { Class = "PieChartContainer" };
     HContainer description = new HContainer() { Class = "PieChartDescription" };
 
-    var l = list.OrderByDescending(a => a.value);
     ulong total = 0;
 
-    foreach (var x in l)
+    foreach (var x in list)
       total += x.value;
 
     double offset = 0;
     int index = 0;
     string[] colors = { "#fff378", "#ffd070", "#ffaf7c", "#ff9293", "#fd80ac", "#d279c0", "#9777c9", "#4c75c2" };
 
-    foreach (var x in l)
+    foreach (var x in list)
     {
       double percentage = ((double)x.value / (double)total) * 100.0;
       string color = colors[index++ % colors.Length];
@@ -311,16 +319,18 @@ public class Analysis
 
   public HContainer ToBarGraph<T>(uint64_t subSystem, List<Ref<T, TransitionData>> list, string name, Info info)
   {
+    if (list.Count == 0)
+      return new HContainer() { Class = "NoData", Elements = { new HText($"No '{name}' Data Available.") } };
+
     List<List<HElement>> contents = new List<List<HElement>>();
 
-    var l = list.OrderByDescending(a => a.value.count);
     ulong max = 0;
 
-    foreach (var x in l)
+    foreach (var x in list)
       if (x.value.count > max)
         max = x.value.count;
 
-    foreach (var x in l)
+    foreach (var x in list)
     {
       double percentage = ((double)x.value.count.value / (double)max) * 100.0;
 
@@ -334,18 +344,20 @@ public class Analysis
 
   public HContainer ToLineGraph(List<Ref<uint64_t, uint64_t>> list)
   {
+    if (list.Count == 0)
+      return new HContainer() { Class = "NoData", Elements = { new HText("No Data Available.") } };
+
     HContainer graph = new HContainer() { Class = "LineGraph" };
 
-    var l = list.OrderByDescending(a => a.value);
     ulong total = 0;
 
-    foreach (var x in l)
+    foreach (var x in list)
       total += x.value;
 
     int index = 0;
     string[] colors = { "#fff378", "#ffd070", "#ffaf7c", "#ff9293", "#fd80ac", "#d279c0", "#9777c9", "#4c75c2" };
 
-    foreach (var x in l)
+    foreach (var x in list)
     {
       double percentage = ((double)x.value / (double)total) * 100.0;
       string color = colors[index++ % colors.Length];
@@ -356,32 +368,68 @@ public class Analysis
     return graph;
   }
 
-  public HContainer ToBarGraph<T>(uint64_t subSystem, List<Ref<T, OperationTransitionData>> list, string name, Info info)
+  public HContainer ToPieChart<T>(uint64_t subSystem, List<Ref<T, OperationTransitionData>> list, string name, Info info)
   {
-    List<List<HElement>> contents = new List<List<HElement>>();
+    if (list.Count == 0)
+      return new HContainer() { Class = "NoData", Elements = { new HText($"No '{name}' Data Available.") } };
 
-    var l = list.OrderByDescending(a => a.value.count);
-    ulong max = 0;
+    HContainer pieChart = new HContainer() { Class = "PieChartContainer" };
+    HContainer description = new HContainer() { Class = "PieChartDescription" };
 
-    foreach (var x in l)
-      if (x.value.count > max)
-        max = x.value.count;
+    ulong total = 0;
 
-    foreach (var x in l)
+    foreach (var x in list)
+        total += x.value.count;
+
+    double offset = 0;
+    int index = 0;
+    string[] colors = { "#fff378", "#ffd070", "#ffaf7c", "#ff9293", "#fd80ac", "#d279c0", "#9777c9", "#4c75c2" };
+
+    foreach (var x in list)
     {
-      double percentage = ((double)x.value.count.value / (double)max) * 100.0;
+      double percentage = ((double)x.value.count.value / (double)total) * 100.0;
+      string color = colors[index++ % colors.Length];
 
-      contents.Add(new List<HElement>() { new HText($"{x.value.count}") { Class = "Bar2", Style = $"--value:{percentage};", Title = x.value.count.ToString() }, GetElementName(info, subSystem, x.index), new HContainer() { Elements = { new HText($"{x.value.avgDelay:0.####}s") { Class = "DataDelay" }, new HText($"{x.value.minDelay:0.####}s") { Class = "DataDelayMin" }, new HText($"{x.value.maxDelay:0.####}s") { Class = "DataDelayMax" } } }, ToLineGraph(x.value.operations) });
+      pieChart.AddElement(new HContainer() { Class = "PieSegment", Style = $"--offset: {offset}; --value: {percentage}; --bg: {color};" + (percentage > 50 ? " --over50: 1;" : "") });
+      description.AddElement(new HContainer() { Class = "PieDescriptionContainer", Elements = { GetElementName(info, subSystem, x.index), new HText($"{percentage:0.##}%") { Class = "DataPercentage", Style = $"color:{color};" }, new HText($"{x.value.count}") { Class = "DataCount" }, new HText($"{x.value.avgDelay:0.####}s") { Class = "DataDelay" }, new HText($"{x.value.minDelay:0.####}s") { Class = "DataDelayMin" }, new HText($"{x.value.maxDelay:0.####}s") { Class = "DataDelayMax" }, ToLineGraph(x.value.operations) } });
+
+      offset += percentage;
     }
 
-    HTable graph = new HTable(contents.ToArray()) { Class = "BarGraphContainer" };
-
-    return new HContainer() { Class = "DataInfo", Elements = { new HHeadline(name), graph } };
+    return new HContainer() { Class = "DataInfo", Elements = { new HHeadline(name), pieChart, description } };
   }
 
   public HContainer DisplayInfo(TransitionDataWithDelay data)
   {
     return new HContainer() { Class = "DataInfo", Elements = { new HHeadline("Info"), new HText($"{data.count}") { Class = "DataCount" }, new HText($"{data.avgDelay:0.####}s") { Class = "DataDelay" }, new HText($"{data.minDelay:0.####}s") { Class = "DataDelayMin" }, new HText($"{data.maxDelay:0.####}s") { Class = "DataDelayMax" }, new HText($"{data.avgStartDelay:0.####}s") { Class = "StartDelay" } } };
+  }
+
+  public void Sort()
+  {
+    foreach (var x in states)
+    {
+      foreach (var y in x.value)
+      {
+        y.value.nextState = y.value.nextState.OrderByDescending(a => a.value.count).ToList();
+        y.value.previousState = y.value.previousState.OrderByDescending(a => a.value.count).ToList();
+        y.value.previousOperation = y.value.previousOperation.OrderByDescending(a => a.value.count).ToList();
+        y.value.operations = y.value.operations.OrderByDescending(a => a.value.count).ToList();
+        y.value.operationReach = y.value.operationReach.OrderByDescending(a => a.value.count).ToList();
+        y.value.stateReach = y.value.stateReach.OrderByDescending(a => a.value.count).ToList();
+      }
+    }
+
+    foreach (var x in operations)
+    {
+      foreach (var y in x.value)
+      {
+        y.value.parentState = y.value.parentState.OrderByDescending(a => a.value.count).ToList();
+        y.value.lastOperation = y.value.lastOperation.OrderByDescending(a => a.value.count).ToList();
+        y.value.nextOperation = y.value.nextOperation.OrderByDescending(a => a.value.count).ToList();
+        y.value.nextState = y.value.nextState.OrderByDescending(a => a.value.count).ToList();
+        y.value.operationIndexCount = y.value.operationIndexCount.OrderByDescending(a => a.value).ToList();
+      }
+    }
   }
 }
 
