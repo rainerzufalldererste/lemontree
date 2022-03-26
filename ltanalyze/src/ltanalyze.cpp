@@ -22,25 +22,25 @@
 #define RECOVERABLE_ERROR(x, ...) FATAL(x, __VA_ARGS__)
 #define RECOVERABLE_ERROR_IF(conditional, x, ...) do { if (conditional) { RECOVERABLE_ERROR(x, __VA_ARGS__); } } while (0)
 
-#define PRINT_X64(prefix, name, stream) do { uint64_t v = 0; FATAL_IF(!stream.read(&v), "Insufficient data stream"); printf(prefix "\"" name "\":\"0x%" PRIX64 "\"", v); } while (0);
-#define PRINT_U64(prefix, name, stream) do { uint64_t v = 0; FATAL_IF(!stream.read(&v), "Insufficient data stream"); printf(prefix "\"" name "\":\"%" PRIu64 "\"", v); } while (0);
-#define PRINT_I64(prefix, name, stream) do { int64_t v = 0; FATAL_IF(!stream.read(&v), "Insufficient data stream"); printf(prefix "\"" name "\":\"%" PRIi64 "\"", v); } while (0);
-#define PRINT_F64(prefix, name, stream) do { double v = 0; FATAL_IF(!stream.read(&v), "Insufficient data stream"); printf(prefix "\"" name "\":%e", v); } while (0);
-#define PRINT_U32(prefix, name, stream) do { uint32_t v = 0; FATAL_IF(!stream.read(&v), "Insufficient data stream"); printf(prefix "\"" name "\":%" PRIu32 "", v); } while (0);
-#define PRINT_I32(prefix, name, stream) do { int32_t v = 0; FATAL_IF(!stream.read(&v), "Insufficient data stream"); printf(prefix "\"" name "\":%" PRIi32 "", v); } while (0);
-#define PRINT_U8(prefix, name, stream) do { uint8_t v = 0; FATAL_IF(!stream.read(&v), "Insufficient data stream"); printf(prefix "\"" name "\":%" PRIu8 "", v); } while (0);
-#define PRINT_BOOL(prefix, name, stream) do { uint8_t v = 0; FATAL_IF(!stream.read(&v), "Insufficient data stream"); v = !!v; printf(prefix "\"" name "\":%" PRIu8 "", v); } while (0);
-
-#define PRINT_STRING(prefix, name, stream) do { \
-  char buffer256[0x100]; \
-  uint8_t length = 0; \
-  FATAL_IF(!stream.read(&length), "Insufficient data stream"); \
-  if (length > 0) \
-  { FATAL_IF(!stream.read(buffer256, length), "Insufficient data stream"); \
-    buffer256[length] = '\0'; \
-    fputs(prefix "\"" name "\":", stdout); \
-    print_string_as_json(buffer256); \
-  } } while (0);
+//#define PRINT_X64(prefix, name, stream) do { uint64_t v = 0; FATAL_IF(!stream.read(&v), "Insufficient data stream"); printf(prefix "\"" name "\":\"0x%" PRIX64 "\"", v); } while (0);
+//#define PRINT_U64(prefix, name, stream) do { uint64_t v = 0; FATAL_IF(!stream.read(&v), "Insufficient data stream"); printf(prefix "\"" name "\":\"%" PRIu64 "\"", v); } while (0);
+//#define PRINT_I64(prefix, name, stream) do { int64_t v = 0; FATAL_IF(!stream.read(&v), "Insufficient data stream"); printf(prefix "\"" name "\":\"%" PRIi64 "\"", v); } while (0);
+//#define PRINT_F64(prefix, name, stream) do { double v = 0; FATAL_IF(!stream.read(&v), "Insufficient data stream"); printf(prefix "\"" name "\":%e", v); } while (0);
+//#define PRINT_U32(prefix, name, stream) do { uint32_t v = 0; FATAL_IF(!stream.read(&v), "Insufficient data stream"); printf(prefix "\"" name "\":%" PRIu32 "", v); } while (0);
+//#define PRINT_I32(prefix, name, stream) do { int32_t v = 0; FATAL_IF(!stream.read(&v), "Insufficient data stream"); printf(prefix "\"" name "\":%" PRIi32 "", v); } while (0);
+//#define PRINT_U8(prefix, name, stream) do { uint8_t v = 0; FATAL_IF(!stream.read(&v), "Insufficient data stream"); printf(prefix "\"" name "\":%" PRIu8 "", v); } while (0);
+//#define PRINT_BOOL(prefix, name, stream) do { uint8_t v = 0; FATAL_IF(!stream.read(&v), "Insufficient data stream"); v = !!v; printf(prefix "\"" name "\":%" PRIu8 "", v); } while (0);
+//
+//#define PRINT_STRING(prefix, name, stream) do { \
+//  char buffer256[0x100]; \
+//  uint8_t length = 0; \
+//  FATAL_IF(!stream.read(&length), "Insufficient data stream"); \
+//  if (length > 0) \
+//  { FATAL_IF(!stream.read(buffer256, length), "Insufficient data stream"); \
+//    buffer256[length] = '\0'; \
+//    fputs(prefix "\"" name "\":", stdout); \
+//    print_string_as_json(buffer256); \
+//  } } while (0);
 
 #define SKIP_X64(prefix, name, stream) do { uint64_t v = 0; FATAL_IF(!stream.read(&v), "Insufficient data stream"); } while (0);
 #define SKIP_U64(prefix, name, stream) do { uint64_t v = 0; FATAL_IF(!stream.read(&v), "Insufficient data stream"); } while (0);
@@ -225,29 +225,6 @@ struct lt_error_identifier
   uint64_t errorIndex;
 };
 
-//struct lt_operation_index_data
-//{
-//  uint64_t index, count;
-//};
-
-//struct lt_state_ref
-//{
-//  lt_state_identifier index;
-//  lt_transition_data data;
-//};
-
-//struct lt_explicit_operation_ref
-//{
-//  lt_operation_identifier index;
-//  lt_operation_transition_data data;
-//};
-
-//struct lt_operation_ref
-//{
-//  lt_operation_identifier index;
-//  lt_transition_data data;
-//};
-
 struct lt_error_ref
 {
   lt_error_identifier index;
@@ -264,13 +241,6 @@ struct lt_crash_ref
 
 typedef lt_crash_ref lt_value_ref;
 
-//template <typename T>
-//struct lt_reach_probability
-//{
-//  T index;
-//  uint64_t hits;
-//};
-
 template <typename T>
 struct lt_values
 {
@@ -279,6 +249,39 @@ struct lt_values
 
   size_t count = 0;
   T min, max, average;
+};
+
+struct lt_short_hw_info
+{
+  char cpuName[0x100] = "<UNKNOWN>";
+  uint32_t cpuCores = 0;
+  uint64_t freeRam = 0;
+  uint64_t totalRam = 0;
+  char gpuName[0x100] = "<UNKNOWN>";
+  uint64_t freeVRam = 0;
+  uint64_t dedicatedVRam = 0;
+  uint64_t totalVRam = 0;
+  char osName[0x100] = "<UNKNOWN>";
+  uint64_t monitorCount = 0;
+  uint32_t monitorTotalWidth = 0, monitorTotalHeight = 0;
+};
+
+template <typename T>
+struct lt_avg_data
+{
+  uint64_t count = 0;
+  double value = 0;
+  T maxValue = 0, minValue = 0;
+};
+
+// 1.01^(x^1.7)-1
+static const double lt_perf_data_sizes[] = { 0.01, 0.03285697058147385, 0.06652806072336404, 0.110750954546329, 0.1658987828997884, 0.2327704810349522, 0.3125338060030061, 0.4067245919737239, 0.5172768409819379, 0.646575833877717, 0.7975327335576197, 0.9736822038758584, 1.179306592328094, 1.4195920019549, 1.700823462599401, 2.030628623602832, 2.418282116414415, 2.875086176114238, 3.414847505261783, 4.054476015351149, 4.814738383900456, 5.721208834388007, 6.80547186160106, 8.10664768624367, 9.673332224582024, 11.56607089221216, 13.86052174911005, 16.65151117747014, 20.05824827622747, 24.2310475824663, 29.36002049995231, 35.68634326613121, 43.51690606970438, 53.24341121737348, 65.36734142191057 };
+
+struct lt_perf_data
+{
+  uint64_t hist[ARRAYSIZE(lt_perf_data_sizes) + 1] = {};
+  lt_avg_data<double> timeMs;
+  lt_short_hw_info minInfo, maxInfo;
 };
 
 struct lt_state
@@ -294,6 +297,7 @@ struct lt_state
   SoaList<lt_state_identifier, lt_transition_data> stateReach;
   SoaList<lt_operation_identifier, lt_transition_data> operationReach;
 
+  std::vector<lt_perf_data> profilerData;
   //std::vector<lt_error_ref> errors;
   //std::vector<lt_warning_ref> warnings;
   //std::vector<lt_log_ref> logs;
@@ -343,17 +347,39 @@ struct lt_log
   char *description = nullptr;
 };
 
-//struct lt_state_pack
-//{
-//  lt_state_identifier index;
-//  lt_state state;
-//};
-//
-//struct lt_operation_pack
-//{
-//  lt_operation_identifier index;
-//  lt_operation operation;
-//};
+struct lt_monitor_info
+{
+  uint32_t width, height;
+  uint32_t dpi; // average of dpiX, dpiY
+};
+
+struct lt_hw_info
+{
+  bool hasCpuInfo = false;
+  char cpuName[0x100];
+  uint32_t cpuCores;
+  bool hasRamInfo = false;
+  uint64_t ramTotalPhysical, ramTotalVirtual, ramAvailablePhysical, ramAvailableVirtual;
+  bool hasOsInfo = false;
+  char osName[0x100];
+  bool hasGpuInfo = false;
+  uint64_t gpuDedicatedVRam, gpuSharedVRam, gpuTotalVRam, gpuFreeVRam, gpuDriverVersion;
+  uint32_t gpuVendorId, gpuDeviceId, gpuRevisionId, gpuBoardId;
+  char gpuName[0x100];
+  char gpuDriverName[0x100];
+  bool hasLangInfo = false;
+  char langPrimaryName[0x100];
+  bool hasElevatedInfo = false;
+  bool elevated;
+  bool hasMonitorInfo = false;
+  std::vector<lt_monitor_info> monitorSizes;
+  uint32_t monitorTotalWidth, monitorTotalHeight;
+  bool hasStorageInfo = false;
+  uint64_t storageAvailable, storageTotal;
+  bool hasDeviceInfo = false;
+  char deviceManufacturerName[0x100];
+  char deviceModelName[0x100];
+};
 
 struct lt_analyze
 {
@@ -376,7 +402,7 @@ struct lt_analyze
 
 enum
 {
-  lt_analyze_file_version = 1,
+  lt_analyze_file_version = 2,
 };
 
 template <typename T>
@@ -576,28 +602,6 @@ bool jsonify(IN const lt_transition_data *pValue, IN JsonWriter *pWriter)
   return true;
 }
 
-//bool deserialize(OUT lt_state_ref *pRef, IN ByteStream *pWriter, const uint32_t version)
-//{
-//  if (!deserialize(&pRef->index, pWriter, version))
-//    return false;
-//
-//  if (!deserialize(&pRef->data, pWriter, version))
-//    return false;
-//
-//  return true;
-//}
-//
-//bool serialize(IN const lt_state_ref *pRef, IN StreamWriter *pWriter)
-//{
-//  if (!serialize(&pRef->index, pWriter))
-//    return false;
-//
-//  if (!serialize(&pRef->data, pWriter))
-//    return false;
-//
-//  return true;
-//}
-
 bool deserialize(OUT lt_operation_identifier *pId, IN ByteStream *pStream, const uint32_t /* version */)
 {
   READ(pStream, pId->operationType);
@@ -660,87 +664,174 @@ bool jsonify(IN const lt_operation_transition_data *pValue, IN JsonWriter *pWrit
   return true;
 }
 
-//bool deserialize(OUT lt_explicit_operation_ref *pRef, IN ByteStream *pWriter, const uint32_t version)
-//{
-//  if (!deserialize(&pRef->index, pWriter, version))
-//    return false;
-//
-//  if (!deserialize(&pRef->data, pWriter, version))
-//    return false;
-//
-//  return true;
-//}
-//
-//bool serialize(IN const lt_explicit_operation_ref *pRef, IN StreamWriter *pWriter)
-//{
-//  if (!serialize(&pRef->index, pWriter))
-//    return false;
-//
-//  if (!serialize(&pRef->data, pWriter))
-//    return false;
-//
-//  return true;
-//}
-//
-//bool deserialize(OUT lt_operation_ref *pRef, IN ByteStream *pWriter, const uint32_t version)
-//{
-//  if (!deserialize(&pRef->index, pWriter, version))
-//    return false;
-//
-//  if (!deserialize(&pRef->data, pWriter, version))
-//    return false;
-//
-//  return true;
-//}
-//
-//bool serialize(IN const lt_operation_ref *pRef, IN StreamWriter *pWriter)
-//{
-//  if (!serialize(&pRef->index, pWriter))
-//    return false;
-//
-//  if (!serialize(&pRef->data, pWriter))
-//    return false;
-//
-//  return true;
-//}
-//
-//template <typename T>
-//bool deserialize(OUT lt_reach_probability<T> *pProb, IN ByteStream *pWriter, const uint32_t version)
-//{
-//  if (!deserialize(pProb->index, pWriter, version))
-//    return false;
-//
-//  READ(pWriter, pProb->hits);
-//
-//  return true;
-//}
-//
-//template <typename T>
-//bool serialize(IN const lt_reach_probability<T> *pProb, IN StreamWriter *pWriter)
-//{
-//  if (!serialize(pProb->index, pWriter))
-//    return false;
-//
-//  WRITE(pWriter, pProb->hits);
-//
-//  return true;
-//}
-//
-//bool deserialize(OUT lt_operation_index_data *pData, IN ByteStream *pWriter, const uint32_t /* version */)
-//{
-//  READ(pWriter, pData->index);
-//  READ(pWriter, pData->count);
-//
-//  return true;
-//}
-//
-//bool serialize(IN const lt_operation_index_data *pData, IN StreamWriter *pWriter)
-//{
-//  WRITE(pWriter, pData->index);
-//  WRITE(pWriter, pData->count);
-//
-//  return true;
-//}
+template <typename T>
+bool deserialize(OUT lt_avg_data<T> *pData, IN ByteStream *pStream, const uint32_t version)
+{
+  if (version < 2)
+    return false;
+
+  READ(pStream, pData->count);
+  READ(pStream, pData->value);
+  READ(pStream, pData->minValue);
+  READ(pStream, pData->maxValue);
+
+  return true;
+}
+
+template <typename T>
+bool serialize(IN const lt_avg_data<T> *pData, IN StreamWriter *pStream)
+{
+  WRITE(pStream, pData->count);
+  WRITE(pStream, pData->value);
+  WRITE(pStream, pData->minValue);
+  WRITE(pStream, pData->maxValue);
+
+  return true;
+}
+
+template <typename T>
+bool jsonify(IN const lt_avg_data<T> *pData, IN JsonWriter *pWriter)
+{
+  pWriter->begin_body();
+
+  pWriter->write("count", pData->count);
+  pWriter->write("value", pData->value);
+  pWriter->write("min", pData->minValue);
+  pWriter->write("max", pData->maxValue);
+
+  pWriter->end();
+
+  return true;
+}
+
+bool deserialize(OUT lt_short_hw_info *pData, IN ByteStream *pStream, const uint32_t version)
+{
+  if (version < 2)
+    return false;
+
+  READ_STRING(pStream, pData->cpuName);
+  READ(pStream, pData->cpuCores);
+  READ(pStream, pData->freeRam);
+  READ(pStream, pData->totalRam);
+  READ(pStream, pData->freeVRam);
+  READ(pStream, pData->dedicatedVRam);
+  READ(pStream, pData->totalVRam);
+  READ_STRING(pStream, pData->gpuName);
+  READ_STRING(pStream, pData->osName);
+  READ(pStream, pData->monitorCount);
+  READ(pStream, pData->monitorTotalWidth);
+  READ(pStream, pData->monitorTotalHeight);
+
+  return true;
+}
+
+bool serialize(IN const lt_short_hw_info *pData, IN StreamWriter *pStream)
+{
+  WRITE_STRING(pStream, pData->cpuName);
+  WRITE(pStream, pData->cpuCores);
+  WRITE(pStream, pData->freeRam);
+  WRITE(pStream, pData->totalRam);
+  WRITE_STRING(pStream, pData->gpuName);
+  WRITE(pStream, pData->freeVRam);
+  WRITE(pStream, pData->dedicatedVRam);
+  WRITE(pStream, pData->totalVRam);
+  WRITE_STRING(pStream, pData->osName);
+  WRITE(pStream, pData->monitorCount);
+  WRITE(pStream, pData->monitorTotalWidth);
+  WRITE(pStream, pData->monitorTotalHeight);
+
+  return true;
+}
+
+bool jsonify(IN const lt_short_hw_info *pData, IN JsonWriter *pWriter)
+{
+  pWriter->begin_body();
+
+  pWriter->write("cpu", pData->cpuName);
+  pWriter->write("cpuCores", pData->cpuCores);
+  pWriter->write("freeRam", pData->freeRam);
+  pWriter->write("totalRam", pData->totalRam);
+  pWriter->write("gpu", pData->gpuName);
+  pWriter->write("freeVRam", pData->freeVRam);
+  pWriter->write("dedicatedVRam", pData->dedicatedVRam);
+  pWriter->write("totalVRam", pData->totalVRam);
+  pWriter->write("os", pData->osName);
+  pWriter->write("monitorCount", pData->monitorCount);
+  pWriter->write("multiMonitorWidth", pData->monitorTotalWidth);
+  pWriter->write("multiMonitorHeight", pData->monitorTotalHeight);
+
+  pWriter->end();
+
+  return true;
+}
+
+bool deserialize(OUT lt_perf_data *pData, IN ByteStream *pStream, const uint32_t version)
+{
+  if (version < 2)
+    return false;
+
+  if (!pStream->read(pData->hist, ARRAYSIZE(pData->hist)))
+    return false;
+
+  if (!deserialize(&pData->timeMs, pStream, version))
+    return false;
+
+  if (!deserialize(&pData->minInfo, pStream, version))
+    return false;
+
+  if (!deserialize(&pData->maxInfo, pStream, version))
+    return false;
+
+  return true;
+}
+
+bool serialize(IN const lt_perf_data *pData, IN StreamWriter *pStream)
+{
+  if (!pStream->write(pData->hist, ARRAYSIZE(pData->hist)))
+    return false;
+
+  if (!serialize(&pData->timeMs, pStream))
+    return false;
+
+  if (!serialize(&pData->minInfo, pStream))
+    return false;
+
+  if (!serialize(&pData->minInfo, pStream))
+    return false;
+
+  return true;
+}
+
+bool jsonify(IN const lt_perf_data *pData, IN JsonWriter *pWriter)
+{
+  pWriter->begin_body();
+
+  pWriter->begin_array("histogram");
+
+  for (size_t i = 0; i < ARRAYSIZE(pData->hist); i++)
+    pWriter->write_value(pData->hist[i]);
+
+  pWriter->end();
+
+  pWriter->write_name("timeMs");
+
+  if (!jsonify(&pData->timeMs, pWriter))
+    return false;
+
+  pWriter->write_name("minInfo");
+
+  if (!jsonify(&pData->minInfo, pWriter))
+    return false;
+
+  pWriter->write_name("maxInfo");
+
+  if (!jsonify(&pData->maxInfo, pWriter))
+    return false;
+
+  pWriter->end();
+
+  return true;
+}
 
 bool deserialize(OUT lt_state *pValue, IN ByteStream *pStream, const uint32_t version)
 {
@@ -766,6 +857,10 @@ bool deserialize(OUT lt_state *pValue, IN ByteStream *pStream, const uint32_t ve
 
   if (!deserialize(&pValue->operationReach, pStream, version))
     return false;
+
+  if (version >= 2)
+    if (!deserialize(&pValue->profilerData, pStream, version))
+      return false;
 
   return true;
 }
@@ -793,6 +888,9 @@ bool serialize(IN const lt_state *pValue, IN StreamWriter *pStream)
     return false;
 
   if (!serialize(&pValue->operationReach, pStream))
+    return false;
+
+  if (!serialize(&pValue->profilerData, pStream))
     return false;
 
   return true;
@@ -836,6 +934,11 @@ bool jsonify(IN const lt_state *pValue, IN JsonWriter *pWriter)
   pWriter->write_name("operationReach");
 
   if (!jsonify(&pValue->operationReach, pWriter))
+    return false;
+
+  pWriter->write_name("profileData");
+
+  if (!jsonify(&pValue->profilerData, pWriter))
     return false;
 
   pWriter->end();
@@ -1018,6 +1121,41 @@ bool jsonify(IN const lt_analyze *pAnalyze, OUT JsonWriter *pWriter)
 
 //////////////////////////////////////////////////////////////////////////
 
+void to_short_hw_info(IN const lt_hw_info *pHwInfo, OUT lt_short_hw_info *pShortHwInfo)
+{
+  if (pHwInfo->hasCpuInfo)
+  {
+    memcpy(pShortHwInfo->cpuName, pHwInfo->cpuName, sizeof(pHwInfo->cpuName));
+    pShortHwInfo->cpuCores = pHwInfo->cpuCores;
+  }
+
+  if (pHwInfo->hasRamInfo)
+  {
+    pShortHwInfo->freeRam = pHwInfo->ramAvailablePhysical;
+    pShortHwInfo->totalRam = pHwInfo->ramTotalPhysical;
+  }
+
+  if (pHwInfo->hasGpuInfo)
+  {
+    memcpy(pShortHwInfo->gpuName, pHwInfo->gpuName, sizeof(pHwInfo->gpuName));
+    pShortHwInfo->dedicatedVRam = pHwInfo->gpuDedicatedVRam;
+    pShortHwInfo->totalVRam = pHwInfo->gpuTotalVRam;
+    pShortHwInfo->freeVRam = pHwInfo->gpuFreeVRam;
+  }
+
+  if (pHwInfo->hasOsInfo)
+  {
+    memcpy(pShortHwInfo->osName, pHwInfo->osName, sizeof(pHwInfo->osName));
+  }
+
+  if (pHwInfo->hasMonitorInfo)
+  {
+    pShortHwInfo->monitorCount = pHwInfo->monitorSizes.size();
+    pShortHwInfo->monitorTotalWidth = pHwInfo->monitorTotalWidth;
+    pShortHwInfo->monitorTotalHeight = pHwInfo->monitorTotalHeight;
+  }
+}
+
 lt_state *get_state(IN lt_analyze *pAnalyze, const uint64_t subSystem, const uint64_t stateIndex, const uint64_t subStateIndex)
 {
   if (pAnalyze == nullptr)
@@ -1118,20 +1256,6 @@ lt_operation *get_operation(IN lt_analyze *pAnalyze, IN lt_full_operation_identi
   return get_operation(pAnalyze, pIndex->subSystem, pIndex->operationType);
 }
 
-//lt_transition_data *get_transition_data(std::vector<lt_state_ref> *pList, const lt_state_identifier *pId)
-//{
-//  for (auto &_item : *pList)
-//    if (_item.index.stateIndex == pId->stateIndex && _item.index.subStateIndex == pId->subStateIndex)
-//      return &_item.data;
-//
-//  lt_state_ref ref;
-//  ref.index = *pId;
-//
-//  pList->push_back(std::move(ref));
-//
-//  return &pList->back().data;
-//}
-
 lt_transition_data *get_transition_data(SoaList<lt_state_identifier, lt_transition_data> *pList, const lt_state_identifier *pId)
 {
   for (size_t i = 0; i < pList->size(); i++)
@@ -1143,20 +1267,6 @@ lt_transition_data *get_transition_data(SoaList<lt_state_identifier, lt_transiti
   return &pList->value.back();
 }
 
-//lt_transition_data *get_transition_data(std::vector<lt_operation_ref> *pList, const lt_operation_identifier *pId)
-//{
-//  for (auto &_item : *pList)
-//    if (_item.index.operationType == pId->operationType)
-//      return &_item.data;
-//
-//  lt_operation_ref ref;
-//  ref.index = *pId;
-//
-//  pList->push_back(std::move(ref));
-//
-//  return &pList->back().data;
-//}
-
 lt_transition_data *get_transition_data(SoaList<lt_operation_identifier, lt_transition_data> *pList, const lt_operation_identifier *pId)
 {
   for (size_t i = 0; i < pList->size(); i++)
@@ -1167,20 +1277,6 @@ lt_transition_data *get_transition_data(SoaList<lt_operation_identifier, lt_tran
 
   return &pList->value.back();
 }
-
-//lt_operation_transition_data *get_operation_transition_data(std::vector<lt_explicit_operation_ref> *pList, const lt_operation_identifier *pId)
-//{
-//  for (auto &_item : *pList)
-//    if (_item.index.operationType == pId->operationType)
-//      return &_item.data;
-//
-//  lt_explicit_operation_ref ref;
-//  ref.index = *pId;
-//
-//  pList->push_back(std::move(ref));
-//
-//  return &pList->back().data;
-//}
 
 lt_operation_transition_data *get_operation_transition_data(SoaList<lt_operation_identifier, lt_operation_transition_data> *pList, const lt_operation_identifier *pId)
 {
@@ -1298,16 +1394,66 @@ void update_previous_state_timing(lt_sub_system *pSubSystem, lt_state_identifier
   }
 }
 
+template <typename T>
+void update_avg_value(lt_avg_data<T> *pAvgData, const T value)
+{
+  pAvgData->value = adjust(pAvgData->value, value, pAvgData->count);
+
+  if (pAvgData->count > 0)
+  {
+    pAvgData->maxValue = max(pAvgData->maxValue, value);
+    pAvgData->minValue = min(pAvgData->minValue, value);
+  }
+  else
+  {
+    pAvgData->maxValue = value;
+    pAvgData->minValue = value;
+  }
+
+  pAvgData->count++;
+}
+
+void add_perf_data(lt_state *pState, const size_t index, const double ms, lt_short_hw_info *pHwInfo)
+{
+  while (pState->profilerData.size() <= index)
+    pState->profilerData.emplace_back(lt_perf_data());
+
+  lt_perf_data *pData = &pState->profilerData[index];
+
+  update_avg_value(&pData->timeMs, ms);
+
+  if (pData->timeMs.maxValue == ms)
+    pData->maxInfo = *pHwInfo;
+
+  if (pData->timeMs.minValue == ms)
+    pData->minInfo = *pHwInfo;
+
+  size_t i = 0;
+
+  for (; i < ARRAYSIZE(pData->hist) - 1; i++)
+    if (ms < lt_perf_data_sizes[i])
+      break;
+
+  pData->hist[i]++;
+}
+
 //////////////////////////////////////////////////////////////////////////
 
-bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNewFile)
+struct analyze_options
+{
+  bool ignoreMinorVersionDiff = false;
+};
+
+//////////////////////////////////////////////////////////////////////////
+
+bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNewFile, IN const analyze_options *pOptions)
 {
   lt_analyze_state state;
 
   size_t fileSize = 0;
   uint8_t *pData = nullptr;
 
-  // Read StackTrace File.
+  // Read Telemetry File.
   {
     HANDLE file = CreateFileW(inputFileName, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
     FATAL_IF(file == INVALID_HANDLE_VALUE, "Failed to open log file. (0x%" PRIX32 ")", GetLastError());
@@ -1346,6 +1492,8 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
   bool isDebugBuild = false;
   char productName[0x100];
   char remoteHost[0x100];
+  lt_hw_info hwInfo;
+  lt_short_hw_info hwInfoShort;
 
   // Read Section Headers.
   {
@@ -1429,7 +1577,9 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
     {
       FATAL_IF(0 != strncmp(productName, pAnalyze->productName, sizeof(productName)), "Error! Incompatible Product Name. '%s' != '%s'.", productName, pAnalyze->productName);
       FATAL_IF(majorVersion != pAnalyze->majorVersion, "Error! Incompatible Major Version. 0x%" PRIX64 " != 0x%" PRIX64 ".", majorVersion, pAnalyze->majorVersion);
-      FATAL_IF(minorVersion != pAnalyze->minorVersion, "Error! Incompatible Major Version. 0x%" PRIX64 " != 0x%" PRIX64 ".", minorVersion, pAnalyze->minorVersion);
+
+      if (!pOptions->ignoreMinorVersionDiff)
+        FATAL_IF(minorVersion != pAnalyze->minorVersion, "Error! Incompatible Major Version. 0x%" PRIX64 " != 0x%" PRIX64 ".", minorVersion, pAnalyze->minorVersion);
     }
     else
     {
@@ -1682,32 +1832,29 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
 
       case lt_t_perf_data:
       {
-        //uint16_t size = 0;
-        //FATAL_IF(!stream.read(&size), "Insufficient data stream.");
-        //
-        //SKIP_X64(",", "timestamp", stream);
-        //SKIP_X64(",", "subSystem", stream);
-        //
-        //uint8_t count = 0;
-        //FATAL_IF(!stream.read(&count), "Insufficient data stream.");
-        //
-        //if (count > 0)
-        //{
-        //  const double *pPerfData = reinterpret_cast<const double *>(stream.pData);
-        //  FATAL_IF(!stream.read<double>(nullptr, count), "Insufficient data stream.");
-        //
-        //  fputs(",\"data\":[", stdout);
-        //
-        //  for (uint8_t i = 0; i < count; i++)
-        //  {
-        //    if (i > 0)
-        //      fputs(",", stdout);
-        //
-        //    printf("%e", pPerfData[i]);
-        //  }
-        //
-        //  fputs("]", stdout);
-        //}
+        uint16_t size = 0;
+        FATAL_IF(!stream.read(&size), "Insufficient data stream.");
+
+        uint64_t subSystem, timestamp;
+
+        FATAL_IF(!stream.read(&timestamp), "Insufficient Data");
+        FATAL_IF(!stream.read(&subSystem), "Insufficient Data");
+
+        uint8_t count = 0;
+        FATAL_IF(!stream.read(&count), "Insufficient data stream.");
+
+        lt_sub_system *pSubSystem = get_sub_system(&state, subSystem);
+        
+        if (count > 0 && pSubSystem->hasLastState)
+        {
+          lt_state *pState = get_state(pAnalyze, subSystem, pSubSystem->lastState.stateIndex, pSubSystem->lastState.subStateIndex);
+
+          const double *pPerfData = reinterpret_cast<const double *>(stream.pData);
+          FATAL_IF(!stream.read<double>(nullptr, count), "Insufficient data stream.");
+
+          for (uint8_t i = 0; i < count; i++)
+            add_perf_data(pState, i, pPerfData[i], &hwInfoShort);
+        }
 
         break;
       }
@@ -1733,126 +1880,160 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
 
       case lt_t_system_info:
       {
-        //uint16_t size = 0;
-        //FATAL_IF(!stream.read(&size), "Insufficient data stream.");
-        //
-        //while (stream.sizeRemaining > 0)
-        //{
-        //  uint8_t info = 0;
-        //  FATAL_IF(!stream.read(&info), "Insufficient data stream.");
-        //
-        //  switch (info)
-        //  {
-        //  case lt_si_cpu:
-        //  {
-        //    SKIP_STRING(",", "description", stream);
-        //    SKIP_U32(",", "processorCount", stream);
-        //
-        //    break;
-        //  }
-        //
-        //  case lt_si_ram:
-        //  {
-        //    SKIP_X64(",", "totalPhysical", stream);
-        //    SKIP_X64(",", "availablePhysical", stream);
-        //    SKIP_X64(",", "totalVirtual", stream);
-        //    SKIP_X64(",", "availableVirtual", stream);
-        //
-        //    break;
-        //  }
-        //
-        //  case lt_si_os:
-        //  {
-        //    SKIP_STRING(",", "os", stream);
-        //
-        //    break;
-        //  }
-        //
-        //  case lt_si_gpu:
-        //  {
-        //    SKIP_U64(",", "dedicatedVRAM", stream);
-        //    SKIP_U64(",", "sharedVRAM", stream);
-        //    SKIP_U64(",", "totalVRAM", stream);
-        //    SKIP_U64(",", "freeVRAM", stream);
-        //    SKIP_X64(",", "driverVersion", stream);
-        //    SKIP_U32(",", "vendorId", stream);
-        //    SKIP_U32(",", "deviceId", stream);
-        //    SKIP_U32(",", "revisionId", stream);
-        //    SKIP_U32(",", "boardId", stream);
-        //    SKIP_STRING(",", "deviceDescription", stream);
-        //    SKIP_STRING(",", "driverId", stream);
-        //
-        //    break;
-        //  }
-        //
-        //  case lt_si_lang:
-        //  {
-        //    uint8_t length = 0;
-        //    FATAL_IF(!stream.read(&length), "Insufficient data stream.");
-        //    FATAL_IF(!stream.read(svalue, length), "Insufficient data stream.");
-        //    svalue[length] = '\0';
-        //
-        //    size_t offset = 0;
-        //
-        //    while (offset < length)
-        //    {
-        //      print_string_as_json(svalue + offset);
-        //
-        //      offset += strlen(svalue + offset) + 1;
-        //    }
-        //
-        //    break;
-        //  }
-        //
-        //  case lt_si_elevated:
-        //  {
-        //    SKIP_BOOL(",", "isElevated", stream);
-        //
-        //    break;
-        //  }
-        //
-        //  case lt_si_monitor:
-        //  {
-        //    uint8_t count = 0;
-        //    FATAL_IF(!stream.read(&count), "Insufficient data stream.");
-        //
-        //    for (uint8_t i = 0; i < count; i++)
-        //    {
-        //      SKIP_I32("", "posX", stream);
-        //      SKIP_I32(",", "posY", stream);
-        //      SKIP_U32(",", "sizeX", stream);
-        //      SKIP_U32(",", "sizeY", stream);
-        //      SKIP_U32(",", "dpiX", stream);
-        //      SKIP_U32(",", "dpiY", stream);
-        //    }
-        //
-        //    break;
-        //  }
-        //
-        //  case lt_si_storage:
-        //  {
-        //    SKIP_X64(",", "freeBytesAvailable", stream);
-        //    SKIP_X64(",", "totalBytes", stream);
-        //
-        //    break;
-        //  }
-        //
-        //  case lt_si_device:
-        //  {
-        //    SKIP_STRING(",", "manufacturer", stream);
-        //    SKIP_STRING(",", "model", stream);
-        //
-        //    break;
-        //  }
-        //
-        //  default:
-        //  {
-        //    stream.sizeRemaining = 0;
-        //    RECOVERABLE_ERROR("Unsupported Info (0x%02" PRIX8 ")", info);
-        //    break;
-        //  }
-        //  }
-        //}
+        uint16_t size = 0;
+        FATAL_IF(!stream.read(&size), "Insufficient data stream.");
+        
+        ByteStream *pStream = &stream;
+
+        while (stream.sizeRemaining > 0)
+        {
+          uint8_t infoType = 0;
+          FATAL_IF(!stream.read(&infoType), "Insufficient data stream.");
+        
+          switch (infoType)
+          {
+          case lt_si_cpu:
+          {
+            hwInfo.hasCpuInfo = true;
+            READ_STRING(pStream, hwInfo.cpuName);
+            READ(pStream, hwInfo.cpuCores);
+        
+            break;
+          }
+        
+          case lt_si_ram:
+          {
+            hwInfo.hasRamInfo = true;
+            READ(pStream, hwInfo.ramTotalPhysical);
+            READ(pStream, hwInfo.ramAvailablePhysical);
+            READ(pStream, hwInfo.ramTotalVirtual);
+            READ(pStream, hwInfo.ramAvailableVirtual);
+        
+            break;
+          }
+        
+          case lt_si_os:
+          {
+            hwInfo.hasOsInfo = true;
+            READ_STRING(pStream, hwInfo.osName);
+        
+            break;
+          }
+        
+          case lt_si_gpu:
+          {
+            hwInfo.hasGpuInfo = true;
+            READ(pStream, hwInfo.gpuDedicatedVRam);
+            READ(pStream, hwInfo.gpuSharedVRam);
+            READ(pStream, hwInfo.gpuTotalVRam);
+            READ(pStream, hwInfo.gpuFreeVRam);
+            READ(pStream, hwInfo.gpuDriverVersion);
+            READ(pStream, hwInfo.gpuVendorId);
+            READ(pStream, hwInfo.gpuDeviceId);
+            READ(pStream, hwInfo.gpuRevisionId);
+            READ(pStream, hwInfo.gpuBoardId);
+            READ_STRING(pStream, hwInfo.gpuName);
+            READ_STRING(pStream, hwInfo.gpuDriverName);
+        
+            break;
+          }
+        
+          case lt_si_lang:
+          {
+            hwInfo.hasLangInfo = true;
+            READ_STRING(pStream, hwInfo.langPrimaryName);
+            
+            break;
+          }
+        
+          case lt_si_elevated:
+          {
+            hwInfo.hasElevatedInfo = true;
+            READ(pStream, hwInfo.elevated);
+            
+            break;
+          }
+        
+          case lt_si_monitor:
+          {
+            hwInfo.hasMonitorInfo = true;
+
+            uint8_t count = 0;
+            FATAL_IF(!stream.read(&count), "Insufficient data stream.");
+        
+            int32_t minPosX = 0;
+            int32_t maxPosX = 0;
+            int32_t minPosY = 0;
+            int32_t maxPosY = 0;
+
+            for (uint8_t i = 0; i < count; i++)
+            {
+              uint32_t sizeX, sizeY, dpiX, dpiY;
+              int32_t posX, posY;
+
+              READ(pStream, posX);
+              READ(pStream, posY);
+              READ(pStream, sizeX);
+              READ(pStream, sizeY);
+              READ(pStream, dpiX);
+              READ(pStream, dpiY);
+
+              if (posX < minPosX)
+                minPosX = posX;
+
+              if (posY < minPosY)
+                minPosY = posY;
+
+              if ((int32_t)(posX + sizeX) > maxPosX)
+                maxPosX = posX + sizeX;
+
+              if ((int32_t)(posY + sizeY) > maxPosY)
+                maxPosY = posY + sizeY;
+
+              lt_monitor_info info;
+              info.width = sizeX;
+              info.height = sizeY;
+              info.dpi = (dpiX + dpiY) / 2;
+
+              hwInfo.monitorSizes.push_back(std::move(info));
+            }
+
+            hwInfo.monitorTotalWidth = (uint32_t)(maxPosX - minPosX);
+            hwInfo.monitorTotalHeight = (uint32_t)(maxPosY - minPosY);
+        
+            break;
+          }
+        
+          case lt_si_storage:
+          {
+            hwInfo.hasStorageInfo = true;
+
+            READ(pStream, hwInfo.storageAvailable);
+            READ(pStream, hwInfo.storageTotal);
+        
+            break;
+          }
+        
+          case lt_si_device:
+          {
+            hwInfo.hasDeviceInfo = true;
+
+            READ_STRING(pStream, hwInfo.deviceManufacturerName);
+            READ_STRING(pStream, hwInfo.deviceModelName);
+        
+            break;
+          }
+        
+          default:
+          {
+            stream.sizeRemaining = 0;
+            RECOVERABLE_ERROR("Unsupported Info (0x%02" PRIX8 ")", infoType);
+            break;
+          }
+          }
+        }
+
+        to_short_hw_info(&hwInfo, &hwInfoShort);
 
         break;
       }
@@ -1866,6 +2047,8 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
     }
   }
 
+  // TODO: Store Device Info.
+
   free(pData);
 
   return true;
@@ -1873,18 +2056,23 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
 
 //////////////////////////////////////////////////////////////////////////
 
+#define OPTION_IGNORE_MINOR_VERSION_DIFF "--ignore-minor-version-diff"
+static const char _Option_IgnoreMinorVersionDiff[] = OPTION_IGNORE_MINOR_VERSION_DIFF;
+static const wchar_t _wOption_IgnoreMinorVersionDiff[] = TEXT(OPTION_IGNORE_MINOR_VERSION_DIFF);
+
 int32_t main(void)
 {
   const wchar_t *commandLine = GetCommandLineW();
 
   int32_t argc = 0;
   wchar_t **pArgv = CommandLineToArgvW(commandLine, &argc);
-  FATAL_IF(argc < 4, "Invalid Parameter.\nUsage: [-io <LT Analyze File> | -o <New LT Analyze File>] <LT Log File> ...");
+  FATAL_IF(argc < 4, "Invalid Parameter.\nUsage: [-io <LT Analyze File> | -o <New LT Analyze File>] [%s] <LT Log File> ... ", _Option_IgnoreMinorVersionDiff);
 
   const wchar_t *outputFileName = pArgv[2];
   bool isNewFile = true;
 
   lt_analyze analyze;
+  analyze_options options;
 
   // Read Analyze File (if -o)
   if (0 != wcsncmp(pArgv[1], L"-o", 3))
@@ -1928,9 +2116,16 @@ int32_t main(void)
   // Analyze Files.
   for (int32_t i = 3; i < argc; i++)
   {
-    FATAL_IF(!analyze_file(pArgv[i], &analyze, isNewFile), "Failed to analyze file %ws", pArgv[i]);
+    if (wcsncmp(pArgv[i], _wOption_IgnoreMinorVersionDiff, ARRAYSIZE(_wOption_IgnoreMinorVersionDiff)) == 0)
+    {
+      options.ignoreMinorVersionDiff = true;
+    }
+    else
+    {
+      FATAL_IF(!analyze_file(pArgv[i], &analyze, isNewFile, &options), "Failed to analyze file %ws", pArgv[i]);
 
-    isNewFile = false;
+      isNewFile = false;
+    }
   }
 
   // Write analyze file.

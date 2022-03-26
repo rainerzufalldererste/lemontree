@@ -623,9 +623,9 @@ static bool lt_init()
 
     while (timeBits)
     {
-      path[length] = charlut[timeBits & 0b11111];
+      path[length] = charlut[(timeBits & 0b1111'1000'0000'0000'0000'0000'0000'0000) >> 27];
       length++;
-      timeBits >>= 5;
+      timeBits <<= 5;
     }
 
     path[length] = '\0';
@@ -963,6 +963,7 @@ struct gpu_info_internal
   uint64_t dedicatedVideoMemory, sharedVideoMemory, totalVideoMemory, freeVideoMemory;
   uint32_t vendorId, deviceChipsetId, deviceChipsetRevision, deviceBoardId;
   char deviceName[sizeof(DXGI_ADAPTER_DESC2::Description)];
+  uint32_t deviceNameBytes;
 };
 
 static bool lt_get_gpu_info_dxgi(OUT gpu_info_internal *pGpuInfo)
@@ -1020,7 +1021,7 @@ static bool lt_get_gpu_info_dxgi(OUT gpu_info_internal *pGpuInfo)
   pGpuInfo->deviceChipsetRevision = adapterDescription.Revision;
   pGpuInfo->deviceBoardId = adapterDescription.SubSysId;
 
-  memcpy(pGpuInfo->deviceName, adapterDescription.Description, sizeof(adapterDescription.Description));
+  pGpuInfo->deviceNameBytes = WideCharToMultiByte(CP_UTF8, 0, adapterDescription.Description, ARRAYSIZE(adapterDescription.Description), pGpuInfo->deviceName, sizeof(pGpuInfo->deviceName), nullptr, false);
   
   result = true;
   goto cleanup;
@@ -1150,14 +1151,6 @@ static uint8_t *lt_write_system_info_gpu(IN_OUT uint8_t *pData)
 
     *reinterpret_cast<uint32_t *>(pData) = deviceIdentifier.dwSubSysId;
     pData += sizeof(uint32_t);
-
-    uint8_t length = (uint8_t)min(0xFF, strnlen(deviceIdentifier.szDescription, ARRAYSIZE(deviceIdentifier.szDescription)));
-
-    *pData = length;
-    pData++;
-
-    memcpy(pData, deviceIdentifier.szDescription, length);
-    pData += length;
   }
   else
   {
@@ -1172,8 +1165,21 @@ static uint8_t *lt_write_system_info_gpu(IN_OUT uint8_t *pData)
 
     *reinterpret_cast<uint32_t *>(pData) = info.deviceBoardId;
     pData += sizeof(uint32_t);
+  }
 
-    uint8_t length = (uint8_t)min(0xFF, strnlen(info.deviceName, ARRAYSIZE(info.deviceName)));
+  if (!dxgi_success || info.deviceNameBytes <= 1)
+  {
+    const uint8_t length = (uint8_t)min(0xFF, strnlen(deviceIdentifier.szDescription, ARRAYSIZE(deviceIdentifier.szDescription)));
+
+    *pData = length;
+    pData++;
+
+    memcpy(pData, deviceIdentifier.szDescription, length);
+    pData += length;
+  }
+  else
+  {
+    const uint8_t length = (uint8_t)min(0xFF, strnlen(info.deviceName, info.deviceNameBytes));
 
     *pData = length;
     pData++;

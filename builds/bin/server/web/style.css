@@ -116,6 +116,14 @@ p.DataCount::before {
   content: "Count: ";
 }
 
+p.DataName {
+  display: inline-block;
+  background: #4e4e4e;
+  padding: 5pt;
+  margin: 10pt 1pt 0 0;
+  border-radius: 2pt;
+}
+
 p.DataDelay, p.DataDelayMin, p.DataDelayMax {
   display: inline-block;
   margin: 0 5pt;
@@ -184,14 +192,6 @@ p.StartDelay {
   padding: 0;
 }
 
-p.DataName {
-  display: inline-block;
-  background: #4e4e4e;
-  padding: 5pt;
-  margin: 10pt 1pt 0 0;
-  border-radius: 2pt;
-}
-
 .NoData {
   color: #888;
   font-weight: bold;
@@ -206,4 +206,26 @@ p.DataName {
 
 .NoData p::after {
   content: " ]]"
+}
+
+.HistogramElement {
+  --var0: calc(1 - var(--value) / 100);
+  --var: calc(1 - var(--var0) * var(--var0));
+  width: 9pt;
+  height: 16pt;
+  display: inline-block;
+  border-left: none;
+  background: hsl(calc(200 - var(--var) * 150) 100% 70% / var(--var));
+}
+
+.Histogram {
+  padding: 5pt 2pt 0 0;
+}
+
+p.HistogramDataName {
+  display: inline-block;
+  background: #4e4e4e;
+  padding: 2pt;
+  margin: 5pt 1pt 0 0;
+  border-radius: 2pt;
 }

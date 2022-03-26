@@ -124,6 +124,7 @@ public class StateInfo : ElementResponse
     yield return ltsrv._Analysis.ToPieChart((uint64_t)subSystem, s.previousState, "Previous State", ltsrv._Info);
     yield return ltsrv._Analysis.ToPieChart((uint64_t)subSystem, s.operations, "Operations", ltsrv._Info);
     yield return ltsrv._Analysis.ToPieChart((uint64_t)subSystem, s.previousOperation, "Previous Operation", ltsrv._Info);
+    yield return ltsrv._Analysis.ToHistorgramChart((uint64_t)subSystem, s.profileData, "Performance", ltsrv._Info);
     yield return ltsrv._Analysis.ToBarGraph((uint64_t)subSystem, s.stateReach, "State Reach", ltsrv._Info);
     yield return ltsrv._Analysis.ToBarGraph((uint64_t)subSystem, s.operationReach, "Operation Reach", ltsrv._Info);
   }
@@ -324,11 +325,7 @@ public class Analysis
 
     List<List<HElement>> contents = new List<List<HElement>>();
 
-    ulong max = 0;
-
-    foreach (var x in list)
-      if (x.value.count > max)
-        max = x.value.count;
+    ulong max = list[0].value.count;
 
     foreach (var x in list)
     {
@@ -431,6 +428,48 @@ public class Analysis
       }
     }
   }
+
+  internal HElement ToHistorgramChart(uint64_t subSystem, List<ProfileData> list, string name, Info info)
+  {
+    if (list.Count == 0)
+      return new HContainer() { Class = "NoData", Elements = { new HText($"No '{name}' Data Available.") } };
+
+    List<List<HElement>> contents = new List<List<HElement>>();
+
+    ulong index = 0;
+
+    foreach (var x in list)
+    {
+      HContainer histogram = new HContainer() { Class = "Histogram" };
+      List<HElement> data = new List<HElement>() { histogram };
+
+      ulong i = index++;
+      ulong max = 0;
+
+      foreach (var y in x.histogram)
+        if (y > max)
+          max = y;
+
+      int j = -1;
+
+      foreach (var y in x.histogram)
+      {
+        j++;
+
+        double percentage = (double)y / max * 100.0;
+        histogram.AddElement(new HContainer() { Class = "HistogramElement", Title = j < ProfileData.HistogramSizes.Length ? $"< {ProfileData.HistogramSizes[j]:0.##}ms ({y})" : $"> {ProfileData.HistogramSizes[ProfileData.HistogramSizes.Length - 1]:0}ms ({y})", Style = $"--value:{percentage};" });
+      }
+
+      data.Add(new HText(info.GetProfilerDataName(subSystem, (uint64_t)i)) { Class = "HistogramDataName", Title = $"Count: {x.timeMs.count}" });
+      data.Add(new HContainer() { Elements = { new HText($"{x.timeMs.value:0.####}ms") { Class = "DataDelay" }, new HText($"{x.timeMs.min:0.####}ms") { Class = "DataDelayMin", Title = x.minInfo.ToString() }, new HText($"{x.timeMs.max:0.####}ms") { Class = "DataDelayMax", Title = x.maxInfo.ToString() } } });
+
+      contents.Add(data);
+    }
+
+    HTable graph = new HTable(contents.ToArray()) { Class = "BarGraphContainer" };
+
+    return new HContainer() { Class = "DataInfo", Elements = { new HHeadline(name), graph } };
+  }
 }
 
 public class Ref<Index, Value>
@@ -464,6 +503,39 @@ public class TransitionDataWithDelay : TransitionData
   public double avgStartDelay;
 }
 
+public struct AvgValue<T>
+{
+  public uint64_t count;
+  public double value;
+  public T min, max;
+}
+
+public struct HardwareInfoShort
+{
+  public string cpu;
+  public uint cpuCores;
+  public uint64_t freeRam, totalRam;
+  public string gpu;
+  public uint64_t freeVRam, dedicatedVRam, totalVRam;
+  public string os;
+  public uint64_t monitorCount, multiMonitorWidth, multiMonitorHeight;
+
+  public override string ToString()
+  {
+    return $"CPU: {cpu} ({cpuCores} Cores)\nRAM: {(double)freeRam / (1024.0 * 1024.0 * 1024.0):0.#} / {(double)totalRam / (1024.0 * 1024.0 * 1024.0):0.#} GB available\nGPU: {gpu} ({(double)freeVRam / (1024.0 * 1024.0 * 1024.0):0.#} / {(double)totalVRam / (1024.0 * 1024.0 * 1024.0):0.#} GB available, {(double)dedicatedVRam / (1024.0 * 1024.0 * 1024.0):0.#} GB dedicated)\nOS: {os}\nMonitors: {monitorCount} ({multiMonitorWidth} x {multiMonitorHeight} total)";
+  }
+}
+
+public class ProfileData
+{
+  // 1.01^(x^1.7)-1
+  public static double[] HistogramSizes = { 0.01, 0.03285697058147385, 0.06652806072336404, 0.110750954546329, 0.1658987828997884, 0.2327704810349522, 0.3125338060030061, 0.4067245919737239, 0.5172768409819379, 0.646575833877717, 0.7975327335576197, 0.9736822038758584, 1.179306592328094, 1.4195920019549, 1.700823462599401, 2.030628623602832, 2.418282116414415, 2.875086176114238, 3.414847505261783, 4.054476015351149, 4.814738383900456, 5.721208834388007, 6.80547186160106, 8.10664768624367, 9.673332224582024, 11.56607089221216, 13.86052174911005, 16.65151117747014, 20.05824827622747, 24.2310475824663, 29.36002049995231, 35.68634326613121, 43.51690606970438, 53.24341121737348, 65.36734142191057 };
+
+  public uint64_t[] histogram;
+  public AvgValue<double> timeMs;
+  public HardwareInfoShort minInfo, maxInfo;
+}
+
 public class State : TransitionDataWithDelay
 {
   public List<Ref<StateId, TransitionData>> nextState;
@@ -472,6 +544,7 @@ public class State : TransitionDataWithDelay
   public List<Ref<uint64_t, TransitionData>> previousOperation;
   public List<Ref<StateId, TransitionData>> stateReach;
   public List<Ref<uint64_t, TransitionData>> operationReach;
+  public List<ProfileData> profileData;
 }
 
 public class Operation : TransitionDataWithDelay
@@ -488,6 +561,7 @@ public class Info
   public string productName;
   public List<Ref<uint64_t, List<string>>> states;
   public List<Ref<uint64_t, List<string>>> operations;
+  public List<Ref<uint64_t, List<string>>> profilerData;
 
   public string GetName(uint64_t subSystem, object x)
   {
@@ -522,12 +596,28 @@ public class Info
       if (subSys.index == subSystem)
       {
         if ((ulong)subSys.value.Count > operationType)
-          return $"{subSys.value[(int)operationType.value]}";
+          return subSys.value[(int)operationType.value];
 
         break;
       }
     }
     
     return $"Operation #{operationType}";
+  }
+
+  public string GetProfilerDataName(uint64_t subSystem, uint64_t dataIndex)
+  {
+    foreach (var subSys in profilerData)
+    {
+      if (subSys.index == subSystem)
+      {
+        if ((ulong)subSys.value.Count > dataIndex)
+          return subSys.value[(int)dataIndex.value];
+
+        break;
+      }
+    }
+    
+    return $"Profile Region #{dataIndex}";
   }
 }
