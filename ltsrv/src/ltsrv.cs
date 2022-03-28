@@ -143,12 +143,31 @@ public class SubSystemInfo : ElementResponse
 
   internal static IEnumerable<HElement> ShowSubSystems(SessionData sessionData, string productName, ulong majorVersion, ulong minorVersion)
   {
-    var analysis = ltsrv._Analysis[productName][(uint64_t)majorVersion][(uint64_t)minorVersion].analysis;
+    var container = ltsrv._Analysis[productName][(uint64_t)majorVersion][(uint64_t)minorVersion];
+    var info = container.info;
+    var analysis = container.analysis;
 
-    yield return new HHeadline($"SubSystems of '{productName}' (Version {majorVersion}.{minorVersion})");
+    yield return new HHeadline($"'{productName}' (Version {majorVersion}.{minorVersion})");
+
+    yield return new HHeadline($"SubSystems", 2);
 
     foreach (var x in analysis.subSystems)
       yield return new HLink(x.index.ToString(), $"/subsystem?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&ss={x.index}") { Class = "LargeButton" };
+
+    yield return new HHeadline($"Observed Values U64", 2);
+
+    foreach (var x in analysis.observedU64)
+      yield return new HLink(info.GetValueNameU64(x.index.value), $"/value?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&t=u64&id={x.index}") { Class = "LargeButton" };
+
+    yield return new HHeadline($"Observed Values I64", 2);
+
+    foreach (var x in analysis.observedI64)
+      yield return new HLink(info.GetValueNameI64(x.index.value), $"/value?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&t=i64&id={x.index}") { Class = "LargeButton" };
+
+    yield return new HHeadline($"Observed Values String", 2);
+
+    foreach (var x in analysis.observedString)
+      yield return new HLink(info.GetValueNameString(x.index.value), $"/value?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&t=string&id={x.index}") { Class = "LargeButton" };
   }
 
   internal static IEnumerable<HElement> ShowContents(SessionData sessionData, string productName, ulong majorVersion, ulong minorVersion, ulong subSystem)
@@ -251,6 +270,77 @@ public class OperationInfo : ElementResponse
   }
 }
 
+public class ValueInfo : ElementResponse
+{
+  public ValueInfo() : base("value") { }
+
+  protected override HElement GetElement(SessionData sessionData)
+  {
+    string productName = sessionData.HttpHeadVariables["p"];
+    ulong majorVersion, minorVersion, valueIndex = 0;
+    string valueType = sessionData.HttpHeadVariables["t"];
+
+    if (productName == null || valueType == null || !ulong.TryParse(sessionData.HttpHeadVariables["V"], out majorVersion) || !ulong.TryParse(sessionData.HttpHeadVariables["v"], out minorVersion) || !ulong.TryParse(sessionData.HttpHeadVariables["id"], out valueIndex))
+    {
+      return SubSystemInfo.GetMenu(sessionData);
+    }
+    else
+    {
+      switch (valueType)
+      {
+        case "u64": return ltsrv.GetPage("Value Info", ShowValueU64(sessionData, productName, majorVersion, minorVersion, valueIndex));
+        case "i64": return ltsrv.GetPage("Value Info", ShowValueI64(sessionData, productName, majorVersion, minorVersion, valueIndex));
+        case "string": return ltsrv.GetPage("Value Info", ShowValueString(sessionData, productName, majorVersion, minorVersion, valueIndex));
+        default: return SubSystemInfo.GetMenu(sessionData);
+      }
+    }
+  }
+
+  private IEnumerable<HElement> ShowValueU64(SessionData sessionData, string productName, ulong majorVersion, ulong minorVersion, ulong valueIndex)
+  {
+    var container = ltsrv._Analysis[productName][(uint64_t)majorVersion][(uint64_t)minorVersion];
+    var info = container.info;
+    var analysis = container.analysis;
+
+    var s = analysis.observedU64.FindItem((uint64_t)valueIndex);
+
+    yield return new HHeadline(info.GetValueNameU64((uint64_t)valueIndex)) { Class = "stateName" };
+
+    yield return analysis.DisplayInfo(s);
+    yield return analysis.DisplayInfo(s.data);
+    yield return analysis.ToPieChart(s.values, "Values", info, s.count);
+  }
+
+  private IEnumerable<HElement> ShowValueI64(SessionData sessionData, string productName, ulong majorVersion, ulong minorVersion, ulong valueIndex)
+  {
+    var container = ltsrv._Analysis[productName][(uint64_t)majorVersion][(uint64_t)minorVersion];
+    var info = container.info;
+    var analysis = container.analysis;
+
+    var s = analysis.observedI64.FindItem((uint64_t)valueIndex);
+
+    yield return new HHeadline(info.GetValueNameI64((uint64_t)valueIndex)) { Class = "stateName" };
+
+    yield return analysis.DisplayInfo(s);
+    yield return analysis.DisplayInfo(s.data);
+    yield return analysis.ToPieChart(s.values, "Values", info, s.count);
+  }
+
+  private IEnumerable<HElement> ShowValueString(SessionData sessionData, string productName, ulong majorVersion, ulong minorVersion, ulong valueIndex)
+  {
+    var container = ltsrv._Analysis[productName][(uint64_t)majorVersion][(uint64_t)minorVersion];
+    var info = container.info;
+    var analysis = container.analysis;
+
+    var s = analysis.observedString.FindItem((uint64_t)valueIndex);
+
+    yield return new HHeadline(info.GetValueNameString((uint64_t)valueIndex)) { Class = "stateName" };
+
+    yield return analysis.DisplayInfo(s.data);
+    yield return analysis.ToPieChart(s.values, "Values", info, s.count);
+  }
+}
+
 public static class ExtentionMethods
 {
   public static T1 FindItem<T, T1>(this List<Ref<T, T1>> list, T index) where T : IEquatable<T>
@@ -260,6 +350,15 @@ public static class ExtentionMethods
         return x.value;
 
     throw new KeyNotFoundException();
+  }
+
+  public static string TryFindItem<T>(this List<Ref<T, string>> list, T index) where T : IEquatable<T>
+  {
+    foreach (var x in list)
+      if (x.index.Equals(index))
+        return x.value;
+
+    return null;
   }
 }
 
@@ -297,6 +396,40 @@ public struct uint64_t : IEquatable<uint64_t>, IComparable<uint64_t>
   public int CompareTo(uint64_t other) => value.CompareTo(other.value);
 }
 
+public struct int64_t : IEquatable<int64_t>, IComparable<int64_t>
+{
+  internal long value;
+
+  public int64_t(long v)
+  {
+    value = v;
+  }
+
+  public static explicit operator int64_t(string s)
+  {
+    long value;
+
+    if (s.StartsWith("0x"))
+      value = long.Parse(s.Substring(2), System.Globalization.NumberStyles.HexNumber);
+    else
+      value = long.Parse(s);
+
+    return new int64_t(value);
+  }
+
+  public static explicit operator int64_t(ulong v) => new int64_t((long)v);
+  public static explicit operator int64_t(int v) => new int64_t((long)v);
+  public static explicit operator int64_t(long v) => new int64_t((long)v);
+
+  public static implicit operator long (int64_t v) => v.value;
+
+  public override string ToString() => value.ToString();
+
+  public bool Equals(int64_t other) => value == other.value;
+
+  public int CompareTo(int64_t other) => value.CompareTo(other.value);
+}
+
 public class SubStateData
 {
   public List<Ref<StateId, State>> states;
@@ -304,11 +437,34 @@ public class SubStateData
   public List<ProfileData> profileData;
 }
 
+
+public struct ValueCount<T>
+{
+  public T value;
+  public uint64_t count;
+}
+
+public class ExactValueData<T>
+{
+  public uint64_t count;
+  public TransitionData data;
+  public List<ValueCount<T>> values;
+}
+
+public class ExactValueDataWithAverage<T> : ExactValueData<T>
+{
+  public double average;
+  public T min, max;
+}
+
 public class Analysis
 {
   public string productName;
   public uint64_t majorVersion, minorVersion;
   public List<Ref<uint64_t, SubStateData>> subSystems;
+  public List<Ref<uint64_t, ExactValueDataWithAverage<uint64_t>>> observedU64;
+  public List<Ref<uint64_t, ExactValueDataWithAverage<int64_t>>> observedI64;
+  public List<Ref<uint64_t, ExactValueData<string>>> observedString;
 
   public string GetLink(uint64_t subSystem, uint64_t operationIndex) => $"/op?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&ss={subSystem}&id={operationIndex}";
 
@@ -478,6 +634,54 @@ public class Analysis
     }
 
     return new HContainer() { Class = "DataInfo", Elements = { new HHeadline(name), pieChart, description } };
+  }
+
+  internal HElement ToPieChart<T>(List<ValueCount<T>> list, string name, Info info, uint64_t count)
+  {
+    if (list.Count == 0)
+      return new HContainer() { Class = "NoData", Elements = { new HText($"No '{name}' Data Available.") } };
+
+    HContainer pieChart = new HContainer() { Class = "PieChartContainer" };
+    HContainer description = new HContainer() { Class = "PieChartDescription" };
+
+    double offset = 0;
+    ulong offsetCount = 0;
+
+    int index = 0;
+    string[] colors = { "#fff378", "#ffd070", "#ffaf7c", "#ff9293", "#fd80ac", "#d279c0", "#9777c9", "#4c75c2" };
+
+    foreach (var x in list)
+    {
+      double percentage = ((double)x.count / (double)count.value) * 100.0;
+      string color = colors[index++ % colors.Length];
+
+      pieChart.AddElement(new HContainer() { Class = "PieSegment", Style = $"--offset: {offset}; --value: {percentage}; --bg: {color};" + (percentage > 50 ? " --over50: 1;" : "") });
+      description.AddElement(new HContainer() { Class = "PieDescriptionContainer", Elements = { new HText(x.value.ToString()) { Class = "DataName" }, new HText($"{percentage:0.##}%") { Class = "DataPercentage", Style = $"color:{color};" }, new HText($"{x.count}") { Class = "DataCount" } } });
+
+      offset += percentage;
+      offsetCount += x.count.value;
+    }
+
+    if (offsetCount < count.value)
+    {
+      double percentage = 1 - offset;
+      string color = "#777";
+
+      pieChart.AddElement(new HContainer() { Class = "PieSegment", Style = $"--offset: {offset}; --value: {percentage}; --bg: {color};" + (percentage > 50 ? " --over50: 1;" : "") });
+      description.AddElement(new HContainer() { Class = "PieDescriptionContainer", Elements = { new HText("Other") { Class = "DataName" }, new HText($"{percentage:0.##}%") { Class = "DataPercentage", Style = $"color:{color};" }, new HText($"{count.value - offsetCount}") { Class = "DataCount" } } });
+    }
+
+    return new HContainer() { Class = "DataInfo", Elements = { new HHeadline(name), pieChart, description } };
+  }
+
+    public HContainer DisplayInfo<T>(ExactValueDataWithAverage<T> data)
+  {
+    return new HContainer() { Class = "DataInfo", Elements = { new HHeadline("General"), new HText($"{data.count}") { Class = "DataCount" }, new HText($"{data.average:0.####}") { Class = "DataDelay" }, new HText($"{data.min:0.####}") { Class = "DataDelayMin" }, new HText($"{data.max:0.####}") { Class = "DataDelayMax" } } };
+  }
+
+  public HContainer DisplayInfo(TransitionData data)
+  {
+    return new HContainer() { Class = "DataInfo", Elements = { new HHeadline("Timing Info"), new HText($"{data.count}") { Class = "DataCount" }, new HText($"{data.avgDelay:0.####}s") { Class = "DataDelay" }, new HText($"{data.minDelay:0.####}s") { Class = "DataDelayMin" }, new HText($"{data.maxDelay:0.####}s") { Class = "DataDelayMax" } } };
   }
 
   public HContainer DisplayInfo(TransitionDataWithDelay data)
@@ -667,6 +871,14 @@ public class Info
 
   public List<Ref<uint64_t, InfoSubSystem>> subSystems;
 
+  public List<string> observedValueU64;
+  public List<string> observedValueI64;
+  public List<string> observedValueString;
+
+  public List<string> observedValueRangeU64;
+  public List<string> observedValueRangeI64;
+  public List<string> observedValueRangeF64;
+
   public string GetName(uint64_t subSystem, object x)
   {
     if (x is uint64_t)
@@ -679,14 +891,17 @@ public class Info
 
   public string GetStateName(uint64_t subSystem, uint64_t stateIndex, uint64_t subStateIndex)
   {
-    foreach (var subSys in subSystems)
+    if (subSystems != null)
     {
-      if (subSys.index == subSystem)
+      foreach (var subSys in subSystems)
       {
-        if ((ulong)subSys.value.states.Count > stateIndex)
-          return $"{subSys.value.states[(int)stateIndex.value]} ({subStateIndex})";
+        if (subSys.index == subSystem)
+        {
+          if ((ulong)subSys.value.states.Count > stateIndex)
+            return $"{subSys.value.states[(int)stateIndex.value]} ({subStateIndex})";
 
-        break;
+          break;
+        }
       }
     }
     
@@ -695,14 +910,17 @@ public class Info
 
   public string GetOperationName(uint64_t subSystem, uint64_t operationType)
   {
-    foreach (var subSys in subSystems)
+    if (subSystems != null)
     {
-      if (subSys.index == subSystem)
+      foreach (var subSys in subSystems)
       {
-        if ((ulong)subSys.value.operations.Count > operationType)
-          return subSys.value.operations[(int)operationType.value];
+        if (subSys.index == subSystem)
+        {
+          if ((ulong)subSys.value.operations.Count > operationType)
+            return subSys.value.operations[(int)operationType.value];
 
-        break;
+          break;
+        }
       }
     }
     
@@ -711,17 +929,68 @@ public class Info
 
   public string GetProfilerDataName(uint64_t subSystem, uint64_t dataIndex)
   {
-    foreach (var subSys in subSystems)
+    if (subSystems != null)
     {
-      if (subSys.index == subSystem)
+      foreach (var subSys in subSystems)
       {
-        if ((ulong)subSys.value.profilerData.Count > dataIndex)
-          return subSys.value.profilerData[(int)dataIndex.value];
+        if (subSys.index == subSystem)
+        {
+          if ((ulong)subSys.value.profilerData.Count > dataIndex)
+            return subSys.value.profilerData[(int)dataIndex.value];
 
-        break;
+          break;
+        }
       }
     }
     
     return $"Profile Region #{dataIndex}";
+  }
+
+  public string GetValueNameU64(ulong index)
+  {
+    if (observedValueU64 != null && observedValueU64.Count > (int)index)
+      return observedValueU64[(int)index];
+
+    return $"Value #{index}";
+  }
+
+  public string GetValueNameI64(ulong index)
+  {
+    if (observedValueI64 != null && observedValueI64.Count > (int)index)
+      return observedValueI64[(int)index];
+
+    return $"Value #{index}";
+  }
+
+  public string GetValueNameString(ulong index)
+  {
+    if (observedValueString != null && observedValueString.Count > (int)index)
+      return observedValueString[(int)index];
+
+    return $"Value #{index}";
+  }
+
+  public string GetValueRangeNameU64(ulong index)
+  {
+    if (observedValueRangeU64 != null && observedValueRangeU64.Count > (int)index)
+      return observedValueRangeU64[(int)index];
+
+    return $"Value Range #{index}";
+  }
+
+  public string GetValueRangeNameI64(ulong index)
+  {
+    if (observedValueRangeI64 != null && observedValueRangeI64.Count > (int)index)
+      return observedValueRangeI64[(int)index];
+
+    return $"Value Range #{index}";
+  }
+
+  public string GetValueRangeNameF64(ulong index)
+  {
+    if (observedValueRangeF64 != null && observedValueRangeF64.Count > (int)index)
+      return observedValueRangeF64[(int)index];
+
+    return $"Value Range #{index}";
   }
 }

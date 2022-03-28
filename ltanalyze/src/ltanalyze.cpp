@@ -61,7 +61,7 @@
 
 #define READ(pWriter, value) do { if (!pWriter->read(&(value))) return false; } while (0)
 #define WRITE(pWriter, value) do { if (!pWriter->write(&(value))) return false; } while (0)
-#define READ_STRING(pWriter, value) do { uint8_t __len__; if (!pWriter->read(&__len__)) return false; if (__len__ >= sizeof(value)) return false; if (!pWriter->read((value), __len__)) return false; (value)[__len__] = '\0'; } while (0)
+#define READ_STRING(pWriter, value) do { uint8_t __len__; if (!(pWriter)->read(&__len__)) return false; if (__len__ >= sizeof(value)) return false; if (!(pWriter)->read((value), __len__)) return false; (value)[__len__] = '\0'; } while (0)
 #define WRITE_STRING(pWriter, value) do { \
   const uint8_t __len__ = (uint8_t)min(0xFF, strlen(value)); \
   if (!pWriter->write(&__len__)) \
@@ -78,8 +78,8 @@ void print_bytes_as_base64string(FILE *pFile, const uint8_t *pData, const size_t
 
 //////////////////////////////////////////////////////////////////////////
 
-template <typename T>
-T adjust(const T _old, const T _new, const uint64_t oldCount)
+template <typename T, typename U>
+T adjust(const T _old, const U _new, const uint64_t oldCount)
 {
   return (T)(_old + (_new - _old) * (1.0 / (oldCount + 1)));
 }
@@ -184,6 +184,86 @@ public:
   
   inline void write_name(const char *name) { line(); fprintf(pFile, "\"%s\": ", name); lastWasNameOnly = true; }
 };
+
+//////////////////////////////////////////////////////////////////////////
+
+template <typename T, typename U>
+void DualPivotQuickSort_Partition(const int64_t low, const int64_t high, int64_t *pRightPivot, int64_t *pLeftPivot, SoaList<T, U> *pQueue)
+{
+  if (((*pQueue).value[low]) > ((*pQueue).value[high]))
+  {
+    std::swap((*pQueue).index[low], (*pQueue).index[high]);
+    std::swap((*pQueue).value[low], (*pQueue).value[high]);
+  }
+
+  int64_t j = low + 1;
+  int64_t g = high - 1;
+  int64_t k = low + 1;
+
+  U *pP = &(*pQueue).value[low];
+  U *pQ = &(*pQueue).value[high];
+
+  while (k <= g)
+  {
+    if (((*pQueue).value[k]) < (*pP))
+    {
+      std::swap((*pQueue).index[k], (*pQueue).index[j]);
+      std::swap((*pQueue).value[k], (*pQueue).value[j]);
+      j++;
+    }
+
+    else if (!(((*pQueue).value[k]) < (*pQ)))
+    {
+      while (((*pQueue).value[g]) > (*pQ) && k < g)
+        g--;
+
+      std::swap((*pQueue).index[k], (*pQueue).index[g]);
+      std::swap((*pQueue).value[k], (*pQueue).value[g]);
+      g--;
+
+      if (((*pQueue).value[k]) < (*pP))
+      {
+        std::swap((*pQueue).index[k], (*pQueue).index[j]);
+        std::swap((*pQueue).value[k], (*pQueue).value[j]);
+        j++;
+      }
+    }
+
+    k++;
+  }
+
+  j--;
+  g++;
+
+  std::swap((*pQueue).index[low], (*pQueue).index[j]);
+  std::swap((*pQueue).value[low], (*pQueue).value[j]);
+  std::swap((*pQueue).index[high], (*pQueue).index[g]);
+  std::swap((*pQueue).value[high], (*pQueue).value[g]);
+
+  *pLeftPivot = j;
+  *pRightPivot = g;
+}
+
+template <typename T, typename U>
+void QuickSort(const int64_t start, const int64_t end, SoaList<T, U> *pQueue)
+{
+  if (start < end)
+  {
+    int64_t leftPivot, rightPivot;
+
+    DualPivotQuickSort_Partition(start, end, &rightPivot, &leftPivot, pQueue);
+
+    QuickSort(start, leftPivot - 1, pQueue);
+    QuickSort(leftPivot + 1, rightPivot - 1, pQueue);
+    QuickSort(rightPivot + 1, end, pQueue);
+  }
+}
+
+template <typename T, typename U>
+void sort_by_value(SoaList<T, U> *pQueue)
+{
+  QuickSort(0, (int64_t)pQueue->size() - 1, pQueue);
+}
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -381,34 +461,26 @@ struct lt_sub_system_data
 };
 
 template <typename T>
-struct lt_value_entry
-{
-  T value;
-  uint64_t count;
-
-  lt_value_entry(T value) : value(value), count(1) {}
-};
-
-template <typename T>
 struct lt_values_exact
 {
-  std::vector<lt_value_entry> multiple;
+  SoaList<T, uint64_t> multiple;
   std::vector<T> single;
+  lt_transition_data data;
 
   uint64_t count = 0;
-  T min, max;
+  T minValue, maxValue;
   double average;
 };
 
 struct lt_string_value_entry
 {
   char value[256];
-  uint64_t count = 0;
 };
 
 struct lt_string_values
 {
-  std::vector<lt_string_value_entry> values;
+  SoaList<lt_string_value_entry, uint64_t> values;
+  lt_transition_data data;
 };
 
 struct lt_analyze
@@ -419,9 +491,12 @@ struct lt_analyze
 
   SoaList<uint64_t, lt_sub_system_data> subSystems;
 
+  SoaList<uint64_t, lt_values_exact<uint64_t>> observedU64;
+  SoaList<uint64_t, lt_values_exact<int64_t>> observedI64;
+  SoaList<uint64_t, lt_string_values> observedString;
+
   //std::vector<std::pair<uint64_t, lt_values<uint64_t>>> observedU64;
   //std::vector<std::pair<uint64_t, lt_values<int64_t>>> observedI64;
-  //std::vector<std::pair<uint64_t, lt_values<double>>> observedF64;
   //std::vector<std::pair<uint64_t, lt_values<char[256]>>> observedString;
   //std::vector<std::pair<uint64_t, lt_values<uint64_t>>> observedRangeU64;
   //std::vector<std::pair<uint64_t, lt_values<int64_t>>> observedRangeI64;
@@ -564,6 +639,48 @@ bool serialize(IN const uint64_t *pValue, IN StreamWriter *pStream)
 }
 
 bool jsonify(IN const uint64_t *pValue, IN JsonWriter *pWriter)
+{
+  pWriter->write_value(*pValue);
+
+  return true;
+}
+
+bool deserialize(OUT int64_t *pValue, IN ByteStream *pStream, const uint32_t /* version */)
+{
+  READ(pStream, *pValue);
+
+  return true;
+}
+
+bool serialize(IN const int64_t *pValue, IN StreamWriter *pStream)
+{
+  WRITE(pStream, *pValue);
+
+  return true;
+}
+
+bool jsonify(IN const int64_t *pValue, IN JsonWriter *pWriter)
+{
+  pWriter->write_value(*pValue);
+
+  return true;
+}
+
+bool deserialize(OUT double *pValue, IN ByteStream *pStream, const uint32_t /* version */)
+{
+  READ(pStream, *pValue);
+
+  return true;
+}
+
+bool serialize(IN const double *pValue, IN StreamWriter *pStream)
+{
+  WRITE(pStream, *pValue);
+
+  return true;
+}
+
+bool jsonify(IN const double *pValue, IN JsonWriter *pWriter)
 {
   pWriter->write_value(*pValue);
 
@@ -1171,6 +1288,179 @@ bool jsonify(IN const lt_sub_system_data *pValue, IN JsonWriter *pWriter)
   return true;
 }
 
+template <typename T>
+bool deserialize(OUT lt_values_exact<T> *pData, IN ByteStream *pStream, const uint32_t version)
+{
+  if (version < 4)
+    return false;
+
+  READ(pStream, pData->average);
+  READ(pStream, pData->minValue);
+  READ(pStream, pData->maxValue);
+  READ(pStream, pData->count);
+
+  if (!deserialize(&pData->single, pStream, version))
+    return false;
+
+  if (!deserialize(&pData->multiple, pStream, version))
+    return false;
+
+  if (!deserialize(&pData->data, pStream, version))
+    return false;
+
+  return true;
+}
+
+template <typename T>
+bool serialize(IN const lt_values_exact<T> *pData, IN StreamWriter *pStream)
+{
+  WRITE(pStream, pData->average);
+  WRITE(pStream, pData->minValue);
+  WRITE(pStream, pData->maxValue);
+  WRITE(pStream, pData->count);
+
+  if (!serialize(&pData->single, pStream))
+    return false;
+
+  if (!serialize(&pData->multiple, pStream))
+    return false;
+
+  if (!serialize(&pData->data, pStream))
+    return false;
+
+  return true;
+}
+
+template <typename T>
+bool jsonify(IN const lt_values_exact<T> *pValue, IN JsonWriter *pWriter)
+{
+  pWriter->begin_body();
+
+  pWriter->write_name("data");
+
+  if (!jsonify(&pValue->data, pWriter))
+    return false;
+
+  pWriter->write("average", pValue->average);
+  pWriter->write("min", pValue->minValue);
+  pWriter->write("max", pValue->maxValue);
+  pWriter->write("count", pValue->count);
+
+  SoaList<T, uint64_t> sorted;
+  sorted.index = pValue->multiple.index;
+  sorted.value = pValue->multiple.value;
+
+  if (sorted.size() < 16)
+    for (size_t i = 0; i < pValue->single.size() && sorted.size() < 16; i++)
+      sorted.emplace_back(pValue->single[i], 1);
+
+  sort_by_value(&sorted);
+
+  pWriter->begin_array("values");
+
+  for (size_t i = 0; i < sorted.size() && i < 16; i++)
+  {
+    pWriter->begin_body();
+    pWriter->write("value", sorted.index[i]);
+    pWriter->write("count", sorted.value[i]);
+    pWriter->end();
+  }
+
+  pWriter->end();
+
+  pWriter->end();
+
+  return true;
+}
+
+bool deserialize(OUT lt_string_value_entry *pData, IN ByteStream *pStream, const uint32_t version)
+{
+  if (version < 4)
+    return false;
+
+  READ_STRING(pStream, pData->value);
+
+  return true;
+}
+
+bool serialize(IN const lt_string_value_entry *pData, IN StreamWriter *pStream)
+{
+  WRITE_STRING(pStream, pData->value);
+
+  return true;
+}
+
+bool jsonify(IN const lt_string_value_entry *pValue, IN JsonWriter *pWriter)
+{
+  pWriter->write_value(pValue->value);
+
+  return true;
+}
+
+bool deserialize(OUT lt_string_values *pData, IN ByteStream *pStream, const uint32_t version)
+{
+  if (version < 4)
+    return false;
+
+  if (!deserialize(&pData->data, pStream, version))
+    return false;
+
+  if (!deserialize(&pData->values, pStream, version))
+    return false;
+
+  return true;
+}
+
+bool serialize(IN const lt_string_values *pData, IN StreamWriter *pStream)
+{
+  if (!serialize(&pData->data, pStream))
+    return false;
+
+  if (!serialize(&pData->values, pStream))
+    return false;
+
+  return true;
+}
+
+bool jsonify(IN const lt_string_values *pValue, IN JsonWriter *pWriter)
+{
+  pWriter->begin_body();
+
+  pWriter->write_name("data");
+
+  if (!jsonify(&pValue->data, pWriter))
+    return false;
+
+  uint64_t count = 0;
+
+  for (const auto &_item : pValue->values.value)
+    count += _item;
+
+  pWriter->write("count", count);
+
+  SoaList<lt_string_value_entry, uint64_t> sorted;
+  sorted.index = pValue->values.index;
+  sorted.value = pValue->values.value;
+
+  sort_by_value(&sorted);
+
+  pWriter->begin_array("values");
+
+  for (size_t i = 0; i < sorted.size() && i < 16; i++)
+  {
+    pWriter->begin_body();
+    pWriter->write("value", sorted.index[i].value);
+    pWriter->write("count", sorted.value[i]);
+    pWriter->end();
+  }
+
+  pWriter->end();
+
+  pWriter->end();
+
+  return true;
+}
+
 bool deserialize(OUT lt_analyze *pAnalyze, IN ByteStream *pStream)
 {
   uint32_t version;
@@ -1186,6 +1476,18 @@ bool deserialize(OUT lt_analyze *pAnalyze, IN ByteStream *pStream)
   if (!deserialize(&pAnalyze->subSystems, pStream, version))
     return false;
 
+  if (version >= 4)
+  {
+    if (!deserialize(&pAnalyze->observedU64, pStream, version))
+      return false;
+  
+    if (!deserialize(&pAnalyze->observedI64, pStream, version))
+      return false;
+  
+    if (!deserialize(&pAnalyze->observedString, pStream, version))
+      return false;
+  }
+
   return true;
 }
 
@@ -1199,6 +1501,15 @@ bool serialize(IN const lt_analyze *pAnalyze, OUT StreamWriter *pStream)
   WRITE_STRING(pStream, pAnalyze->productName);
 
   if (!serialize(&pAnalyze->subSystems, pStream))
+    return false;
+
+  if (!serialize(&pAnalyze->observedU64, pStream))
+    return false;
+
+  if (!serialize(&pAnalyze->observedI64, pStream))
+    return false;
+
+  if (!serialize(&pAnalyze->observedString, pStream))
     return false;
 
   return true;
@@ -1217,6 +1528,21 @@ bool jsonify(IN const lt_analyze *pAnalyze, OUT JsonWriter *pWriter)
   pWriter->write_name("subSystems");
 
   if (!jsonify(&pAnalyze->subSystems, pWriter))
+    return false;
+
+  pWriter->write_name("observedU64");
+
+  if (!jsonify(&pAnalyze->observedU64, pWriter))
+    return false;
+
+  pWriter->write_name("observedI64");
+
+  if (!jsonify(&pAnalyze->observedI64, pWriter))
+    return false;
+
+  pWriter->write_name("observedString");
+
+  if (!jsonify(&pAnalyze->observedString, pWriter))
     return false;
 
   pWriter->end();
@@ -1378,6 +1704,29 @@ lt_operation_transition_data *get_operation_transition_data(SoaList<lt_operation
   return &pList->value.back();
 }
 
+template <typename T>
+lt_values_exact<T> * get_exact_value_data(SoaList<uint64_t, lt_values_exact<T>> *pList, const uint64_t index)
+{
+  for (size_t i = 0; i < pList->size(); i++)
+    if (pList->index[i] == index)
+      return &pList->value[i];
+
+  pList->push_back(index, lt_values_exact<T>());
+
+  return &pList->value.back();
+}
+
+lt_string_values * get_exact_value_data(SoaList<uint64_t, lt_string_values> *pList, const uint64_t index)
+{
+  for (size_t i = 0; i < pList->size(); i++)
+    if (pList->index[i] == index)
+      return &pList->value[i];
+
+  pList->push_back(index, lt_string_values());
+
+  return &pList->value.back();
+}
+
 void update_transition_data(lt_transition_data *pTransition, const uint64_t delay)
 {
   pTransition->avgDelayS = adjust(pTransition->avgDelayS, to_seconds(delay), pTransition->count);
@@ -1427,6 +1776,63 @@ void update_operation_index_counts(SoaList<uint64_t, uint64_t> *pIndices, const 
   }
 
   pIndices->emplace_back(operationIndex, 1);
+}
+
+template <typename T>
+void update_exact_value(lt_values_exact<T> *pValue, const T newValue)
+{
+  pValue->average = adjust(pValue->average, newValue, pValue->count);
+
+  if (pValue->count == 0)
+  {
+    pValue->minValue = newValue;
+    pValue->maxValue = newValue;
+  }
+  else
+  {
+    pValue->minValue = min(pValue->minValue, newValue);
+    pValue->maxValue = max(pValue->maxValue, newValue);
+  }
+
+  pValue->count++;
+
+  for (size_t i = 0; i < pValue->multiple.size(); i++)
+  {
+    if (pValue->multiple.index[i] == newValue)
+    {
+      pValue->multiple.value[i]++;
+      return;
+    }
+  }
+
+  for (size_t i = 0; i < pValue->single.size(); i++)
+  {
+    if (pValue->single[i] == newValue)
+    {
+      pValue->single.erase(pValue->single.begin() + i);
+      pValue->multiple.emplace_back(newValue, 2);
+      return;
+    }
+  }
+
+  pValue->single.push_back(newValue);
+}
+
+void update_string_value(SoaList<lt_string_value_entry, uint64_t> *pStringValue, const char value[256])
+{
+  for (size_t i = 0; i < pStringValue->size(); i++)
+  {
+    if (strncmp(pStringValue->index[i].value, value, sizeof(pStringValue->index[i].value)) == 0)
+    {
+      pStringValue->value[i]++;
+      return;
+    }
+  }
+
+  lt_string_value_entry entry;
+  strncpy(entry.value, value, sizeof(entry.value));
+
+  pStringValue->emplace_back(std::move(entry), 1);
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -1837,33 +2243,62 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
 
       case lt_t_observed_exact_value:
       {
-        //uint8_t dataType = 0;
-        //FATAL_IF(!stream.read(&dataType), "Insufficient data steam.");
-        //printf(",\"dataType\":%" PRIu8 "", dataType);
-        //
-        //SKIP_X64(",", "valueIndex", stream);
-        //
-        //switch (dataType)
-        //{
-        //case lt_vt_u64:
-        //  SKIP_U64(",", "value", stream);
-        //  break;
-        //
-        //case lt_vt_i64:
-        //  SKIP_I64(",", "value", stream);
-        //  break;
-        //
+        uint8_t dataType = 0;
+        FATAL_IF(!stream.read(&dataType), "Insufficient data steam.");
+
+        uint64_t valueIndex;
+        FATAL_IF(!stream.read(&valueIndex), "Insufficient data steam.");
+
+        uint64_t u64 = 0;
+        int64_t i64 = 0;
+        
+        switch (dataType)
+        {
+        case lt_vt_u64:
+          FATAL_IF(!stream.read(&u64), "Insufficient data stream.");
+          break;
+        
+        case lt_vt_i64:
+          FATAL_IF(!stream.read(&i64), "Insufficient data stream.");
+          break;
+        
         //case lt_vt_f64:
         //  SKIP_F64(",", "value", stream);
         //  break;
-        //
-        //default:
-        //  RECOVERABLE_ERROR("Invalid data type.");
-        //  break;
-        //}
-        //
-        //SKIP_X64(",", "timestamp", stream);
+        
+        default:
+          RECOVERABLE_ERROR("Invalid data type.");
+          break;
+        }
+        
+        uint64_t timestamp;
+        FATAL_IF(!stream.read(&timestamp), "Insufficient data stream.");
 
+        switch (dataType)
+        {
+        case lt_vt_u64:
+        {
+          lt_values_exact<uint64_t> *pValue = get_exact_value_data(&pAnalyze->observedU64, valueIndex);
+          update_transition_data(&pValue->data, timestamp - startTimestamp);
+          update_exact_value(pValue, u64);
+          
+          break;
+        }
+
+        case lt_vt_i64:
+        {
+          lt_values_exact<int64_t> *pValue = get_exact_value_data(&pAnalyze->observedI64, valueIndex);
+          update_transition_data(&pValue->data, timestamp - startTimestamp);
+          update_exact_value(pValue, i64);
+
+          break;
+        }
+
+        default:
+          RECOVERABLE_ERROR("Invalid data type.");
+          break;
+        }
+        
         break;
       }
 
@@ -1962,19 +2397,27 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
 
       case lt_t_observed_exact_value_variable_length:
       {
-        //uint16_t size = 0;
-        //FATAL_IF(!stream.read(&size), "Insufficient data stream.");
-        //
-        //uint8_t dataType = 0;
-        //FATAL_IF(!stream.read(&dataType), "Insufficient data stream.");
-        //
-        //SKIP_X64(",", "exactValueIndex", stream);
-        //SKIP_X64(",", "timestamp", stream);
-        //
-        //RECOVERABLE_ERROR_IF(dataType != lt_vt_string, "Invalid Value Type.");
-        //
-        //if (dataType == lt_vt_string)
-        //  SKIP_STRING(",", "value", stream);
+        uint16_t size = 0;
+        FATAL_IF(!stream.read(&size), "Insufficient data stream.");
+        
+        uint8_t dataType = 0;
+        FATAL_IF(!stream.read(&dataType), "Insufficient data stream.");
+        
+        uint64_t valueIndex, timestamp;
+        FATAL_IF(!stream.read(&valueIndex), "Insufficient data stream.");
+        FATAL_IF(!stream.read(&timestamp), "Insufficient data stream.");
+        
+        RECOVERABLE_ERROR_IF(dataType != lt_vt_string, "Invalid Value Type.");
+        
+        if (dataType == lt_vt_string)
+        {
+          char string[0x100];
+          READ_STRING(&stream, string);
+
+          lt_string_values *pValue = get_exact_value_data(&pAnalyze->observedString, valueIndex);
+          update_transition_data(&pValue->data, timestamp - startTimestamp);
+          update_string_value(&pValue->values, string);
+        }
 
         break;
       }
