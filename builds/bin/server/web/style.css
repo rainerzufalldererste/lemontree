@@ -19,8 +19,16 @@ a {
   color: #838383;
 }
 
+a.LargeButton {
+  display: inline-block;
+  background: #444;
+  text-decoration: none;
+  padding: 2pt 6pt 3pt;
+  border-radius: 2pt;
+}
+
 a.Button, a.StateLink, a.OperationLink {
-  display: inline;
+  display: inline-block;
   background: #545454;
   padding: 2pt 5pt;
   margin: 0 5pt 5pt 0;
@@ -37,7 +45,6 @@ a.Button:hover, a.Button:active, a.StateLink:hover, a.StateLink:active, a.Operat
 a.OperationLink, a.StateLink {
   max-width: 315pt;
   overflow: hidden;
-  display: inline-block;
 }
 
 h1.Page {
@@ -217,8 +224,8 @@ p.StartDelay {
 .HistogramElement {
   --var0: calc(1 - var(--value) / 100);
   --var: calc(1 - var(--var0) * var(--var0));
-  width: 9pt;
-  height: 16pt;
+  width: 6pt;
+  height: calc((var(--value) / 100 * 15 + 2) * 1pt);
   display: inline-block;
   border-left: none;
   background: hsl(calc(200 - var(--var) * 150) 100% 70% / var(--var));

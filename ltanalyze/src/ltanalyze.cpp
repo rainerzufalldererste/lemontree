@@ -241,16 +241,6 @@ struct lt_crash_ref
 
 typedef lt_crash_ref lt_value_ref;
 
-template <typename T>
-struct lt_values
-{
-  std::vector<std::pair<T, uint64_t>> multiple;
-  std::vector<T> single;
-
-  size_t count = 0;
-  T min, max, average;
-};
-
 struct lt_short_hw_info
 {
   char cpuName[0x100] = "<UNKNOWN>";
@@ -383,14 +373,52 @@ struct lt_hw_info
   char deviceModelName[0x100];
 };
 
+struct lt_sub_system_data
+{
+  SoaList<lt_state_identifier, lt_state> states;
+  SoaList<lt_operation_identifier, lt_operation> operations;
+  std::vector<lt_perf_data> profilerData;
+};
+
+template <typename T>
+struct lt_value_entry
+{
+  T value;
+  uint64_t count;
+
+  lt_value_entry(T value) : value(value), count(1) {}
+};
+
+template <typename T>
+struct lt_values_exact
+{
+  std::vector<lt_value_entry> multiple;
+  std::vector<T> single;
+
+  uint64_t count = 0;
+  T min, max;
+  double average;
+};
+
+struct lt_string_value_entry
+{
+  char value[256];
+  uint64_t count = 0;
+};
+
+struct lt_string_values
+{
+  std::vector<lt_string_value_entry> values;
+};
+
 struct lt_analyze
 {
   uint64_t majorVersion = 0;
   uint64_t minorVersion = 0;
   char productName[0x100];
 
-  SoaList<uint64_t, SoaList<lt_state_identifier, lt_state>> states;
-  SoaList<uint64_t, SoaList<lt_operation_identifier, lt_operation>> operations;
+  SoaList<uint64_t, lt_sub_system_data> subSystems;
+
   //std::vector<std::pair<uint64_t, lt_values<uint64_t>>> observedU64;
   //std::vector<std::pair<uint64_t, lt_values<int64_t>>> observedI64;
   //std::vector<std::pair<uint64_t, lt_values<double>>> observedF64;
@@ -404,7 +432,7 @@ struct lt_analyze
 
 enum
 {
-  lt_analyze_file_version = 3,
+  lt_analyze_file_version = 4,
 };
 
 template <typename T>
@@ -1091,6 +1119,57 @@ bool jsonify(IN const lt_operation *pValue, IN JsonWriter *pWriter)
   return true;
 }
 
+bool deserialize(OUT lt_sub_system_data *pData, IN ByteStream *pStream, const uint32_t version)
+{
+  if (!deserialize(&pData->states, pStream, version))
+    return false;
+
+  if (!deserialize(&pData->operations, pStream, version))
+    return false;
+
+  if (!deserialize(&pData->profilerData, pStream, version))
+    return false;
+
+  return true;
+}
+
+bool serialize(IN const lt_sub_system_data *pData, IN StreamWriter *pStream)
+{
+  if (!serialize(&pData->states, pStream))
+    return false;
+
+  if (!serialize(&pData->operations, pStream))
+    return false;
+
+  if (!serialize(&pData->profilerData, pStream))
+    return false;
+
+  return true;
+}
+
+bool jsonify(IN const lt_sub_system_data *pValue, IN JsonWriter *pWriter)
+{
+  pWriter->begin_body();
+
+  pWriter->write_name("states");
+
+  if (!jsonify(&pValue->states, pWriter))
+    return false;
+
+  pWriter->write_name("operations");
+
+  if (!jsonify(&pValue->operations, pWriter))
+    return false;
+
+  pWriter->write_name("profileData");
+
+  if (!jsonify(&pValue->profilerData, pWriter))
+    return false;
+
+  pWriter->end();
+
+  return true;
+}
 
 bool deserialize(OUT lt_analyze *pAnalyze, IN ByteStream *pStream)
 {
@@ -1104,17 +1183,8 @@ bool deserialize(OUT lt_analyze *pAnalyze, IN ByteStream *pStream)
   READ(pStream, pAnalyze->minorVersion);
   READ_STRING(pStream, pAnalyze->productName);
 
-  // Read States.
-  {
-    if (!deserialize(&pAnalyze->states, pStream, version))
-      return false;
-  }
-
-  // Read Operations.
-  {
-    if (!deserialize(&pAnalyze->operations, pStream, version))
-      return false;
-  }
+  if (!deserialize(&pAnalyze->subSystems, pStream, version))
+    return false;
 
   return true;
 }
@@ -1128,17 +1198,8 @@ bool serialize(IN const lt_analyze *pAnalyze, OUT StreamWriter *pStream)
   WRITE(pStream, pAnalyze->minorVersion);
   WRITE_STRING(pStream, pAnalyze->productName);
 
-  // Write States.
-  {
-    if (!serialize(&pAnalyze->states, pStream))
-      return false;
-  }
-
-  // Write Operations.
-  {
-    if (!serialize(&pAnalyze->operations, pStream))
-      return false;
-  }
+  if (!serialize(&pAnalyze->subSystems, pStream))
+    return false;
 
   return true;
 }
@@ -1152,22 +1213,11 @@ bool jsonify(IN const lt_analyze *pAnalyze, OUT JsonWriter *pWriter)
   pWriter->write("productName", pAnalyze->productName);
   pWriter->write("majorVersion", pAnalyze->majorVersion);
   pWriter->write("minorVersion", pAnalyze->minorVersion);
-  
-  // Write States.
-  {
-    pWriter->write_name("states");
 
-    if (!jsonify(&pAnalyze->states, pWriter))
-      return false;
-  }
+  pWriter->write_name("subSystems");
 
-  // Write Operations.
-  {
-    pWriter->write_name("operations");
-
-    if (!jsonify(&pAnalyze->operations, pWriter))
-      return false;
-  }
+  if (!jsonify(&pAnalyze->subSystems, pWriter))
+    return false;
 
   pWriter->end();
 
@@ -1211,46 +1261,46 @@ void to_short_hw_info(IN const lt_hw_info *pHwInfo, OUT lt_short_hw_info *pShort
   }
 }
 
+lt_sub_system_data *get_sub_system_data(IN lt_analyze *pAnalyze, const uint64_t subSystem)
+{
+  if (pAnalyze == nullptr)
+    return nullptr;
+
+  for (size_t i = 0; i < pAnalyze->subSystems.size(); i++)
+    if (pAnalyze->subSystems.index[i] == subSystem)
+      return &pAnalyze->subSystems.value[i];
+
+  // Create New SubSystem.
+  {
+    pAnalyze->subSystems.push_back(subSystem, lt_sub_system_data());
+
+    return &pAnalyze->subSystems.value.back();
+  }
+}
+
 lt_state *get_state(IN lt_analyze *pAnalyze, const uint64_t subSystem, const uint64_t stateIndex, const uint64_t subStateIndex)
 {
   if (pAnalyze == nullptr)
     return nullptr;
 
-  for (size_t i = 0; i < pAnalyze->states.size(); i++)
+  lt_sub_system_data *pSSData = get_sub_system_data(pAnalyze, subSystem);
+
+  auto &list = pSSData->states;
+
+  // Try to find the state.
+  for (size_t j = 0; j < list.size(); j++)
+    if (list.index[j].stateIndex == stateIndex && list.index[j].subStateIndex == subStateIndex)
+      return &list.value[j];
+
+  // Create new state.
   {
-    if (pAnalyze->states.index[i] == subSystem)
-    {
-      auto &list = pAnalyze->states.value[i];
-
-      // Try to find the state.
-      for (size_t j = 0; j < list.size(); j++)
-        if (list.index[j].stateIndex == stateIndex && list.index[j].subStateIndex == subStateIndex)
-          return &list.value[j];
-
-      // Create new state.
-      {
-        lt_state_identifier index;
-        index.stateIndex = stateIndex;
-        index.subStateIndex = subStateIndex;
-
-        list.push_back(std::move(index), lt_state());
-
-        return &list.value.back();
-      }
-    }
-  }
-
-  // Create New SubSystem.
-  {
-    pAnalyze->states.push_back(subSystem, SoaList<lt_state_identifier, lt_state>());
-
     lt_state_identifier index;
     index.stateIndex = stateIndex;
     index.subStateIndex = subStateIndex;
 
-    pAnalyze->states.value.back().push_back(std::move(index), lt_state());
+    list.push_back(std::move(index), lt_state());
 
-    return &pAnalyze->states.value.back().value.back();
+    return &list.value.back();
   }
 }
 
@@ -1267,39 +1317,23 @@ lt_operation *get_operation(IN lt_analyze *pAnalyze, const uint64_t subSystem, c
   if (pAnalyze == nullptr)
     return nullptr;
 
-  for (size_t i = 0; i < pAnalyze->operations.size(); i++)
+  lt_sub_system_data *pSSData = get_sub_system_data(pAnalyze, subSystem);
+
+  auto &list = pSSData->operations;
+
+  // Try to find the state.
+  for (size_t j = 0; j < list.size(); j++)
+    if (list.index[j].operationType == operationType)
+      return &list.value[j];
+
+  // Create new state.
   {
-    if (pAnalyze->operations.index[i] == subSystem)
-    {
-      auto &list = pAnalyze->operations.value[i];
-
-      // Try to find the state.
-      for (size_t j = 0; j < list.size(); j++)
-        if (list.index[j].operationType == operationType)
-          return &list.value[j];
-
-      // Create new state.
-      {
-        lt_operation_identifier index;
-        index.operationType = operationType;
-
-        list.push_back(std::move(index), lt_operation());
-
-        return &list.value.back();
-      }
-    }
-  }
-
-  // Create New SubSystem.
-  {
-    pAnalyze->operations.push_back(subSystem, SoaList<lt_operation_identifier, lt_operation>());
-
     lt_operation_identifier index;
     index.operationType = operationType;
 
-    pAnalyze->operations.value.back().push_back(std::move(index), lt_operation());
+    list.push_back(std::move(index), lt_operation());
 
-    return &pAnalyze->operations.value.back().value.back();
+    return &list.value.back();
   }
 }
 
@@ -1468,12 +1502,12 @@ void update_avg_value(lt_avg_data<T> *pAvgData, const T value)
   pAvgData->count++;
 }
 
-void add_perf_data(lt_state *pState, const size_t index, const double ms, const lt_short_hw_info *pHwInfo, const bool hasLastOperation, const lt_operation_identifier *pLastOperation)
+void add_perf_data(std::vector<lt_perf_data> *pPerfData, const size_t index, const double ms, const lt_short_hw_info *pHwInfo, const bool hasLastOperation, const lt_operation_identifier *pLastOperation)
 {
-  while (pState->profilerData.size() <= index)
-    pState->profilerData.emplace_back(lt_perf_data());
+  while (pPerfData->size() <= index)
+    pPerfData->emplace_back(lt_perf_data());
 
-  lt_perf_data *pData = &pState->profilerData[index];
+  lt_perf_data *pData = &(*pPerfData)[index];
 
   update_avg_value(&pData->timeMs, ms);
 
@@ -1907,16 +1941,20 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
         FATAL_IF(!stream.read(&count), "Insufficient data stream.");
 
         lt_sub_system *pSubSystem = get_sub_system(&state, subSystem);
+        lt_sub_system_data *pSSData = get_sub_system_data(pAnalyze, subSystem);
+
+        const double *pPerfData = reinterpret_cast<const double *>(stream.pData);
+        FATAL_IF(!stream.read<double>(nullptr, count), "Insufficient data stream.");
+
+        for (uint8_t i = 0; i < count; i++)
+          add_perf_data(&pSSData->profilerData, i, pPerfData[i], &hwInfoShort, pSubSystem->hasLastOperation, &pSubSystem->lastOperation);
         
         if (count > 0 && pSubSystem->hasLastState)
         {
           lt_state *pState = get_state(pAnalyze, subSystem, pSubSystem->lastState.stateIndex, pSubSystem->lastState.subStateIndex);
 
-          const double *pPerfData = reinterpret_cast<const double *>(stream.pData);
-          FATAL_IF(!stream.read<double>(nullptr, count), "Insufficient data stream.");
-
           for (uint8_t i = 0; i < count; i++)
-            add_perf_data(pState, i, pPerfData[i], &hwInfoShort, pSubSystem->hasLastOperation, &pSubSystem->lastOperation);
+            add_perf_data(&pState->profilerData, i, pPerfData[i], &hwInfoShort, pSubSystem->hasLastOperation, &pSubSystem->lastOperation);
         }
 
         break;

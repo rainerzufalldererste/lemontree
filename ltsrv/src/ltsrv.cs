@@ -6,23 +6,35 @@ using LamestWebserver.UI;
 using LamestWebserver.Core;
 using LamestWebserver.Serialization;
 
+public class AnalysisInfo
+{
+  public Analysis analysis;
+  public Info info;
+
+  public AnalysisInfo(Analysis a)
+  {
+    analysis = a;
+  }
+}
+
 public class ltsrv
 {
-  public static Analysis _Analysis;
-  public static Info _Info;
+  public static Dictionary<string, Dictionary<uint64_t, Dictionary<uint64_t, AnalysisInfo>>> _Analysis = new Dictionary<string, Dictionary<uint64_t, Dictionary<uint64_t, AnalysisInfo>>>();
 
   [STAThread]
   public static void Main(string[] args)
   {
     System.Globalization.CultureInfo.CurrentCulture = System.Globalization.CultureInfo.InvariantCulture;
 
-    _Analysis = Serializer.ReadJsonData<Analysis>(args[0]);
+    var analysis = Serializer.ReadJsonData<Analysis>(args[0]);
 
     Console.WriteLine("Deserialized Analysis.");
 
-    _Analysis.Sort();
+    analysis.Sort();
 
     Console.WriteLine("Sorted Analysis.");
+
+    _Analysis.Add(analysis.productName, new Dictionary<uint64_t, Dictionary<uint64_t, AnalysisInfo>> { { analysis.majorVersion, new Dictionary<uint64_t, AnalysisInfo>() { { analysis.minorVersion, new AnalysisInfo(analysis) } } } });
 
     for (int i = 1; i < args.Length;)
     {
@@ -35,13 +47,14 @@ public class ltsrv
             throw new Exception();
           }
 
-          _Info = Serializer.ReadJsonData<Info>(args[i + 1]);
+          var info = Serializer.ReadJsonData<Info>(args[i + 1]);
+          var container = _Analysis[info.productName][info.majorVersion];
 
-          if (_Info.productName != _Analysis.productName)
-          {
-            Console.WriteLine($"Product Name Mismatch '{_Info.productName}' != '{_Analysis.productName}'.");
-            throw new Exception();
-          }
+          if (info.minorVersion.HasValue)
+            container[info.minorVersion.Value].info = info;
+          else
+            foreach (var x in container)
+              x.Value.info = info;
 
           i += 2;
 
@@ -69,6 +82,97 @@ public class ltsrv
   }
 }
 
+public class SubSystemInfo : ElementResponse
+{
+  public SubSystemInfo() : base("subsystem") { }
+
+  protected override HElement GetElement(SessionData sessionData) => GetMenu(sessionData);
+
+  internal static HElement GetMenu(SessionData sessionData)
+  {
+    string productName = sessionData.HttpHeadVariables["p"];
+    ulong majorVersion, minorVersion, subSystem;
+
+    if (productName == null)
+      return ltsrv.GetPage("Products", ShowProjects(sessionData));
+    else if (!ulong.TryParse(sessionData.HttpHeadVariables["V"], out majorVersion))
+      return ltsrv.GetPage("Sub Systems", ShowMajorVersions(sessionData, productName));
+    else if (!ulong.TryParse(sessionData.HttpHeadVariables["v"], out minorVersion))
+      return ltsrv.GetPage("Sub Systems", ShowMinorVersions(sessionData, productName, majorVersion));
+    else if (!ulong.TryParse(sessionData.HttpHeadVariables["ss"], out subSystem))
+      return ltsrv.GetPage("Sub Systems", ShowSubSystems(sessionData, productName, majorVersion, minorVersion));
+    else
+      return ltsrv.GetPage("Sub System Info", ShowContents(sessionData, productName, majorVersion, minorVersion, subSystem));
+  }
+
+  internal static IEnumerable<HElement> ShowProjects(SessionData sessionData)
+  {
+    yield return new HHeadline($"Products");
+
+    foreach (var x in ltsrv._Analysis)
+      yield return new HLink(x.Key, $"/subsystem?p={x.Key}") { Class = "LargeButton" };
+  }
+
+  internal static IEnumerable<HElement> ShowMajorVersions(SessionData sessionData, string productName)
+  {
+    if (ltsrv._Analysis[productName].Count == 1)
+    {
+      yield return new HScript(ScriptCollection.GetPageReferalToX, $"/subsystem?p={productName.EncodeUrl()}&V={ltsrv._Analysis[productName].First().Key}");
+      yield break;
+    }
+
+    yield return new HHeadline($"MajorVersion");
+
+    foreach (var x in ltsrv._Analysis[productName])
+      yield return new HLink(x.Key.ToString(), $"/subsystem?p={productName.EncodeUrl()}&V={x.Key}") { Class = "LargeButton" };
+  }
+
+  internal static IEnumerable<HElement> ShowMinorVersions(SessionData sessionData, string productName, ulong majorVersion)
+  {
+    if (ltsrv._Analysis[productName][(uint64_t)majorVersion].Count == 1)
+    {
+      yield return new HScript(ScriptCollection.GetPageReferalToX, $"/subsystem?p={productName.EncodeUrl()}&V={majorVersion}&v={ltsrv._Analysis[productName][(uint64_t)majorVersion].First().Key}");
+      yield break;
+    }
+
+    yield return new HHeadline($"MinorVersion");
+
+    foreach (var x in ltsrv._Analysis[productName][(uint64_t)majorVersion])
+      yield return new HLink(x.Key.ToString(), $"/subsystem?p={productName.EncodeUrl()}&V={majorVersion}&v={x.Key}") { Class = "LargeButton" };
+  }
+
+  internal static IEnumerable<HElement> ShowSubSystems(SessionData sessionData, string productName, ulong majorVersion, ulong minorVersion)
+  {
+    var analysis = ltsrv._Analysis[productName][(uint64_t)majorVersion][(uint64_t)minorVersion].analysis;
+
+    yield return new HHeadline($"SubSystems of '{productName}' (Version {majorVersion}.{minorVersion})");
+
+    foreach (var x in analysis.subSystems)
+      yield return new HLink(x.index.ToString(), $"/subsystem?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&ss={x.index}") { Class = "LargeButton" };
+  }
+
+  internal static IEnumerable<HElement> ShowContents(SessionData sessionData, string productName, ulong majorVersion, ulong minorVersion, ulong subSystem)
+  {
+    var container = ltsrv._Analysis[productName][(uint64_t)majorVersion][(uint64_t)minorVersion];
+    var info = container.info;
+    var analysis = container.analysis;
+
+    yield return new HHeadline($"SubSystem {subSystem} of {productName} (Version {majorVersion}.{minorVersion})");
+
+    yield return new HHeadline("States", 2);
+
+    foreach (var x in analysis.subSystems.FindItem((uint64_t)subSystem).states)
+      yield return new HLink(info.GetStateName((uint64_t)subSystem, x.index.state, x.index.subState), $"/state?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&ss={subSystem}&id={x.index.state}&sid={x.index.subState}") { Class = "Button" };
+
+    yield return new HHeadline("Operations", 2);
+
+    foreach (var x in analysis.subSystems.FindItem((uint64_t)subSystem).operations)
+      yield return new HLink(info.GetOperationName((uint64_t)subSystem, x.index), $"/p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&ss={subSystem}&id={x.index}") { Class = "Button" };
+
+    yield return analysis.ToHistorgramChart((uint64_t)subSystem, analysis.subSystems[(int)subSystem].value.profileData, "Performance", info);
+  }
+}
+
 public class StateInfo : ElementResponse
 {
   public StateInfo() : base("state") { }
@@ -76,57 +180,36 @@ public class StateInfo : ElementResponse
   protected override HElement GetElement(SessionData sessionData)
   {
     string productName = sessionData.HttpHeadVariables["p"];
-    ulong subSystem = 0, stateIndex = 0, subStateIndex = 0;
+    ulong majorVersion, minorVersion, subSystem, stateIndex = 0, subStateIndex = 0;
 
-    if (productName == null)
+    if (productName == null || !ulong.TryParse(sessionData.HttpHeadVariables["ss"], out subSystem) || !ulong.TryParse(sessionData.HttpHeadVariables["V"], out majorVersion) || !ulong.TryParse(sessionData.HttpHeadVariables["v"], out minorVersion) || !ulong.TryParse(sessionData.HttpHeadVariables["id"], out stateIndex) || !ulong.TryParse(sessionData.HttpHeadVariables["sid"], out subStateIndex))
     {
-      return ltsrv.GetPage("Products", ShowProjects(sessionData));
-    }
-    else if (!ulong.TryParse(sessionData.HttpHeadVariables["ss"], out subSystem))
-    {
-      return ltsrv.GetPage("Sub Systems", ShowSubSystems(sessionData));
-    }
-    else if (!ulong.TryParse(sessionData.HttpHeadVariables["id"], out stateIndex) || !ulong.TryParse(sessionData.HttpHeadVariables["sid"], out subStateIndex))
-    {
-      return ltsrv.GetPage("States", ShowStates(sessionData, subSystem));
+      return SubSystemInfo.GetMenu(sessionData);
     }
     else
     {
-      return ltsrv.GetPage("State Info", ShowState(sessionData, subSystem, stateIndex, subStateIndex));
+      return ltsrv.GetPage("State Info", ShowState(sessionData, productName, majorVersion, minorVersion, subSystem, stateIndex, subStateIndex));
     }
   }
 
-  private IEnumerable<HElement> ShowProjects(SessionData sessionData)
+  private IEnumerable<HElement> ShowState(SessionData sessionData, string productName, ulong majorVersion, ulong minorVersion, ulong subSystem, ulong state, ulong subStateIndex)
   {
-    yield return new HLink(ltsrv._Analysis.productName, $"/state?p={ltsrv._Analysis.productName}") { Class = "LargeButton" };
-  }
+    var container = ltsrv._Analysis[productName][(uint64_t)majorVersion][(uint64_t)minorVersion];
+    var info = container.info;
+    var analysis = container.analysis;
 
-  private IEnumerable<HElement> ShowSubSystems(SessionData sessionData)
-  {
-    foreach (var x in ltsrv._Analysis.states)
-      yield return new HLink(x.index.ToString(), $"/state?p={ltsrv._Analysis.productName}&ss={x.index}") { Class = "LargeButton" };
-  }
+    var s = analysis.subSystems.FindItem((uint64_t)subSystem).states.FindItem(new StateId(state, subStateIndex));
 
-  private IEnumerable<HElement> ShowStates(SessionData sessionData, ulong subSystem)
-  {
-    foreach (var x in ltsrv._Analysis.states.FindItem((uint64_t)subSystem))
-      yield return new HLink(ltsrv._Info.GetStateName((uint64_t)subSystem, x.index.state, x.index.subState), $"/state?p={ltsrv._Analysis.productName}&ss={subSystem}&id={x.index.state}&sid={x.index.subState}") { Class = "Button" };
-  }
+    yield return new HHeadline(info.GetStateName((uint64_t)subSystem, (uint64_t)state, (uint64_t)subStateIndex)) { Class = "stateName" };
 
-  private IEnumerable<HElement> ShowState(SessionData sessionData, ulong subSystem, ulong state, ulong subStateIndex)
-  {
-    var s = ltsrv._Analysis.states.FindItem((uint64_t)subSystem).FindItem(new StateId(state, subStateIndex));
-
-    yield return new HHeadline(ltsrv._Info.GetStateName((uint64_t)subSystem, (uint64_t)state, (uint64_t)subStateIndex)) { Class = "stateName" };
-
-    yield return ltsrv._Analysis.DisplayInfo(s);
-    yield return ltsrv._Analysis.ToPieChart((uint64_t)subSystem, s.nextState, "Next State", ltsrv._Info);
-    yield return ltsrv._Analysis.ToPieChart((uint64_t)subSystem, s.previousState, "Previous State", ltsrv._Info);
-    yield return ltsrv._Analysis.ToPieChart((uint64_t)subSystem, s.operations, "Operations", ltsrv._Info);
-    yield return ltsrv._Analysis.ToPieChart((uint64_t)subSystem, s.previousOperation, "Previous Operation", ltsrv._Info);
-    yield return ltsrv._Analysis.ToHistorgramChart((uint64_t)subSystem, s.profileData, "Performance", ltsrv._Info);
-    yield return ltsrv._Analysis.ToBarGraph((uint64_t)subSystem, s.stateReach, "State Reach", ltsrv._Info);
-    yield return ltsrv._Analysis.ToBarGraph((uint64_t)subSystem, s.operationReach, "Operation Reach", ltsrv._Info);
+    yield return analysis.DisplayInfo(s);
+    yield return analysis.ToPieChart((uint64_t)subSystem, s.nextState, "Next State", info);
+    yield return analysis.ToPieChart((uint64_t)subSystem, s.previousState, "Previous State", info);
+    yield return analysis.ToPieChart((uint64_t)subSystem, s.operations, "Operations", info);
+    yield return analysis.ToPieChart((uint64_t)subSystem, s.previousOperation, "Previous Operation", info);
+    yield return analysis.ToHistorgramChart((uint64_t)subSystem, s.profileData, "Performance", info);
+    yield return analysis.ToBarGraph((uint64_t)subSystem, s.stateReach, "State Reach", info);
+    yield return analysis.ToBarGraph((uint64_t)subSystem, s.operationReach, "Operation Reach", info);
   }
 }
 
@@ -137,55 +220,34 @@ public class OperationInfo : ElementResponse
   protected override HElement GetElement(SessionData sessionData)
   {
     string productName = sessionData.HttpHeadVariables["p"];
-    ulong subSystem = 0, stateIndex = 0;
+    ulong majorVersion, minorVersion, subSystem, operationIndex = 0;
 
-    if (productName == null)
+    if (productName == null || !ulong.TryParse(sessionData.HttpHeadVariables["ss"], out subSystem) || !ulong.TryParse(sessionData.HttpHeadVariables["V"], out majorVersion) || !ulong.TryParse(sessionData.HttpHeadVariables["v"], out minorVersion) || !ulong.TryParse(sessionData.HttpHeadVariables["id"], out operationIndex))
     {
-      return ltsrv.GetPage("Products", ShowProjects(sessionData));
-    }
-    else if (!ulong.TryParse(sessionData.HttpHeadVariables["ss"], out subSystem))
-    {
-      return ltsrv.GetPage("Sub Systems", ShowSubSystems(sessionData));
-    }
-    else if (!ulong.TryParse(sessionData.HttpHeadVariables["id"], out stateIndex))
-    {
-      return ltsrv.GetPage("States", ShowStates(sessionData, subSystem));
+      return SubSystemInfo.GetMenu(sessionData);
     }
     else
     {
-      return ltsrv.GetPage("State Info", ShowState(sessionData, subSystem, stateIndex));
+      return ltsrv.GetPage("Operation Info", ShowOperation(sessionData, productName, majorVersion, minorVersion, subSystem, operationIndex));
     }
   }
 
-  private IEnumerable<HElement> ShowProjects(SessionData sessionData)
+  private IEnumerable<HElement> ShowOperation(SessionData sessionData, string productName, ulong majorVersion, ulong minorVersion, ulong subSystem, ulong operationIndex)
   {
-    yield return new HLink(ltsrv._Analysis.productName, $"/op?p={ltsrv._Analysis.productName}") { Class = "LargeButton" };
-  }
+    var container = ltsrv._Analysis[productName][(uint64_t)majorVersion][(uint64_t)minorVersion];
+    var info = container.info;
+    var analysis = container.analysis;
 
-  private IEnumerable<HElement> ShowSubSystems(SessionData sessionData)
-  {
-    foreach (var x in ltsrv._Analysis.operations)
-      yield return new HLink(x.index.ToString(), $"/op?p={ltsrv._Analysis.productName}&ss={x.index}") { Class = "LargeButton" };
-  }
+    var s = analysis.subSystems.FindItem((uint64_t)subSystem).operations.FindItem((uint64_t)operationIndex);
 
-  private IEnumerable<HElement> ShowStates(SessionData sessionData, ulong subSystem)
-  {
-    foreach (var x in ltsrv._Analysis.operations.FindItem((uint64_t)subSystem))
-      yield return new HLink(ltsrv._Info.GetOperationName((uint64_t)subSystem, x.index), $"/op?p={ltsrv._Analysis.productName}&ss={subSystem}&id={x.index}") { Class = "Button" };
-  }
+    yield return new HHeadline(info.GetOperationName((uint64_t)subSystem, (uint64_t)operationIndex)) { Class = "stateName" };
 
-  private IEnumerable<HElement> ShowState(SessionData sessionData, ulong subSystem, ulong state)
-  {
-    var s = ltsrv._Analysis.operations.FindItem((uint64_t)subSystem).FindItem((uint64_t)state);
-
-    yield return new HHeadline(ltsrv._Info.GetOperationName((uint64_t)subSystem, (uint64_t)state)) { Class = "stateName" };
-
-    yield return ltsrv._Analysis.DisplayInfo(s);
-    yield return ltsrv._Analysis.ToPieChart(s.operationIndexCount, "Operation Index");
-    yield return ltsrv._Analysis.ToPieChart((uint64_t)subSystem, s.nextOperation, "Next Operation", ltsrv._Info);
-    yield return ltsrv._Analysis.ToPieChart((uint64_t)subSystem, s.parentState, "Parent State", ltsrv._Info);
-    yield return ltsrv._Analysis.ToPieChart((uint64_t)subSystem, s.nextState, "Next State", ltsrv._Info);
-    yield return ltsrv._Analysis.ToPieChart((uint64_t)subSystem, s.lastOperation, "Previous Operation", ltsrv._Info);
+    yield return analysis.DisplayInfo(s);
+    yield return analysis.ToPieChart(s.operationIndexCount, "Operation Index");
+    yield return analysis.ToPieChart((uint64_t)subSystem, s.nextOperation, "Next Operation", info);
+    yield return analysis.ToPieChart((uint64_t)subSystem, s.parentState, "Parent State", info);
+    yield return analysis.ToPieChart((uint64_t)subSystem, s.nextState, "Next State", info);
+    yield return analysis.ToPieChart((uint64_t)subSystem, s.lastOperation, "Previous Operation", info);
   }
 }
 
@@ -235,16 +297,22 @@ public struct uint64_t : IEquatable<uint64_t>, IComparable<uint64_t>
   public int CompareTo(uint64_t other) => value.CompareTo(other.value);
 }
 
+public class SubStateData
+{
+  public List<Ref<StateId, State>> states;
+  public List<Ref<uint64_t, Operation>> operations;
+  public List<ProfileData> profileData;
+}
+
 public class Analysis
 {
   public string productName;
   public uint64_t majorVersion, minorVersion;
-  public List<Ref<uint64_t, List<Ref<StateId, State>>>> states;
-  public List<Ref<uint64_t, List<Ref<uint64_t, Operation>>>> operations;
+  public List<Ref<uint64_t, SubStateData>> subSystems;
 
-  public string GetLink(uint64_t subSystem, uint64_t operationIndex) => $"/op?p={productName.EncodeUrl()}&ss={subSystem}&id={operationIndex}";
+  public string GetLink(uint64_t subSystem, uint64_t operationIndex) => $"/op?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&ss={subSystem}&id={operationIndex}";
 
-  public string GetLink(uint64_t subSystem, StateId stateId) => $"/state?p={productName.EncodeUrl()}&ss={subSystem}&id={stateId.state}&sid={stateId.subState}";
+  public string GetLink(uint64_t subSystem, StateId stateId) => $"/state?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&ss={subSystem}&id={stateId.state}&sid={stateId.subState}";
 
   public HElement GetElementNameX(Info info, uint64_t subSystem, uint64_t operationIndex, string _class = null)
   {
@@ -419,9 +487,9 @@ public class Analysis
 
   public void Sort()
   {
-    foreach (var x in states)
+    foreach (var x in subSystems)
     {
-      foreach (var y in x.value)
+      foreach (var y in x.value.states)
       {
         y.value.nextState = y.value.nextState.OrderByDescending(a => a.value.count).ToList();
         y.value.previousState = y.value.previousState.OrderByDescending(a => a.value.count).ToList();
@@ -430,11 +498,8 @@ public class Analysis
         y.value.operationReach = y.value.operationReach.OrderByDescending(a => a.value.count).ToList();
         y.value.stateReach = y.value.stateReach.OrderByDescending(a => a.value.count).ToList();
       }
-    }
 
-    foreach (var x in operations)
-    {
-      foreach (var y in x.value)
+      foreach (var y in x.value.operations)
       {
         y.value.parentState = y.value.parentState.OrderByDescending(a => a.value.count).ToList();
         y.value.lastOperation = y.value.lastOperation.OrderByDescending(a => a.value.count).ToList();
@@ -587,12 +652,20 @@ public class Operation : TransitionDataWithDelay
   public List<Ref<uint64_t, uint64_t>> operationIndexCount;
 }
 
+public class InfoSubSystem
+{
+  public List<string> states;
+  public List<string> operations;
+  public List<string> profilerData;
+}
+
 public class Info
 {
   public string productName;
-  public List<Ref<uint64_t, List<string>>> states;
-  public List<Ref<uint64_t, List<string>>> operations;
-  public List<Ref<uint64_t, List<string>>> profilerData;
+  public uint64_t majorVersion;
+  public uint64_t? minorVersion;
+
+  public List<Ref<uint64_t, InfoSubSystem>> subSystems;
 
   public string GetName(uint64_t subSystem, object x)
   {
@@ -606,12 +679,12 @@ public class Info
 
   public string GetStateName(uint64_t subSystem, uint64_t stateIndex, uint64_t subStateIndex)
   {
-    foreach (var subSys in states)
+    foreach (var subSys in subSystems)
     {
       if (subSys.index == subSystem)
       {
-        if ((ulong)subSys.value.Count > stateIndex)
-          return $"{subSys.value[(int)stateIndex.value]} ({subStateIndex})";
+        if ((ulong)subSys.value.states.Count > stateIndex)
+          return $"{subSys.value.states[(int)stateIndex.value]} ({subStateIndex})";
 
         break;
       }
@@ -622,12 +695,12 @@ public class Info
 
   public string GetOperationName(uint64_t subSystem, uint64_t operationType)
   {
-    foreach (var subSys in operations)
+    foreach (var subSys in subSystems)
     {
       if (subSys.index == subSystem)
       {
-        if ((ulong)subSys.value.Count > operationType)
-          return subSys.value[(int)operationType.value];
+        if ((ulong)subSys.value.operations.Count > operationType)
+          return subSys.value.operations[(int)operationType.value];
 
         break;
       }
@@ -638,12 +711,12 @@ public class Info
 
   public string GetProfilerDataName(uint64_t subSystem, uint64_t dataIndex)
   {
-    foreach (var subSys in profilerData)
+    foreach (var subSys in subSystems)
     {
       if (subSys.index == subSystem)
       {
-        if ((ulong)subSys.value.Count > dataIndex)
-          return subSys.value[(int)dataIndex.value];
+        if ((ulong)subSys.value.profilerData.Count > dataIndex)
+          return subSys.value.profilerData[(int)dataIndex.value];
 
         break;
       }
