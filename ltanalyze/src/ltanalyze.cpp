@@ -282,6 +282,8 @@ struct lt_perf_data
   uint64_t hist[ARRAYSIZE(lt_perf_data_sizes) + 1] = {};
   lt_avg_data<double> timeMs;
   lt_short_hw_info minInfo, maxInfo;
+  bool hasMinLastOperation, hasMaxLastOperation;
+  lt_operation_identifier minLastOperation, maxLastOperation;
 };
 
 struct lt_state
@@ -402,7 +404,7 @@ struct lt_analyze
 
 enum
 {
-  lt_analyze_file_version = 2,
+  lt_analyze_file_version = 3,
 };
 
 template <typename T>
@@ -782,6 +784,21 @@ bool deserialize(OUT lt_perf_data *pData, IN ByteStream *pStream, const uint32_t
   if (!deserialize(&pData->maxInfo, pStream, version))
     return false;
 
+  if (version >= 3)
+  {
+    READ(pStream, pData->hasMinLastOperation);
+
+    if (pData->hasMinLastOperation)
+      if (!deserialize(&pData->minLastOperation, pStream, version))
+        return false;
+
+    READ(pStream, pData->hasMaxLastOperation);
+
+    if (pData->hasMaxLastOperation)
+      if (!deserialize(&pData->maxLastOperation, pStream, version))
+        return false;
+  }
+
   return true;
 }
 
@@ -798,6 +815,18 @@ bool serialize(IN const lt_perf_data *pData, IN StreamWriter *pStream)
 
   if (!serialize(&pData->minInfo, pStream))
     return false;
+
+  WRITE(pStream, pData->hasMinLastOperation);
+
+  if (pData->hasMinLastOperation)
+    if (!serialize(&pData->minLastOperation, pStream))
+      return false;
+
+  WRITE(pStream, pData->hasMaxLastOperation);
+
+  if (pData->hasMaxLastOperation)
+    if (!serialize(&pData->maxLastOperation, pStream))
+      return false;
 
   return true;
 }
@@ -827,6 +856,32 @@ bool jsonify(IN const lt_perf_data *pData, IN JsonWriter *pWriter)
 
   if (!jsonify(&pData->maxInfo, pWriter))
     return false;
+
+  pWriter->write_name("minLastOperation");
+ 
+  if (pData->hasMinLastOperation)
+  {
+    if (!jsonify(&pData->minLastOperation, pWriter))
+      return false;
+  }
+  else
+  {
+    pWriter->begin_body();
+    pWriter->end();
+  }
+
+  pWriter->write_name("maxLastOperation");
+ 
+  if (pData->hasMaxLastOperation)
+  {
+    if (!jsonify(&pData->maxLastOperation, pWriter))
+      return false;
+  }
+  else
+  {
+    pWriter->begin_body();
+    pWriter->end();
+  }
 
   pWriter->end();
 
@@ -1413,7 +1468,7 @@ void update_avg_value(lt_avg_data<T> *pAvgData, const T value)
   pAvgData->count++;
 }
 
-void add_perf_data(lt_state *pState, const size_t index, const double ms, lt_short_hw_info *pHwInfo)
+void add_perf_data(lt_state *pState, const size_t index, const double ms, const lt_short_hw_info *pHwInfo, const bool hasLastOperation, const lt_operation_identifier *pLastOperation)
 {
   while (pState->profilerData.size() <= index)
     pState->profilerData.emplace_back(lt_perf_data());
@@ -1423,10 +1478,18 @@ void add_perf_data(lt_state *pState, const size_t index, const double ms, lt_sho
   update_avg_value(&pData->timeMs, ms);
 
   if (pData->timeMs.maxValue == ms)
+  {
     pData->maxInfo = *pHwInfo;
+    pData->hasMaxLastOperation = hasLastOperation;
+    pData->maxLastOperation = *pLastOperation;
+  }
 
   if (pData->timeMs.minValue == ms)
+  {
     pData->minInfo = *pHwInfo;
+    pData->hasMinLastOperation = hasLastOperation;
+    pData->minLastOperation = *pLastOperation;
+  }
 
   size_t i = 0;
 
@@ -1853,7 +1916,7 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
           FATAL_IF(!stream.read<double>(nullptr, count), "Insufficient data stream.");
 
           for (uint8_t i = 0; i < count; i++)
-            add_perf_data(pState, i, pPerfData[i], &hwInfoShort);
+            add_perf_data(pState, i, pPerfData[i], &hwInfoShort, pSubSystem->hasLastOperation, &pSubSystem->lastOperation);
         }
 
         break;

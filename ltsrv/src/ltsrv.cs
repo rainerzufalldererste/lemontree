@@ -242,9 +242,25 @@ public class Analysis
   public List<Ref<uint64_t, List<Ref<StateId, State>>>> states;
   public List<Ref<uint64_t, List<Ref<uint64_t, Operation>>>> operations;
 
-  public HElement GetElementNameX(Info info, uint64_t subSystem, uint64_t operationIndex) => new HLink(info.GetOperationName(subSystem, operationIndex), $"/op?p={productName.EncodeUrl()}&ss={subSystem}&id={operationIndex}") { Class = "OperationLink" };
+  public string GetLink(uint64_t subSystem, uint64_t operationIndex) => $"/op?p={productName.EncodeUrl()}&ss={subSystem}&id={operationIndex}";
 
-  public HElement GetElementNameX(Info info, uint64_t subSystem, StateId stateId) => new HLink(info.GetStateName(subSystem, stateId.state, stateId.subState), $"/state?p={productName.EncodeUrl()}&ss={subSystem}&id={stateId.state}&sid={stateId.subState}") { Class = "StateLink" };
+  public string GetLink(uint64_t subSystem, StateId stateId) => $"/state?p={productName.EncodeUrl()}&ss={subSystem}&id={stateId.state}&sid={stateId.subState}";
+
+  public HElement GetElementNameX(Info info, uint64_t subSystem, uint64_t operationIndex, string _class = null)
+  {
+    string name = info.GetOperationName(subSystem, operationIndex);
+
+    return new HLink(name, GetLink(subSystem, operationIndex)) { Class = _class ?? "OperationLink", Title = name };
+  }
+
+  public HElement GetElementNameX(Info info, uint64_t subSystem, StateId stateId, string _class = null)
+  {
+    string name = info.GetStateName(subSystem, stateId.state, stateId.subState);
+
+    return new HLink(name, GetLink(subSystem, stateId)) { Class = _class ?? "StateLink", Title = name };
+  }
+
+  public HElement GetElementBlob(Info info, uint64_t subSystem, uint64_t operationIndex, string _class = null) => new HLink("", GetLink(subSystem, operationIndex)) { Title = info.GetOperationName(subSystem, operationIndex), Class = _class == null ? "ElementBlobLink" : $"ElementBlobLink {_class}" };
 
   public HElement GetElementName(Info info, uint64_t subSystem, object value)
   {
@@ -461,7 +477,21 @@ public class Analysis
       }
 
       data.Add(new HText(info.GetProfilerDataName(subSystem, (uint64_t)i)) { Class = "HistogramDataName", Title = $"Count: {x.timeMs.count}" });
-      data.Add(new HContainer() { Elements = { new HText($"{x.timeMs.value:0.####}ms") { Class = "DataDelay" }, new HText($"{x.timeMs.min:0.####}ms") { Class = "DataDelayMin", Title = x.minInfo.ToString() }, new HText($"{x.timeMs.max:0.####}ms") { Class = "DataDelayMax", Title = x.maxInfo.ToString() } } });
+
+      var minMaxContainer = new HContainer();
+      data.Add(minMaxContainer);
+
+      minMaxContainer.AddElement(new HText($"{x.timeMs.value:0.####}ms") { Class = "DataDelay" });
+
+      if (x.minLastOperation.HasValue)
+        minMaxContainer.AddElement(GetElementBlob(info, subSystem, x.minLastOperation.Value, "Min"));
+
+      minMaxContainer.AddElement(new HText($"{x.timeMs.min:0.####}ms") { Class = "DataDelayMin", Title = x.minInfo.ToString() });
+
+      minMaxContainer.AddElement(new HText($"{x.timeMs.max:0.####}ms") { Class = "DataDelayMax", Title = x.maxInfo.ToString() });
+
+      if (x.maxLastOperation.HasValue)
+        minMaxContainer.AddElement(GetElementBlob(info, subSystem, x.maxLastOperation.Value, "Max"));
 
       contents.Add(data);
     }
@@ -534,6 +564,7 @@ public class ProfileData
   public uint64_t[] histogram;
   public AvgValue<double> timeMs;
   public HardwareInfoShort minInfo, maxInfo;
+  public uint64_t? minLastOperation, maxLastOperation;
 }
 
 public class State : TransitionDataWithDelay

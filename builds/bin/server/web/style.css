@@ -34,6 +34,12 @@ a.Button:hover, a.Button:active, a.StateLink:hover, a.StateLink:active, a.Operat
   background: #ff5161;
 }
 
+a.OperationLink, a.StateLink {
+  max-width: 315pt;
+  overflow: hidden;
+  display: inline-block;
+}
+
 h1.Page {
   text-transform: uppercase;
   color: #555;
@@ -228,4 +234,30 @@ p.HistogramDataName {
   padding: 2pt;
   margin: 5pt 1pt 0 0;
   border-radius: 2pt;
+}
+
+a.ElementBlobLink {
+  width: 10pt;
+  height: 10pt;
+  display: inline-block;
+  background: #aaa;
+  margin: 0 2pt;
+  border-radius: 5pt;
+  cursor: pointer;
+}
+
+a.ElementBlobLink.Min {
+  background: #7a7;
+}
+
+a.ElementBlobLink.Min:hover, a.ElementBlobLink.Min:active {
+  background: #6c6;
+}
+
+a.ElementBlobLink.Max {
+  background: #a77;
+}
+
+a.ElementBlobLink.Max:hover, a.ElementBlobLink.Max:active {
+  background: #c66;
 }
