@@ -2066,6 +2066,11 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
           FATAL_IF(!stream.read<uint8_t>(nullptr, _lt_observed_exact_value_length - 1), "Insufficient Data");
           break;
 
+        case lt_t_perf_metric:
+          headers.emplace_back(pPtr, _lt_perf_metric_length);
+          FATAL_IF(!stream.read<uint8_t>(nullptr, _lt_perf_metric_length - 1), "Insufficient Data");
+          break;
+
         default:
           FATAL("Unsupported Type (0x%02" PRIX8 ")", type);
           break;
@@ -2205,6 +2210,15 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
         pSubSystem->hasLastOperation = true;
         pSubSystem->lastOperation = id;
         pSubSystem->lastOperationTimestamp = timestamp;
+
+        break;
+      }
+
+      case lt_t_perf_metric:
+      {
+        //SKIP_X64(",", "valueIndex", stream);
+        //SKIP_F64(",", "value", stream);
+        //SKIP_X64(",", "timestamp", stream);
 
         break;
       }

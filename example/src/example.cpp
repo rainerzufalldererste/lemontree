@@ -114,5 +114,13 @@ int32_t main(const int32_t argc, const char **pArgv)
   lt_observe_exact_value_string(2, "two");
   lt_observe_exact_value_string(3, "a very long string. a very long string. a very long string. a very long string. a very long string. a very long string. a very long string. a very long string. a very long string. a very long string. a very long string. a very long string. a very long string. 54321");
 
+  lt_perf_metric(0, 0.0);
+  lt_perf_metric(0, 1.0);
+  lt_perf_metric(0, 1.0);
+  lt_perf_metric(0, 5.0);
+  lt_perf_metric(1, -1.0);
+  lt_perf_metric(1, 20.0);
+  lt_perf_metric(3, 1.0);
+
   return 0;
 }

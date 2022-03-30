@@ -169,6 +169,11 @@ int32_t main(void)
           FATAL_IF(!stream.read<uint8_t>(nullptr, _lt_observed_exact_value_length - 1), "Insufficient Data");
           break;
 
+        case lt_t_perf_metric:
+          headers.emplace_back(pPtr, _lt_perf_metric_length);
+          FATAL_IF(!stream.read<uint8_t>(nullptr, _lt_perf_metric_length - 1), "Insufficient Data");
+          break;
+
         default:
           FATAL("Unsupported Type (0x%02" PRIX8 ")", type);
           break;
@@ -220,6 +225,15 @@ int32_t main(void)
         PRINT_X64(",", "subsystem", stream);
         PRINT_X64(",", "operationType", stream);
         PRINT_X64(",", "operationIndex", stream);
+        PRINT_X64(",", "timestamp", stream);
+
+        break;
+      }
+
+      case lt_t_perf_metric:
+      {
+        PRINT_X64(",", "valueIndex", stream);
+        PRINT_F64(",", "value", stream);
         PRINT_X64(",", "timestamp", stream);
 
         break;

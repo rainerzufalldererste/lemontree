@@ -394,6 +394,24 @@ void lt_operation(const uint64_t subSystem, const uint64_t operationType, const 
   lt_write_block(data, sizeof(data));
 }
 
+void lt_perf_metric(const uint64_t valueIndex, const double value)
+{
+  if (!lt_init())
+    return;
+
+  const uint64_t timestamp = lt_time_100ns();
+  uint8_t data[_lt_perf_metric_length];
+
+  data[0] = lt_t_perf_metric;
+  *reinterpret_cast<uint64_t *>(&data[1]) = valueIndex;
+  *reinterpret_cast<double *>(&data[9]) = value;
+  *reinterpret_cast<uint64_t *>(&data[17]) = timestamp;
+
+  static_assert(sizeof(data) == 25, "invalid data size.");
+
+  lt_write_block(data, sizeof(data));
+}
+
 void lt_observe_value_u64(const uint64_t valueIndex, const uint64_t value)
 {
   if (!lt_init())

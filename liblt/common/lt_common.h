@@ -11,6 +11,7 @@ enum : uint32_t
   _lt_operation_length = 1 + 8 + 8 + 8 + 8,
   _lt_observed_value_length = 1 + 1 + 8 + 8 + 8,
   _lt_observed_exact_value_length = 1 + 1 + 8 + 8 + 8,
+  _lt_perf_metric_length = 1 + 8 + 8 + 8,
 };
 
 enum lt_type : uint8_t
@@ -34,6 +35,7 @@ enum lt_type : uint8_t
   lt_t_operation,
   lt_t_observed_value,
   lt_t_observed_exact_value,
+  lt_t_perf_metric,
 };
 
 enum lt_stacktrace : uint8_t
