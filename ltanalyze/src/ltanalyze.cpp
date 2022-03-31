@@ -163,7 +163,9 @@ class JsonWriter
   inline void _write(const int64_t value) { fprintf(pFile, "\"%" PRIi64 "\"", value); }
   inline void _write(const uint32_t value) { fprintf(pFile, "%" PRIu32 "", value); }
   inline void _write(const int32_t value) { fprintf(pFile, "%" PRIi32 "", value); }
+  inline void _write(const uint8_t value) { fprintf(pFile, "%" PRIu8 "", value); }
   inline void _write(const double value) { fprintf(pFile, "%e", value); }
+  inline void _write(const bool value) { fputs(value ? "true" : "false", pFile); }
 
 public:
   inline JsonWriter(FILE *pFile) : pFile(pFile) { }
@@ -190,7 +192,7 @@ public:
 template <typename T, typename U>
 void DualPivotQuickSort_Partition(const int64_t low, const int64_t high, int64_t *pRightPivot, int64_t *pLeftPivot, SoaList<T, U> *pQueue)
 {
-  if (((*pQueue).value[low]) > ((*pQueue).value[high]))
+  if (((*pQueue).value[low]) < ((*pQueue).value[high]))
   {
     std::swap((*pQueue).index[low], (*pQueue).index[high]);
     std::swap((*pQueue).value[low], (*pQueue).value[high]);
@@ -205,23 +207,23 @@ void DualPivotQuickSort_Partition(const int64_t low, const int64_t high, int64_t
 
   while (k <= g)
   {
-    if (((*pQueue).value[k]) < (*pP))
+    if (((*pQueue).value[k]) > (*pP))
     {
       std::swap((*pQueue).index[k], (*pQueue).index[j]);
       std::swap((*pQueue).value[k], (*pQueue).value[j]);
       j++;
     }
 
-    else if (!(((*pQueue).value[k]) < (*pQ)))
+    else if (!(((*pQueue).value[k]) > (*pQ)))
     {
-      while (((*pQueue).value[g]) > (*pQ) && k < g)
+      while (((*pQueue).value[g]) < (*pQ) && k < g)
         g--;
 
       std::swap((*pQueue).index[k], (*pQueue).index[g]);
       std::swap((*pQueue).value[k], (*pQueue).value[g]);
       g--;
 
-      if (((*pQueue).value[k]) < (*pP))
+      if (((*pQueue).value[k]) > (*pP))
       {
         std::swap((*pQueue).index[k], (*pQueue).index[j]);
         std::swap((*pQueue).value[k], (*pQueue).value[j]);
@@ -461,15 +463,20 @@ struct lt_sub_system_data
 };
 
 template <typename T>
-struct lt_values_exact
+struct lt_global_values_exact
 {
   SoaList<T, uint64_t> multiple;
   std::vector<T> single;
-  lt_transition_data data;
 
   uint64_t count = 0;
   T minValue, maxValue;
-  double average;
+  double average = 0;
+};
+
+template <typename T>
+struct lt_values_exact : lt_global_values_exact<T>
+{
+  lt_transition_data data;
 };
 
 struct lt_string_value_entry
@@ -477,10 +484,42 @@ struct lt_string_value_entry
   char value[256];
 };
 
-struct lt_string_values
+template <typename T>
+struct lt_vec2
 {
-  SoaList<lt_string_value_entry, uint64_t> values;
+  T x, y;
+};
+
+template <typename T>
+struct lt_global_values
+{
+  SoaList<T, uint64_t> values;
+};
+
+template <typename T>
+struct lt_values : lt_global_values<T>
+{
   lt_transition_data data;
+};
+
+struct lt_hw_info_analyze
+{
+  lt_global_values<lt_string_value_entry> cpuName;
+  lt_global_values_exact<uint32_t> cpuCores;
+  // ramTotalPhysical, ramTotalVirtual, ramAvailablePhysical, ramAvailableVirtual;
+  lt_global_values<lt_string_value_entry> osName;
+  // gpuDedicatedVRam, gpuSharedVRam, gpuTotalVRam, gpuFreeVRam, gpuDriverVersion;
+  lt_global_values<uint32_t> gpuVendorId;
+  lt_global_values<lt_string_value_entry> gpuName;
+  lt_global_values<lt_string_value_entry> langPrimaryName;
+  lt_global_values<uint8_t> elevated;
+  lt_global_values_exact<uint64_t> monitorCount;
+  lt_global_values<lt_vec2<uint32_t>> monitorSize;
+  lt_global_values<lt_vec2<uint32_t>> totalMonitorSize;
+  lt_global_values_exact<uint32_t> monitorDpiAvgXY;
+  // storageAvailable, storageTotal;
+  lt_global_values<lt_string_value_entry> deviceManufacturerName;
+  lt_global_values<lt_string_value_entry> deviceManufacturerModelName;
 };
 
 struct lt_analyze
@@ -493,7 +532,9 @@ struct lt_analyze
 
   SoaList<uint64_t, lt_values_exact<uint64_t>> observedU64;
   SoaList<uint64_t, lt_values_exact<int64_t>> observedI64;
-  SoaList<uint64_t, lt_string_values> observedString;
+  SoaList<uint64_t, lt_values<lt_string_value_entry>> observedString;
+
+  lt_hw_info_analyze hwInfo;
 
   //std::vector<std::pair<uint64_t, lt_values<uint64_t>>> observedU64;
   //std::vector<std::pair<uint64_t, lt_values<int64_t>>> observedI64;
@@ -507,8 +548,29 @@ struct lt_analyze
 
 enum
 {
-  lt_analyze_file_version = 4,
+  lt_analyze_file_version = 5,
 };
+
+bool deserialize(OUT uint8_t *pValue, IN ByteStream *pStream, const uint32_t /* version */)
+{
+  READ(pStream, *pValue);
+
+  return true;
+}
+
+bool serialize(IN const uint8_t *pValue, IN StreamWriter *pStream)
+{
+  WRITE(pStream, *pValue);
+
+  return true;
+}
+
+bool jsonify(IN const uint8_t *pValue, IN JsonWriter *pWriter)
+{
+  pWriter->write_value(*pValue);
+
+  return true;
+}
 
 template <typename T>
 bool deserialize(OUT std::vector<T> *pVector, IN ByteStream *pStream, const uint32_t version)
@@ -681,6 +743,48 @@ bool serialize(IN const double *pValue, IN StreamWriter *pStream)
 }
 
 bool jsonify(IN const double *pValue, IN JsonWriter *pWriter)
+{
+  pWriter->write_value(*pValue);
+
+  return true;
+}
+
+bool deserialize(OUT uint32_t *pValue, IN ByteStream *pStream, const uint32_t /* version */)
+{
+  READ(pStream, *pValue);
+
+  return true;
+}
+
+bool serialize(IN const uint32_t *pValue, IN StreamWriter *pStream)
+{
+  WRITE(pStream, *pValue);
+
+  return true;
+}
+
+bool jsonify(IN const uint32_t *pValue, IN JsonWriter *pWriter)
+{
+  pWriter->write_value(*pValue);
+
+  return true;
+}
+
+bool deserialize(OUT int32_t *pValue, IN ByteStream *pStream, const uint32_t /* version */)
+{
+  READ(pStream, *pValue);
+
+  return true;
+}
+
+bool serialize(IN const int32_t *pValue, IN StreamWriter *pStream)
+{
+  WRITE(pStream, *pValue);
+
+  return true;
+}
+
+bool jsonify(IN const int32_t *pValue, IN JsonWriter *pWriter)
 {
   pWriter->write_value(*pValue);
 
@@ -1289,6 +1393,80 @@ bool jsonify(IN const lt_sub_system_data *pValue, IN JsonWriter *pWriter)
 }
 
 template <typename T>
+bool deserialize(OUT lt_global_values_exact<T> *pData, IN ByteStream *pStream, const uint32_t version)
+{
+  if (version < 4)
+    return false;
+
+  READ(pStream, pData->average);
+  READ(pStream, pData->minValue);
+  READ(pStream, pData->maxValue);
+  READ(pStream, pData->count);
+
+  if (!deserialize(&pData->single, pStream, version))
+    return false;
+
+  if (!deserialize(&pData->multiple, pStream, version))
+    return false;
+
+  return true;
+}
+
+template <typename T>
+bool serialize(IN const lt_global_values_exact<T> *pData, IN StreamWriter *pStream)
+{
+  WRITE(pStream, pData->average);
+  WRITE(pStream, pData->minValue);
+  WRITE(pStream, pData->maxValue);
+  WRITE(pStream, pData->count);
+
+  if (!serialize(&pData->single, pStream))
+    return false;
+
+  if (!serialize(&pData->multiple, pStream))
+    return false;
+
+  return true;
+}
+
+template <typename T>
+bool jsonify(IN const lt_global_values_exact<T> *pValue, IN JsonWriter *pWriter)
+{
+  pWriter->begin_body();
+
+  pWriter->write("average", pValue->average);
+  pWriter->write("min", pValue->minValue);
+  pWriter->write("max", pValue->maxValue);
+  pWriter->write("count", pValue->count);
+
+  SoaList<T, uint64_t> sorted;
+  sorted.index = pValue->multiple.index;
+  sorted.value = pValue->multiple.value;
+
+  if (sorted.size() < 16)
+    for (size_t i = 0; i < pValue->single.size() && sorted.size() < 16; i++)
+      sorted.emplace_back(pValue->single[i], 1);
+
+  sort_by_value(&sorted);
+
+  pWriter->begin_array("values");
+
+  for (size_t i = 0; i < sorted.size() && i < 16; i++)
+  {
+    pWriter->begin_body();
+    pWriter->write("value", sorted.index[i]);
+    pWriter->write("count", sorted.value[i]);
+    pWriter->end();
+  }
+
+  pWriter->end();
+
+  pWriter->end();
+
+  return true;
+}
+
+template <typename T>
 bool deserialize(OUT lt_values_exact<T> *pData, IN ByteStream *pStream, const uint32_t version)
 {
   if (version < 4)
@@ -1397,7 +1575,42 @@ bool jsonify(IN const lt_string_value_entry *pValue, IN JsonWriter *pWriter)
   return true;
 }
 
-bool deserialize(OUT lt_string_values *pData, IN ByteStream *pStream, const uint32_t version)
+template <typename T>
+bool deserialize(OUT lt_vec2<T> *pData, IN ByteStream *pStream, const uint32_t version)
+{
+  if (version < 5)
+    return false;
+
+  READ(pStream, pData->x);
+  READ(pStream, pData->y);
+
+  return true;
+}
+
+template <typename T>
+bool serialize(IN const lt_vec2<T> *pData, IN StreamWriter *pStream)
+{
+  WRITE(pStream, pData->x);
+  WRITE(pStream, pData->y);
+
+  return true;
+}
+
+template <typename T>
+bool jsonify(IN const lt_vec2<T> *pValue, IN JsonWriter *pWriter)
+{
+  pWriter->begin_body();
+
+  pWriter->write("x", pValue->x);
+  pWriter->write("y", pValue->y);
+
+  pWriter->end();
+
+  return true;
+}
+
+template <typename T>
+bool deserialize(OUT lt_values<T> *pData, IN ByteStream *pStream, const uint32_t version)
 {
   if (version < 4)
     return false;
@@ -1411,7 +1624,8 @@ bool deserialize(OUT lt_string_values *pData, IN ByteStream *pStream, const uint
   return true;
 }
 
-bool serialize(IN const lt_string_values *pData, IN StreamWriter *pStream)
+template <typename T>
+bool serialize(IN const lt_values<T> *pData, IN StreamWriter *pStream)
 {
   if (!serialize(&pData->data, pStream))
     return false;
@@ -1422,7 +1636,8 @@ bool serialize(IN const lt_string_values *pData, IN StreamWriter *pStream)
   return true;
 }
 
-bool jsonify(IN const lt_string_values *pValue, IN JsonWriter *pWriter)
+template <typename T>
+bool jsonify(IN const lt_values<T> *pValue, IN JsonWriter *pWriter)
 {
   pWriter->begin_body();
 
@@ -1438,7 +1653,7 @@ bool jsonify(IN const lt_string_values *pValue, IN JsonWriter *pWriter)
 
   pWriter->write("count", count);
 
-  SoaList<lt_string_value_entry, uint64_t> sorted;
+  SoaList<T, uint64_t> sorted;
   sorted.index = pValue->values.index;
   sorted.value = pValue->values.value;
 
@@ -1455,6 +1670,233 @@ bool jsonify(IN const lt_string_values *pValue, IN JsonWriter *pWriter)
   }
 
   pWriter->end();
+
+  pWriter->end();
+
+  return true;
+}
+
+template <typename T>
+bool deserialize(OUT lt_global_values<T> *pData, IN ByteStream *pStream, const uint32_t version)
+{
+  if (version < 4)
+    return false;
+
+  if (!deserialize(&pData->values, pStream, version))
+    return false;
+
+  return true;
+}
+
+template <typename T>
+bool serialize(IN const lt_global_values<T> *pData, IN StreamWriter *pStream)
+{
+  if (!serialize(&pData->values, pStream))
+    return false;
+
+  return true;
+}
+
+template <typename T>
+bool jsonify(IN const lt_global_values<T> *pValue, IN JsonWriter *pWriter)
+{
+  pWriter->begin_body();
+
+  uint64_t count = 0;
+
+  for (const auto &_item : pValue->values.value)
+    count += _item;
+
+  pWriter->write("count", count);
+
+  SoaList<T, uint64_t> sorted;
+  sorted.index = pValue->values.index;
+  sorted.value = pValue->values.value;
+
+  sort_by_value(&sorted);
+
+  pWriter->begin_array("values");
+
+  for (size_t i = 0; i < sorted.size() && i < 16; i++)
+  {
+    pWriter->begin_body();
+    pWriter->write_name("value");
+
+    const T val = sorted.index[i];
+
+    if (!jsonify(&val, pWriter))
+      return false;
+
+    pWriter->write("count", sorted.value[i]);
+    pWriter->end();
+  }
+
+  pWriter->end();
+
+  pWriter->end();
+
+  return true;
+}
+
+bool deserialize(OUT lt_hw_info_analyze *pData, IN ByteStream *pStream, const uint32_t version)
+{
+  if (version < 5)
+    return false;
+
+  if (!deserialize(&pData->cpuName, pStream, version))
+    return false;
+
+  if (!deserialize(&pData->cpuCores, pStream, version))
+    return false;
+
+  if (!deserialize(&pData->osName, pStream, version))
+    return false;
+
+  if (!deserialize(&pData->gpuVendorId, pStream, version))
+    return false;
+
+  if (!deserialize(&pData->gpuName, pStream, version))
+    return false;
+
+  if (!deserialize(&pData->langPrimaryName, pStream, version))
+    return false;
+
+  if (!deserialize(&pData->elevated, pStream, version))
+    return false;
+
+  if (!deserialize(&pData->monitorCount, pStream, version))
+    return false;
+
+  if (!deserialize(&pData->monitorSize, pStream, version))
+    return false;
+
+  if (!deserialize(&pData->totalMonitorSize, pStream, version))
+    return false;
+
+  if (!deserialize(&pData->monitorDpiAvgXY, pStream, version))
+    return false;
+
+  if (!deserialize(&pData->deviceManufacturerName, pStream, version))
+    return false;
+
+  if (!deserialize(&pData->deviceManufacturerModelName, pStream, version))
+    return false;
+
+  return true;
+}
+
+bool serialize(IN const lt_hw_info_analyze *pData, IN StreamWriter *pStream)
+{
+  if (!serialize(&pData->cpuName, pStream))
+    return false;
+
+  if (!serialize(&pData->cpuCores, pStream))
+    return false;
+
+  if (!serialize(&pData->osName, pStream))
+    return false;
+
+  if (!serialize(&pData->gpuVendorId, pStream))
+    return false;
+
+  if (!serialize(&pData->gpuName, pStream))
+    return false;
+
+  if (!serialize(&pData->langPrimaryName, pStream))
+    return false;
+
+  if (!serialize(&pData->elevated, pStream))
+    return false;
+
+  if (!serialize(&pData->monitorCount, pStream))
+    return false;
+
+  if (!serialize(&pData->monitorSize, pStream))
+    return false;
+
+  if (!serialize(&pData->totalMonitorSize, pStream))
+    return false;
+
+  if (!serialize(&pData->monitorDpiAvgXY, pStream))
+    return false;
+
+  if (!serialize(&pData->deviceManufacturerName, pStream))
+    return false;
+
+  if (!serialize(&pData->deviceManufacturerModelName, pStream))
+    return false;
+
+  return true;
+}
+
+bool jsonify(IN const lt_hw_info_analyze *pData, IN JsonWriter *pWriter)
+{
+  pWriter->begin_body();
+
+  pWriter->write_name("cpu");
+
+  if (!jsonify(&pData->cpuName, pWriter))
+    return false;
+
+  pWriter->write_name("cpuCores");
+
+  if (!jsonify(&pData->cpuCores, pWriter))
+    return false;
+
+  pWriter->write_name("os");
+
+  if (!jsonify(&pData->osName, pWriter))
+    return false;
+
+  pWriter->write_name("gpuVendorId");
+
+  if (!jsonify(&pData->gpuVendorId, pWriter))
+    return false;
+
+  pWriter->write_name("gpu");
+
+  if (!jsonify(&pData->gpuName, pWriter))
+    return false;
+
+  pWriter->write_name("primaryLanguage");
+
+  if (!jsonify(&pData->langPrimaryName, pWriter))
+    return false;
+
+  pWriter->write_name("isElevated");
+
+  if (!jsonify(&pData->elevated, pWriter))
+    return false;
+
+  pWriter->write_name("monitorCount");
+
+  if (!jsonify(&pData->monitorCount, pWriter))
+    return false;
+
+  pWriter->write_name("monitorSize");
+
+  if (!jsonify(&pData->monitorSize, pWriter))
+    return false;
+
+  pWriter->write_name("totalMonitorSize");
+
+  if (!jsonify(&pData->totalMonitorSize, pWriter))
+    return false;
+
+  pWriter->write_name("monitorDpi");
+
+  if (!jsonify(&pData->monitorDpiAvgXY, pWriter))
+    return false;
+
+  pWriter->write_name("deviceManufacturer");
+
+  if (!jsonify(&pData->deviceManufacturerName, pWriter))
+    return false;
+
+  pWriter->write_name("deviceManufacturerModel");
+
+  if (!jsonify(&pData->deviceManufacturerModelName, pWriter))
+    return false;
 
   pWriter->end();
 
@@ -1488,6 +1930,12 @@ bool deserialize(OUT lt_analyze *pAnalyze, IN ByteStream *pStream)
       return false;
   }
 
+  if (version >= 5)
+  {
+    if (!deserialize(&pAnalyze->hwInfo, pStream, version))
+      return false;
+  }
+
   return true;
 }
 
@@ -1512,6 +1960,9 @@ bool serialize(IN const lt_analyze *pAnalyze, OUT StreamWriter *pStream)
   if (!serialize(&pAnalyze->observedString, pStream))
     return false;
 
+  if (!serialize(&pAnalyze->hwInfo, pStream))
+    return false;
+
   return true;
 }
 
@@ -1528,6 +1979,11 @@ bool jsonify(IN const lt_analyze *pAnalyze, OUT JsonWriter *pWriter)
   pWriter->write_name("subSystems");
 
   if (!jsonify(&pAnalyze->subSystems, pWriter))
+    return false;
+
+  pWriter->write_name("hwInfo");
+
+  if (!jsonify(&pAnalyze->hwInfo, pWriter))
     return false;
 
   pWriter->write_name("observedU64");
@@ -1716,13 +2172,14 @@ lt_values_exact<T> * get_exact_value_data(SoaList<uint64_t, lt_values_exact<T>> 
   return &pList->value.back();
 }
 
-lt_string_values * get_exact_value_data(SoaList<uint64_t, lt_string_values> *pList, const uint64_t index)
+template <typename T>
+lt_values<T> * get_exact_value_data(SoaList<uint64_t, lt_values<T>> *pList, const uint64_t index)
 {
   for (size_t i = 0; i < pList->size(); i++)
     if (pList->index[i] == index)
       return &pList->value[i];
 
-  pList->push_back(index, lt_string_values());
+  pList->push_back(index, lt_values<T>());
 
   return &pList->value.back();
 }
@@ -1779,7 +2236,7 @@ void update_operation_index_counts(SoaList<uint64_t, uint64_t> *pIndices, const 
 }
 
 template <typename T>
-void update_exact_value(lt_values_exact<T> *pValue, const T newValue)
+void update_exact_value(lt_global_values_exact<T> *pValue, const T newValue)
 {
   pValue->average = adjust(pValue->average, newValue, pValue->count);
 
@@ -1833,6 +2290,86 @@ void update_string_value(SoaList<lt_string_value_entry, uint64_t> *pStringValue,
   strncpy(entry.value, value, sizeof(entry.value));
 
   pStringValue->emplace_back(std::move(entry), 1);
+}
+
+void update_vec2u32_value(SoaList<lt_vec2<uint32_t>, uint64_t> *pValue, const uint32_t x, const uint32_t y)
+{
+  for (size_t i = 0; i < pValue->size(); i++)
+  {
+    if (pValue->index[i].x == x && pValue->index[i].y == y)
+    {
+      pValue->value[i]++;
+      return;
+    }
+  }
+
+  lt_vec2<uint32_t> entry = { x, y };
+
+  pValue->emplace_back(std::move(entry), 1);
+}
+
+template <typename T>
+void update_value(SoaList<T, uint64_t> *pValue, const T v)
+{
+  for (size_t i = 0; i < pValue->size(); i++)
+  {
+    if (pValue->index[i] == v)
+    {
+      pValue->value[i]++;
+      return;
+    }
+  }
+
+  pValue->emplace_back(v, 1);
+}
+
+void update_hw_info(lt_hw_info_analyze *pAnalyze, IN const lt_hw_info *pInfo)
+{
+  if (pInfo->hasCpuInfo)
+  {
+    update_string_value(&pAnalyze->cpuName.values, pInfo->cpuName);
+    update_exact_value(&pAnalyze->cpuCores, pInfo->cpuCores);
+  }
+
+  if (pInfo->hasOsInfo)
+    update_string_value(&pAnalyze->osName.values, pInfo->osName);
+
+  if (pInfo->hasGpuInfo)
+  {
+    update_value(&pAnalyze->gpuVendorId.values, pInfo->gpuVendorId);
+    update_string_value(&pAnalyze->gpuName.values, pInfo->gpuName);
+  }
+
+  if (pInfo->hasElevatedInfo)
+    update_value(&pAnalyze->elevated.values, (uint8_t)(pInfo->elevated ? 1 : 0));
+
+  if (pInfo->hasLangInfo)
+    update_string_value(&pAnalyze->langPrimaryName.values, pInfo->langPrimaryName);
+
+  if (pInfo->hasMonitorInfo)
+  {
+    update_exact_value(&pAnalyze->monitorCount, pInfo->monitorSizes.size());
+    update_vec2u32_value(&pAnalyze->totalMonitorSize.values, pInfo->monitorTotalWidth, pInfo->monitorTotalHeight);
+
+    for (const auto &_item : pInfo->monitorSizes)
+    {
+      update_vec2u32_value(&pAnalyze->monitorSize.values, _item.width, _item.height);
+      update_exact_value(&pAnalyze->monitorDpiAvgXY, _item.dpi);
+    }
+  }
+
+  if (pInfo->hasDeviceInfo)
+  {
+    update_string_value(&pAnalyze->deviceManufacturerName.values, pInfo->deviceManufacturerName);
+
+    char model[0x100];
+    memcpy(model, pInfo->deviceManufacturerName, sizeof(model));
+    strncat_s(model, " - ", 4);
+    strncat_s(model, pInfo->deviceModelName, sizeof(pInfo->deviceModelName));
+    model[sizeof(model) - 1] = '\0';
+
+    update_string_value(&pAnalyze->deviceManufacturerModelName.values, model);
+  }
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -1997,6 +2534,7 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
   char remoteHost[0x100];
   lt_hw_info hwInfo;
   lt_short_hw_info hwInfoShort;
+  bool hwInfoStored = false;
 
   // Read Section Headers.
   {
@@ -2428,7 +2966,7 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
           char string[0x100];
           READ_STRING(&stream, string);
 
-          lt_string_values *pValue = get_exact_value_data(&pAnalyze->observedString, valueIndex);
+          lt_values<lt_string_value_entry> *pValue = get_exact_value_data(&pAnalyze->observedString, valueIndex);
           update_transition_data(&pValue->data, timestamp - startTimestamp);
           update_string_value(&pValue->values, string);
         }
@@ -2592,6 +3130,13 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
         }
 
         to_short_hw_info(&hwInfo, &hwInfoShort);
+
+        if (!hwInfoStored)
+        {
+          hwInfoStored = true;
+
+          update_hw_info(&pAnalyze->hwInfo, &hwInfo);
+        }
 
         break;
       }

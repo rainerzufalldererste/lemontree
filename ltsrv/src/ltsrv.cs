@@ -168,6 +168,21 @@ public class SubSystemInfo : ElementResponse
 
     foreach (var x in analysis.observedString)
       yield return new HLink(info.GetValueNameString(x.index.value), $"/value?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&t=string&id={x.index}") { Class = "LargeButton" };
+
+    yield return new HHeadline($"Hardware Info", 2);
+
+    yield return analysis.ToPieChart(analysis.hwInfo.cpu, "CPU");
+    yield return analysis.ToPieChart(analysis.hwInfo.cpuCores, "CPU Cores");
+    yield return analysis.ToPieChart(analysis.hwInfo.os, "Operating System");
+    yield return analysis.ToPieChart(analysis.hwInfo.gpu, "GPU");
+    yield return analysis.ToPieChart(analysis.hwInfo.gpuVendorId, "GPU Vendor");
+    yield return analysis.ToPieChart(analysis.hwInfo.primaryLanguage, "Primary UI Language");
+    yield return analysis.ToPieChart(analysis.hwInfo.isElevated, "isElevated");
+    yield return analysis.ToPieChart(analysis.hwInfo.monitorCount, "Monitor Count");
+    yield return analysis.ToPieChart(analysis.hwInfo.monitorSize, "Monitor Size");
+    yield return analysis.ToPieChart(analysis.hwInfo.totalMonitorSize, "Total Monitor Size");
+    yield return analysis.ToPieChart(analysis.hwInfo.deviceManufacturer, "Device Manufacturer");
+    yield return analysis.ToPieChart(analysis.hwInfo.deviceManufacturerModel, "Device Model");
   }
 
   internal static IEnumerable<HElement> ShowContents(SessionData sessionData, string productName, ulong majorVersion, ulong minorVersion, ulong subSystem)
@@ -444,11 +459,15 @@ public struct ValueCount<T>
   public uint64_t count;
 }
 
-public class ExactValueData<T>
+public class GlobalExactValueData<T>
 {
   public uint64_t count;
-  public TransitionData data;
   public List<ValueCount<T>> values;
+}
+
+public class ExactValueData<T> : GlobalExactValueData<T>
+{
+  public TransitionData data;
 }
 
 public class ExactValueDataWithAverage<T> : ExactValueData<T>
@@ -457,11 +476,46 @@ public class ExactValueDataWithAverage<T> : ExactValueData<T>
   public T min, max;
 }
 
+public class GlobalExactValueDataWithAverage<T> : GlobalExactValueData<T>
+{
+  public double average;
+  public T min, max;
+}
+
+public struct Size2<T>
+{
+  public T x, y;
+
+  public override string ToString()
+  {
+    return $"{x} x {y}";
+  }
+}
+
+public struct HardwareInfo
+{
+  public GlobalExactValueData<string> cpu;
+  public GlobalExactValueDataWithAverage<uint> cpuCores;
+  public GlobalExactValueData<string> os;
+  public GlobalExactValueData<uint> gpuVendorId;
+  public GlobalExactValueData<string> gpu;
+  public GlobalExactValueData<string> primaryLanguage;
+  public GlobalExactValueData<bool> isElevated;
+  public GlobalExactValueDataWithAverage<uint64_t> monitorCount;
+  public GlobalExactValueData<Size2<uint>> monitorSize;
+  public GlobalExactValueData<Size2<uint>> totalMonitorSize;
+  public GlobalExactValueDataWithAverage<uint> monitorDpi;
+  public GlobalExactValueData<string> deviceManufacturer;
+  public GlobalExactValueData<string> deviceManufacturerModel;
+}
+
 public class Analysis
 {
   public string productName;
   public uint64_t majorVersion, minorVersion;
   public List<Ref<uint64_t, SubStateData>> subSystems;
+  public HardwareInfo hwInfo;
+
   public List<Ref<uint64_t, ExactValueDataWithAverage<uint64_t>>> observedU64;
   public List<Ref<uint64_t, ExactValueDataWithAverage<int64_t>>> observedI64;
   public List<Ref<uint64_t, ExactValueData<string>>> observedString;
@@ -674,7 +728,58 @@ public class Analysis
     return new HContainer() { Class = "DataInfo", Elements = { new HHeadline(name), pieChart, description } };
   }
 
-    public HContainer DisplayInfo<T>(ExactValueDataWithAverage<T> data)
+  public HContainer DisplayInfo<T>(GlobalExactValueDataWithAverage<T> data)
+  {
+    return new HContainer() { Elements = { new HText($"{data.count}") { Class = "DataCount" }, new HText($"{data.average:0.####}") { Class = "DataDelay" }, new HText($"{data.min:0.####}") { Class = "DataDelayMin" }, new HText($"{data.max:0.####}") { Class = "DataDelayMax" } } };
+  }
+
+  public HContainer ToPieChart<T>(GlobalExactValueData<T> data, string name)
+  {
+    if (data.count == 0)
+      return new HContainer() { Class = "NoData", Elements = { new HText($"No '{name}' Data Available.") } };
+
+    HContainer pieChart = new HContainer() { Class = "PieChartContainer" };
+    HContainer description = new HContainer() { Class = "PieChartDescription" };
+
+    double offset = 0;
+    ulong offsetCount = 0;
+
+    int index = 0;
+    string[] colors = { "#fff378", "#ffd070", "#ffaf7c", "#ff9293", "#fd80ac", "#d279c0", "#9777c9", "#4c75c2" };
+
+    foreach (var x in data.values)
+    {
+      double percentage = ((double)x.count / (double)data.count.value) * 100.0;
+      string color = colors[index++ % colors.Length];
+
+      pieChart.AddElement(new HContainer() { Class = "PieSegment", Style = $"--offset: {offset}; --value: {percentage}; --bg: {color};" + (percentage > 50 ? " --over50: 1;" : "") });
+      description.AddElement(new HContainer() { Class = "PieDescriptionContainer", Elements = { new HText(x.value.ToString()) { Class = "DataName" }, new HText($"{percentage:0.##}%") { Class = "DataPercentage", Style = $"color:{color};" }, new HText($"{x.count}") { Class = "DataCount" } } });
+
+      offset += percentage;
+      offsetCount += x.count.value;
+    }
+
+    if (offsetCount < data.count.value)
+    {
+      double percentage = 1 - offset;
+      string color = "#777";
+
+      pieChart.AddElement(new HContainer() { Class = "PieSegment", Style = $"--offset: {offset}; --value: {percentage}; --bg: {color};" + (percentage > 50 ? " --over50: 1;" : "") });
+      description.AddElement(new HContainer() { Class = "PieDescriptionContainer", Elements = { new HText("Other") { Class = "DataName" }, new HText($"{percentage:0.##}%") { Class = "DataPercentage", Style = $"color:{color};" }, new HText($"{data.count.value - offsetCount}") { Class = "DataCount" } } });
+    }
+
+    var ret = new HContainer() { Class = "DataInfo", Elements = { new HHeadline(name) } };
+
+    if (data is GlobalExactValueDataWithAverage<T>)
+      ret.AddElement(DisplayInfo((GlobalExactValueDataWithAverage<T>)data));
+
+    ret.AddElement(pieChart);
+    ret.AddElement(description);
+
+    return ret;
+  }
+
+  public HContainer DisplayInfo<T>(ExactValueDataWithAverage<T> data)
   {
     return new HContainer() { Class = "DataInfo", Elements = { new HHeadline("General"), new HText($"{data.count}") { Class = "DataCount" }, new HText($"{data.average:0.####}") { Class = "DataDelay" }, new HText($"{data.min:0.####}") { Class = "DataDelayMin" }, new HText($"{data.max:0.####}") { Class = "DataDelayMax" } } };
   }
@@ -871,6 +976,8 @@ public class Info
 
   public List<Ref<uint64_t, InfoSubSystem>> subSystems;
 
+  public List<string> perfMetric;
+
   public List<string> observedValueU64;
   public List<string> observedValueI64;
   public List<string> observedValueString;
@@ -944,6 +1051,14 @@ public class Info
     }
     
     return $"Profile Region #{dataIndex}";
+  }
+
+  public string GetPerfMetricName(ulong index)
+  {
+    if (perfMetric != null && perfMetric.Count > (int)index)
+      return perfMetric[(int)index];
+
+    return $"Perf Metric #{index}";
   }
 
   public string GetValueNameU64(ulong index)
