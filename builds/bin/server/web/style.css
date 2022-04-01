@@ -25,6 +25,7 @@ a.LargeButton {
   text-decoration: none;
   padding: 2pt 6pt 3pt;
   border-radius: 2pt;
+  margin: 2pt;
 }
 
 a.Button, a.StateLink, a.OperationLink {
@@ -38,8 +39,9 @@ a.Button, a.StateLink, a.OperationLink {
   font-weight: 200;
 }
 
-a.Button:hover, a.Button:active, a.StateLink:hover, a.StateLink:active, a.OperationLink:hover, a.OperationLink:active {
+a.Button:hover, a.Button:active, a.StateLink:hover, a.StateLink:active, a.OperationLink:hover, a.OperationLink:active, a.LargeButton:hover, a.LargeButton:active {
   background: #ff5161;
+  color: #fff;
 }
 
 a.OperationLink, a.StateLink {

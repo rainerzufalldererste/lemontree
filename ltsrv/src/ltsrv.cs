@@ -5,6 +5,7 @@ using LamestWebserver;
 using LamestWebserver.UI;
 using LamestWebserver.Core;
 using LamestWebserver.Serialization;
+using System.IO;
 
 public class AnalysisInfo
 {
@@ -14,59 +15,63 @@ public class AnalysisInfo
   public AnalysisInfo(Analysis a)
   {
     analysis = a;
+    info = new Info();
   }
 }
 
 public class ltsrv
 {
-  public static Dictionary<string, Dictionary<uint64_t, Dictionary<uint64_t, AnalysisInfo>>> _Analysis = new Dictionary<string, Dictionary<uint64_t, Dictionary<uint64_t, AnalysisInfo>>>();
+  public static Dictionary<string, Dictionary<uint64_t, Dictionary<uint64_t, AnalysisInfo>>> _Analysis;
+
+  public static void ReloadData()
+  {
+    _Analysis = new Dictionary<string, Dictionary<uint64_t, Dictionary<uint64_t, AnalysisInfo>>>();
+
+    foreach (var x in Directory.EnumerateFiles("data", "*.nlz.json"))
+    {
+      try
+      {
+        var analysis = Serializer.ReadJsonData<Analysis>(x);
+        analysis.Sort();
+
+        Console.WriteLine($"Deserialized & Sorted Analysis '{analysis.productName}' ({analysis.majorVersion}.{analysis.minorVersion}).");
+
+        _Analysis.Add(analysis.productName, new Dictionary<uint64_t, Dictionary<uint64_t, AnalysisInfo>> { { analysis.majorVersion, new Dictionary<uint64_t, AnalysisInfo>() { { analysis.minorVersion, new AnalysisInfo(analysis) } } } });
+      }
+      catch (Exception e)
+      {
+        Console.WriteLine($"Failed to add analysis from {x} ({e.SafeMessage()})");
+      }
+    }
+
+    foreach (var x in Directory.EnumerateFiles("data", "*.nfo.json"))
+    {
+      try
+      {
+        var info = Serializer.ReadJsonData<Info>(x);
+        var container = _Analysis[info.productName][info.majorVersion];
+
+        Console.WriteLine($"Deserialized Info '{info.productName}' ({info.majorVersion}.{info.minorVersion}).");
+
+        if (info.minorVersion.HasValue)
+          container[info.minorVersion.Value].info = info;
+        else
+          foreach (var c in container)
+            c.Value.info = info;
+      }
+      catch (Exception e)
+      {
+        Console.WriteLine($"Failed to add info from {x} ({e.SafeMessage()})");
+      }
+    }
+  }
 
   [STAThread]
   public static void Main(string[] args)
   {
     System.Globalization.CultureInfo.CurrentCulture = System.Globalization.CultureInfo.InvariantCulture;
 
-    var analysis = Serializer.ReadJsonData<Analysis>(args[0]);
-
-    Console.WriteLine("Deserialized Analysis.");
-
-    analysis.Sort();
-
-    Console.WriteLine("Sorted Analysis.");
-
-    _Analysis.Add(analysis.productName, new Dictionary<uint64_t, Dictionary<uint64_t, AnalysisInfo>> { { analysis.majorVersion, new Dictionary<uint64_t, AnalysisInfo>() { { analysis.minorVersion, new AnalysisInfo(analysis) } } } });
-
-    for (int i = 1; i < args.Length;)
-    {
-      switch (args[i])
-      {
-        case "--info":
-          if (i + 1 >= args.Length)
-          {
-            Console.WriteLine($"Argument '{args[i]}' is missing a filepath.");
-            throw new Exception();
-          }
-
-          var info = Serializer.ReadJsonData<Info>(args[i + 1]);
-          var container = _Analysis[info.productName][info.majorVersion];
-
-          if (info.minorVersion.HasValue)
-            container[info.minorVersion.Value].info = info;
-          else
-            foreach (var x in container)
-              x.Value.info = info;
-
-          i += 2;
-
-          Console.WriteLine("Deserialized Info.");
-
-          break;
-
-        default:
-          Console.WriteLine($"Unexpected Argument '{args[i]}'.");
-          throw new Exception();
-      }
-    }
+    ReloadData();
 
     using (var ws = new WebServer(8080, "web"))
     {
