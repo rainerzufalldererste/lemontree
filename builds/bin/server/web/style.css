@@ -268,3 +268,31 @@ a.ElementBlobLink.Max {
 a.ElementBlobLink.Max:hover, a.ElementBlobLink.Max:active {
   background: #c66;
 }
+
+.Histogram.Large {
+  padding: 35pt 5pt;
+}
+
+.HistogramElement.Large {
+  width: calc((100% - 64 * 2pt) / 64);
+  height: calc((var(--value) / 100 * 100 + 10) * 1pt);
+  border-radius: 10pt;
+  border: 1pt solid #333;
+  background: linear-gradient(0deg, hsl(calc(200 - var(--var) * 175) 80% 40% / var(--var)), hsl(calc(200 - var(--var) * 150) 100% 70% / var(--var)));
+}
+
+p.HistMin, p.HistMax {
+  margin-top: -20pt;
+  font-size: 120%;
+  font-weight: bold;
+  font-family: Consolas, monospace;
+  color: #999;
+}
+
+p.HistMin {
+  float: left;
+}
+
+p.HistMax {
+  float: right;
+}

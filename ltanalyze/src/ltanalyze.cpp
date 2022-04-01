@@ -79,9 +79,21 @@ void print_bytes_as_base64string(FILE *pFile, const uint8_t *pData, const size_t
 //////////////////////////////////////////////////////////////////////////
 
 template <typename T, typename U>
+T lerp(const T _a, const T _b, const U _x)
+{
+  return (T)(_a + (_b - _a) * (double)_x);
+}
+
+template <typename T, typename U>
 T adjust(const T _old, const U _new, const uint64_t oldCount)
 {
   return (T)(_old + (_new - _old) * (1.0 / (oldCount + 1)));
+}
+
+template <typename T, typename U>
+T adjust(const T _a, const U _b, const uint64_t countA, const uint64_t countB)
+{
+  return (T)(_a + (_b - _a) * (double)(countB) / (double)(countA + countB));
 }
 
 double to_seconds(uint64_t timestampDiff)
@@ -502,13 +514,53 @@ struct lt_values : lt_global_values<T>
   lt_transition_data data;
 };
 
+template <typename T>
+struct lt_min_value
+{
+  static constexpr T value = (T)1;
+};
+
+template <>
+struct lt_min_value<double>
+{
+  static constexpr double value = DBL_EPSILON;
+};
+
+template <>
+struct lt_min_value<float>
+{
+  static constexpr float value = FLT_EPSILON;
+};
+
+template <typename T>
+struct lt_global_value_range
+{
+  uint64_t count = 0;
+  T minValue, maxValue;
+  double average = 0;
+
+  SoaList<double, uint64_t> values;
+};
+
+template <typename T>
+struct lt_value_range : lt_global_value_range<T>
+{
+  lt_transition_data data;
+};
+
+template <typename T>
+struct lt_perf_value_range : lt_value_range<T>
+{
+  lt_short_hw_info minInfo, maxInfo;
+};
+
 struct lt_hw_info_analyze
 {
   lt_global_values<lt_string_value_entry> cpuName;
   lt_global_values_exact<uint32_t> cpuCores;
-  // ramTotalPhysical, ramTotalVirtual, ramAvailablePhysical, ramAvailableVirtual;
+  lt_global_value_range<double> ramTotalPhysical, ramTotalVirtual, ramAvailablePhysical, ramAvailableVirtual;
   lt_global_values<lt_string_value_entry> osName;
-  // gpuDedicatedVRam, gpuSharedVRam, gpuTotalVRam, gpuFreeVRam, gpuDriverVersion;
+  lt_global_value_range<double> gpuDedicatedVRam, gpuSharedVRam, gpuTotalVRam, gpuFreeVRam;
   lt_global_values<uint32_t> gpuVendorId;
   lt_global_values<lt_string_value_entry> gpuName;
   lt_global_values<lt_string_value_entry> langPrimaryName;
@@ -517,7 +569,7 @@ struct lt_hw_info_analyze
   lt_global_values<lt_vec2<uint32_t>> monitorSize;
   lt_global_values<lt_vec2<uint32_t>> totalMonitorSize;
   lt_global_values_exact<uint32_t> monitorDpiAvgXY;
-  // storageAvailable, storageTotal;
+  lt_global_value_range<double> storageAvailable, storageTotal;
   lt_global_values<lt_string_value_entry> deviceManufacturerName;
   lt_global_values<lt_string_value_entry> deviceManufacturerModelName;
 };
@@ -530,18 +582,17 @@ struct lt_analyze
 
   SoaList<uint64_t, lt_sub_system_data> subSystems;
 
+  lt_hw_info_analyze hwInfo;
+
   SoaList<uint64_t, lt_values_exact<uint64_t>> observedU64;
   SoaList<uint64_t, lt_values_exact<int64_t>> observedI64;
   SoaList<uint64_t, lt_values<lt_string_value_entry>> observedString;
 
-  lt_hw_info_analyze hwInfo;
+  SoaList<uint64_t, lt_value_range<uint64_t>> observedRangeU64;
+  SoaList<uint64_t, lt_value_range<int64_t>> observedRangeI64;
+  SoaList<uint64_t, lt_value_range<double>> observedRangeF64;
 
-  //std::vector<std::pair<uint64_t, lt_values<uint64_t>>> observedU64;
-  //std::vector<std::pair<uint64_t, lt_values<int64_t>>> observedI64;
-  //std::vector<std::pair<uint64_t, lt_values<char[256]>>> observedString;
-  //std::vector<std::pair<uint64_t, lt_values<uint64_t>>> observedRangeU64;
-  //std::vector<std::pair<uint64_t, lt_values<int64_t>>> observedRangeI64;
-  //std::vector<std::pair<uint64_t, lt_values<double>>> observedRangeF64;
+  SoaList<uint64_t, lt_perf_value_range<double>> perfMetrics;
 
   // Errors? Warnings? Crashes?
 };
@@ -1610,6 +1661,201 @@ bool jsonify(IN const lt_vec2<T> *pValue, IN JsonWriter *pWriter)
 }
 
 template <typename T>
+bool deserialize(OUT lt_global_value_range<T> *pData, IN ByteStream *pStream, const uint32_t version)
+{
+  if (version < 5)
+    return false;
+
+  READ(pStream, pData->average);
+  READ(pStream, pData->minValue);
+  READ(pStream, pData->maxValue);
+  READ(pStream, pData->count);
+
+  if (!deserialize(&pData->values, pStream, version))
+    return false;
+
+  return true;
+}
+
+template <typename T>
+bool serialize(IN const lt_global_value_range<T> *pData, IN StreamWriter *pStream)
+{
+  WRITE(pStream, pData->average);
+  WRITE(pStream, pData->minValue);
+  WRITE(pStream, pData->maxValue);
+  WRITE(pStream, pData->count);
+
+  if (!serialize(&pData->values, pStream))
+    return false;
+
+  return true;
+}
+
+template <typename T>
+bool jsonify_internal(IN const lt_global_value_range<T> *pData, IN JsonWriter *pWriter)
+{
+  pWriter->write("average", pData->average);
+  pWriter->write("min", pData->minValue);
+  pWriter->write("max", pData->maxValue);
+  pWriter->write("count", pData->count);
+
+  pWriter->begin_array("histogram");
+
+  if (pData->values.size() <= 1)
+  {
+    if (pData->values.size() > 0)
+      pWriter->write_value(pData->values.value.front());
+  }
+  else
+  {
+    uint64_t histogram[64] = {};
+    double histval[63];
+    const double epsilon = DBL_EPSILON * (pData->maxValue - pData->minValue);
+
+    for (size_t i = 0; i < 63; i++)
+      histval[i] = lerp((double)pData->minValue, (double)pData->maxValue, i / (double)(63)) + epsilon;
+
+    for (size_t i = 0; i < pData->values.size(); i++)
+    {
+      const double v = pData->values.index[i];
+      size_t j = 0;
+
+      for (; j < 63; j++)
+        if (histval[j] >= v)
+          break;
+
+      histogram[j] += pData->values.value[i];
+    }
+
+    for (size_t i = 0; i < 64; i++)
+      pWriter->write_value(histogram[i]);
+  }
+
+  pWriter->end();
+
+  return true;
+}
+
+template <typename T>
+bool jsonify(IN const lt_global_value_range<T> *pData, IN JsonWriter *pWriter)
+{
+  pWriter->begin_body();
+
+  if (!jsonify_internal(pData, pWriter))
+    return false;
+
+  pWriter->end();
+
+  return true;
+}
+
+template <typename T>
+bool deserialize(OUT lt_value_range<T> *pData, IN ByteStream *pStream, const uint32_t version)
+{
+  if (version < 5)
+    return false;
+
+  if (!deserialize(static_cast<lt_global_value_range<T> *>(pData), pStream, version))
+    return false;
+
+  if (!deserialize(&pData->data, pStream, version))
+    return false;
+
+  return true;
+}
+
+template <typename T>
+bool serialize(IN const lt_value_range<T> *pData, IN StreamWriter *pStream)
+{
+  if (!serialize(static_cast<const lt_global_value_range<T> *>(pData), pStream))
+    return false;
+
+  if (!serialize(&pData->data, pStream))
+    return false;
+
+  return true;
+}
+
+template <typename T>
+bool jsonify(IN const lt_value_range<T> *pData, IN JsonWriter *pWriter)
+{
+  pWriter->begin_body();
+
+  if (!jsonify_internal(static_cast<const lt_global_value_range<T> *>(pData), pWriter))
+    return false;
+
+  pWriter->write_name("data");
+
+  if (!jsonify(&pData->data, pWriter))
+    return false;
+
+  pWriter->end();
+
+  return true;
+}
+
+template <typename T>
+bool deserialize(OUT lt_perf_value_range<T> *pData, IN ByteStream *pStream, const uint32_t version)
+{
+  if (version < 5)
+    return false;
+
+  if (!deserialize(static_cast<lt_value_range<T> *>(pData), pStream, version))
+    return false;
+
+  if (!deserialize(&pData->minInfo, pStream, version))
+    return false;
+
+  if (!deserialize(&pData->maxInfo, pStream, version))
+    return false;
+
+  return true;
+}
+
+template <typename T>
+bool serialize(IN const lt_perf_value_range<T> *pData, IN StreamWriter *pStream)
+{
+  if (!serialize(static_cast<const lt_value_range<T> *>(pData), pStream))
+    return false;
+
+  if (!serialize(&pData->minInfo, pStream))
+    return false;
+
+  if (!serialize(&pData->maxInfo, pStream))
+    return false;
+
+  return true;
+}
+
+template <typename T>
+bool jsonify(IN const lt_perf_value_range<T> *pData, IN JsonWriter *pWriter)
+{
+  pWriter->begin_body();
+
+  if (!jsonify_internal(static_cast<const lt_global_value_range<T> *>(pData), pWriter))
+    return false;
+
+  pWriter->write_name("data");
+
+  if (!jsonify(&pData->data, pWriter))
+    return false;
+
+  pWriter->write_name("minInfo");
+
+  if (!jsonify(&pData->minInfo, pWriter))
+    return false;
+
+  pWriter->write_name("maxInfo");
+
+  if (!jsonify(&pData->maxInfo, pWriter))
+    return false;
+
+  pWriter->end();
+
+  return true;
+}
+
+template <typename T>
 bool deserialize(OUT lt_values<T> *pData, IN ByteStream *pStream, const uint32_t version)
 {
   if (version < 4)
@@ -1749,7 +1995,31 @@ bool deserialize(OUT lt_hw_info_analyze *pData, IN ByteStream *pStream, const ui
   if (!deserialize(&pData->cpuCores, pStream, version))
     return false;
 
+  if (!deserialize(&pData->ramTotalPhysical, pStream, version))
+    return false;
+
+  if (!deserialize(&pData->ramTotalVirtual, pStream, version))
+    return false;
+
+  if (!deserialize(&pData->ramAvailablePhysical, pStream, version))
+    return false;
+
+  if (!deserialize(&pData->ramAvailableVirtual, pStream, version))
+    return false;
+
   if (!deserialize(&pData->osName, pStream, version))
+    return false;
+
+  if (!deserialize(&pData->gpuDedicatedVRam, pStream, version))
+    return false;
+
+  if (!deserialize(&pData->gpuSharedVRam, pStream, version))
+    return false;
+
+  if (!deserialize(&pData->gpuTotalVRam, pStream, version))
+    return false;
+
+  if (!deserialize(&pData->gpuFreeVRam, pStream, version))
     return false;
 
   if (!deserialize(&pData->gpuVendorId, pStream, version))
@@ -1776,6 +2046,12 @@ bool deserialize(OUT lt_hw_info_analyze *pData, IN ByteStream *pStream, const ui
   if (!deserialize(&pData->monitorDpiAvgXY, pStream, version))
     return false;
 
+  if (!deserialize(&pData->storageAvailable, pStream, version))
+    return false;
+
+  if (!deserialize(&pData->storageTotal, pStream, version))
+    return false;
+
   if (!deserialize(&pData->deviceManufacturerName, pStream, version))
     return false;
 
@@ -1793,7 +2069,31 @@ bool serialize(IN const lt_hw_info_analyze *pData, IN StreamWriter *pStream)
   if (!serialize(&pData->cpuCores, pStream))
     return false;
 
+  if (!serialize(&pData->ramTotalPhysical, pStream))
+    return false;
+
+  if (!serialize(&pData->ramTotalVirtual, pStream))
+    return false;
+
+  if (!serialize(&pData->ramAvailablePhysical, pStream))
+    return false;
+
+  if (!serialize(&pData->ramAvailableVirtual, pStream))
+    return false;
+
   if (!serialize(&pData->osName, pStream))
+    return false;
+
+  if (!serialize(&pData->gpuDedicatedVRam, pStream))
+    return false;
+
+  if (!serialize(&pData->gpuSharedVRam, pStream))
+    return false;
+
+  if (!serialize(&pData->gpuTotalVRam, pStream))
+    return false;
+
+  if (!serialize(&pData->gpuFreeVRam, pStream))
     return false;
 
   if (!serialize(&pData->gpuVendorId, pStream))
@@ -1820,6 +2120,12 @@ bool serialize(IN const lt_hw_info_analyze *pData, IN StreamWriter *pStream)
   if (!serialize(&pData->monitorDpiAvgXY, pStream))
     return false;
 
+  if (!serialize(&pData->storageAvailable, pStream))
+    return false;
+
+  if (!serialize(&pData->storageTotal, pStream))
+    return false;
+
   if (!serialize(&pData->deviceManufacturerName, pStream))
     return false;
 
@@ -1843,9 +2149,49 @@ bool jsonify(IN const lt_hw_info_analyze *pData, IN JsonWriter *pWriter)
   if (!jsonify(&pData->cpuCores, pWriter))
     return false;
 
+  pWriter->write_name("totalPhysicalRam");
+
+  if (!jsonify(&pData->ramTotalPhysical, pWriter))
+    return false;
+
+  pWriter->write_name("totalVirtualRam");
+
+  if (!jsonify(&pData->ramTotalVirtual, pWriter))
+    return false;
+
+  pWriter->write_name("availablePhysicalRam");
+
+  if (!jsonify(&pData->ramAvailablePhysical, pWriter))
+    return false;
+
+  pWriter->write_name("availableVirtualRam");
+
+  if (!jsonify(&pData->ramAvailableVirtual, pWriter))
+    return false;
+
   pWriter->write_name("os");
 
   if (!jsonify(&pData->osName, pWriter))
+    return false;
+
+  pWriter->write_name("gpuDedicatedVRam");
+
+  if (!jsonify(&pData->gpuDedicatedVRam, pWriter))
+    return false;
+
+  pWriter->write_name("gpuSharedVRam");
+
+  if (!jsonify(&pData->gpuSharedVRam, pWriter))
+    return false;
+
+  pWriter->write_name("gpuTotalVRam");
+
+  if (!jsonify(&pData->gpuTotalVRam, pWriter))
+    return false;
+
+  pWriter->write_name("gpuFreeVRam");
+
+  if (!jsonify(&pData->gpuFreeVRam, pWriter))
     return false;
 
   pWriter->write_name("gpuVendorId");
@@ -1886,6 +2232,16 @@ bool jsonify(IN const lt_hw_info_analyze *pData, IN JsonWriter *pWriter)
   pWriter->write_name("monitorDpi");
 
   if (!jsonify(&pData->monitorDpiAvgXY, pWriter))
+    return false;
+
+  pWriter->write_name("availableStorage");
+
+  if (!jsonify(&pData->storageAvailable, pWriter))
+    return false;
+
+  pWriter->write_name("totalStorage");
+
+  if (!jsonify(&pData->storageTotal, pWriter))
     return false;
 
   pWriter->write_name("deviceManufacturer");
@@ -1934,6 +2290,18 @@ bool deserialize(OUT lt_analyze *pAnalyze, IN ByteStream *pStream)
   {
     if (!deserialize(&pAnalyze->hwInfo, pStream, version))
       return false;
+
+    if (!deserialize(&pAnalyze->observedRangeU64, pStream, version))
+      return false;
+
+    if (!deserialize(&pAnalyze->observedRangeI64, pStream, version))
+      return false;
+
+    if (!deserialize(&pAnalyze->observedRangeF64, pStream, version))
+      return false;
+
+    if (!deserialize(&pAnalyze->perfMetrics, pStream, version))
+      return false;
   }
 
   return true;
@@ -1961,6 +2329,18 @@ bool serialize(IN const lt_analyze *pAnalyze, OUT StreamWriter *pStream)
     return false;
 
   if (!serialize(&pAnalyze->hwInfo, pStream))
+    return false;
+
+  if (!serialize(&pAnalyze->observedRangeU64, pStream))
+    return false;
+
+  if (!serialize(&pAnalyze->observedRangeI64, pStream))
+    return false;
+
+  if (!serialize(&pAnalyze->observedRangeF64, pStream))
+    return false;
+
+  if (!serialize(&pAnalyze->perfMetrics, pStream))
     return false;
 
   return true;
@@ -1999,6 +2379,26 @@ bool jsonify(IN const lt_analyze *pAnalyze, OUT JsonWriter *pWriter)
   pWriter->write_name("observedString");
 
   if (!jsonify(&pAnalyze->observedString, pWriter))
+    return false;
+
+  pWriter->write_name("observedRangeU64");
+
+  if (!jsonify(&pAnalyze->observedRangeU64, pWriter))
+    return false;
+
+  pWriter->write_name("observedRangeI64");
+
+  if (!jsonify(&pAnalyze->observedRangeI64, pWriter))
+    return false;
+
+  pWriter->write_name("observedRangeF64");
+
+  if (!jsonify(&pAnalyze->observedRangeF64, pWriter))
+    return false;
+
+  pWriter->write_name("perfMetrics");
+
+  if (!jsonify(&pAnalyze->perfMetrics, pWriter))
     return false;
 
   pWriter->end();
@@ -2184,6 +2584,30 @@ lt_values<T> * get_exact_value_data(SoaList<uint64_t, lt_values<T>> *pList, cons
   return &pList->value.back();
 }
 
+template <typename T>
+lt_value_range<T> *get_value_range_data(SoaList<uint64_t, lt_value_range<T>> *pList, const uint64_t index)
+{
+  for (size_t i = 0; i < pList->size(); i++)
+    if (pList->index[i] == index)
+      return &pList->value[i];
+
+  pList->push_back(index, lt_value_range<T>());
+
+  return &pList->value.back();
+}
+
+template <typename T>
+lt_perf_value_range<T> *get_perf_value_range_data(SoaList<uint64_t, lt_perf_value_range<T>> *pList, const uint64_t index)
+{
+  for (size_t i = 0; i < pList->size(); i++)
+    if (pList->index[i] == index)
+      return &pList->value[i];
+
+  pList->push_back(index, lt_perf_value_range<T>());
+
+  return &pList->value.back();
+}
+
 void update_transition_data(lt_transition_data *pTransition, const uint64_t delay)
 {
   pTransition->avgDelayS = adjust(pTransition->avgDelayS, to_seconds(delay), pTransition->count);
@@ -2323,6 +2747,119 @@ void update_value(SoaList<T, uint64_t> *pValue, const T v)
   pValue->emplace_back(v, 1);
 }
 
+template <typename T>
+bool update_value_range(lt_global_value_range<T> *pValue, const T newValue)
+{
+  bool boundsChanged = false;
+
+  pValue->average = adjust(pValue->average, newValue, pValue->count);
+
+  if (pValue->count == 0)
+  {
+    pValue->minValue = newValue;
+    pValue->maxValue = newValue;
+
+    boundsChanged = true;
+  }
+  else
+  {
+    if (newValue < pValue->minValue)
+    {
+      pValue->minValue = newValue;
+      boundsChanged = true;
+    }
+
+    if (newValue > pValue->maxValue)
+    {
+      pValue->maxValue = newValue;
+      boundsChanged = true;
+    }
+  }
+
+  pValue->count++;
+
+  const double range = (pValue->maxValue - pValue->minValue) / 128.0;
+
+  size_t bestFit = (size_t)-1;
+  double bestFitDiff = 0.0;
+
+  for (size_t i = 0; i < pValue->values.size(); i++)
+  {
+    double diff;
+
+    if (pValue->values.index[i] >= newValue)
+      diff = pValue->values.index[i] - (double)newValue;
+    else
+      diff = (double)newValue - pValue->values.index[i];
+
+    if ((double)diff <= range && (bestFit == (size_t)-1 || bestFitDiff > diff))
+    {
+      bestFit = i;
+      bestFitDiff = diff;
+    }
+  }
+
+  if (bestFit != -1)
+  {
+    pValue->values.index[bestFit] = adjust(pValue->values.index[bestFit], (double)newValue, pValue->values.value[bestFit]);
+    pValue->values.value[bestFit]++;
+  }
+  else
+  {
+    pValue->values.emplace_back((double)newValue, 1);
+
+    while (pValue->values.size() >= 256)
+    {
+      size_t closestA = (size_t)-1;
+      size_t closestB = (size_t)-1;
+      double bestDiff = 0.0;
+
+      for (size_t i = 0; i < pValue->values.size(); i++)
+      {
+        const double a = pValue->values.index[i];
+
+        for (size_t j = i + 1; j < pValue->values.size(); j++)
+        {
+          const double b = pValue->values.index[j];
+          const double diff = a > b ? (a - b) : (b - a);
+
+          if (closestA == (size_t)-1 || diff < bestDiff)
+          {
+            bestDiff = diff;
+            closestA = i;
+            closestB = j;
+          }
+        }
+      }
+
+      // Combine A and B.
+      pValue->values.index[closestA] = adjust(pValue->values.index[closestA], pValue->values.index[closestB], pValue->values.value[closestA], pValue->values.value[closestB]);
+      pValue->values.value[closestA] += pValue->values.value[closestB];
+
+      // Remove B.
+      pValue->values.index.erase(pValue->values.index.begin() + closestB);
+      pValue->values.value.erase(pValue->values.value.begin() + closestB);
+    }
+  }
+
+  return boundsChanged;
+}
+
+template <typename T>
+void update_perf_value_range(lt_perf_value_range<T> *pValue, const T value, const uint64_t delay, IN const lt_short_hw_info *pHwInfo)
+{
+  if (update_value_range(pValue, value))
+  {
+    if (pValue->minValue == value)
+      pValue->minInfo = *pHwInfo;
+
+    if (pValue->maxValue == value)
+      pValue->maxInfo = *pHwInfo;
+  }
+
+  update_transition_data(&pValue->data, delay);
+}
+
 void update_hw_info(lt_hw_info_analyze *pAnalyze, IN const lt_hw_info *pInfo)
 {
   if (pInfo->hasCpuInfo)
@@ -2331,11 +2868,23 @@ void update_hw_info(lt_hw_info_analyze *pAnalyze, IN const lt_hw_info *pInfo)
     update_exact_value(&pAnalyze->cpuCores, pInfo->cpuCores);
   }
 
+  if (pInfo->hasRamInfo)
+  {
+    update_value_range(&pAnalyze->ramTotalPhysical, pInfo->ramTotalPhysical / (1024.0 * 1024.0 * 1024.0));
+    update_value_range(&pAnalyze->ramTotalVirtual, pInfo->ramTotalVirtual / (1024.0 * 1024.0 * 1024.0));
+    update_value_range(&pAnalyze->ramAvailablePhysical, pInfo->ramAvailablePhysical / (1024.0 * 1024.0 * 1024.0));
+    update_value_range(&pAnalyze->ramAvailableVirtual, pInfo->ramAvailableVirtual / (1024.0 * 1024.0 * 1024.0));
+  }
+
   if (pInfo->hasOsInfo)
     update_string_value(&pAnalyze->osName.values, pInfo->osName);
 
   if (pInfo->hasGpuInfo)
   {
+    update_value_range(&pAnalyze->gpuDedicatedVRam, pInfo->gpuDedicatedVRam / (1024.0 * 1024.0 * 1024.0));
+    update_value_range(&pAnalyze->gpuSharedVRam, pInfo->gpuSharedVRam / (1024.0 * 1024.0 * 1024.0));
+    update_value_range(&pAnalyze->gpuTotalVRam, pInfo->gpuTotalVRam / (1024.0 * 1024.0 * 1024.0));
+    update_value_range(&pAnalyze->gpuFreeVRam, pInfo->gpuFreeVRam / (1024.0 * 1024.0 * 1024.0));
     update_value(&pAnalyze->gpuVendorId.values, pInfo->gpuVendorId);
     update_string_value(&pAnalyze->gpuName.values, pInfo->gpuName);
   }
@@ -2356,6 +2905,12 @@ void update_hw_info(lt_hw_info_analyze *pAnalyze, IN const lt_hw_info *pInfo)
       update_vec2u32_value(&pAnalyze->monitorSize.values, _item.width, _item.height);
       update_exact_value(&pAnalyze->monitorDpiAvgXY, _item.dpi);
     }
+  }
+
+  if (pInfo->hasStorageInfo)
+  {
+    update_value_range(&pAnalyze->storageAvailable, pInfo->storageAvailable / (1024.0 * 1024.0 * 1024.0));
+    update_value_range(&pAnalyze->storageTotal, pInfo->storageTotal / (1024.0 * 1024.0 * 1024.0));
   }
 
   if (pInfo->hasDeviceInfo)
@@ -2754,41 +3309,88 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
 
       case lt_t_perf_metric:
       {
-        //SKIP_X64(",", "valueIndex", stream);
-        //SKIP_F64(",", "value", stream);
-        //SKIP_X64(",", "timestamp", stream);
+        uint64_t valueIndex;
+        FATAL_IF(!stream.read(&valueIndex), "Insufficient data steam.");
+
+        double value = 0;
+        FATAL_IF(!stream.read(&value), "Insufficient data stream.");
+
+        uint64_t timestamp;
+        FATAL_IF(!stream.read(&timestamp), "Insufficient data stream.");
+
+        lt_perf_value_range<double> *pValue = get_perf_value_range_data(&pAnalyze->perfMetrics, valueIndex);
+        update_perf_value_range(pValue, value, timestamp - startTimestamp, &hwInfoShort);
 
         break;
       }
 
       case lt_t_observed_value:
       {
-        //uint8_t dataType = 0;
-        //FATAL_IF(!stream.read(&dataType), "Insufficient data steam.");
-        //printf(",\"dataType\":%" PRIu8 "", dataType);
-        //
-        //SKIP_X64(",", "valueIndex", stream);
-        //
-        //switch (dataType)
-        //{
-        //case lt_vt_u64:
-        //  SKIP_U64(",", "value", stream);
-        //  break;
-        //
-        //case lt_vt_i64:
-        //  SKIP_I64(",", "value", stream);
-        //  break;
-        //
-        //case lt_vt_f64:
-        //  SKIP_F64(",", "value", stream);
-        //  break;
-        //
-        //default:
-        //  RECOVERABLE_ERROR("Invalid data type.");
-        //  break;
-        //}
-        //
-        //SKIP_X64(",", "timestamp", stream);
+        uint8_t dataType = 0;
+        FATAL_IF(!stream.read(&dataType), "Insufficient data steam.");
+
+        uint64_t valueIndex;
+        FATAL_IF(!stream.read(&valueIndex), "Insufficient data steam.");
+        
+        uint64_t u64 = 0;
+        int64_t i64 = 0;
+        double f64 = 0;
+
+        switch (dataType)
+        {
+        case lt_vt_u64:
+          FATAL_IF(!stream.read(&u64), "Insufficient data stream.");
+          break;
+        
+        case lt_vt_i64:
+          FATAL_IF(!stream.read(&i64), "Insufficient data stream.");
+          break;
+        
+        case lt_vt_f64:
+          FATAL_IF(!stream.read(&f64), "Insufficient data stream.");
+          break;
+        
+        default:
+          RECOVERABLE_ERROR("Invalid data type.");
+          break;
+        }
+
+        uint64_t timestamp;
+        FATAL_IF(!stream.read(&timestamp), "Insufficient data stream.");
+
+        switch (dataType)
+        {
+        case lt_vt_u64:
+        {
+          lt_value_range<uint64_t> *pValue = get_value_range_data(&pAnalyze->observedRangeU64, valueIndex);
+          update_transition_data(&pValue->data, timestamp - startTimestamp);
+          update_value_range(pValue, u64);
+
+          break;
+        }
+
+        case lt_vt_i64:
+        {
+          lt_value_range<int64_t> *pValue = get_value_range_data(&pAnalyze->observedRangeI64, valueIndex);
+          update_transition_data(&pValue->data, timestamp - startTimestamp);
+          update_value_range(pValue, i64);
+
+          break;
+        }
+
+        case lt_vt_f64:
+        {
+          lt_value_range<double> *pValue = get_value_range_data(&pAnalyze->observedRangeF64, valueIndex);
+          update_transition_data(&pValue->data, timestamp - startTimestamp);
+          update_value_range(pValue, f64);
+
+          break;
+        }
+
+        default:
+          RECOVERABLE_ERROR("Invalid data type.");
+          break;
+        }
 
         break;
       }

@@ -169,11 +169,39 @@ public class SubSystemInfo : ElementResponse
     foreach (var x in analysis.observedString)
       yield return new HLink(info.GetValueNameString(x.index.value), $"/value?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&t=string&id={x.index}") { Class = "LargeButton" };
 
+    yield return new HHeadline($"Observed Value Range U64", 2);
+
+    foreach (var x in analysis.observedRangeU64)
+      yield return new HLink(info.GetValueRangeNameU64(x.index.value), $"/range?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&t=u64&id={x.index}") { Class = "LargeButton" };
+
+    yield return new HHeadline($"Observed Value Range I64", 2);
+
+    foreach (var x in analysis.observedRangeI64)
+      yield return new HLink(info.GetValueRangeNameI64(x.index.value), $"/range?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&t=i64&id={x.index}") { Class = "LargeButton" };
+
+    yield return new HHeadline($"Observed Value Range F64", 2);
+
+    foreach (var x in analysis.observedRangeF64)
+      yield return new HLink(info.GetValueRangeNameF64(x.index.value), $"/range?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&t=f64&id={x.index}") { Class = "LargeButton" };
+
+    yield return new HHeadline($"Performance Metrics", 2);
+
+    foreach (var x in analysis.perfMetrics)
+      yield return new HLink(info.GetPerfMetricName(x.index.value), $"/perfmet?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&id={x.index}") { Class = "LargeButton" };
+
     yield return new HHeadline($"Hardware Info", 2);
 
     yield return analysis.ToPieChart(analysis.hwInfo.cpu, "CPU");
     yield return analysis.ToPieChart(analysis.hwInfo.cpuCores, "CPU Cores");
+    yield return analysis.ToHistorgramChart(analysis.hwInfo.totalPhysicalRam, "Total Physical RAM GB");
+    yield return analysis.ToHistorgramChart(analysis.hwInfo.availablePhysicalRam, "Available Physical RAM GB");
+    yield return analysis.ToHistorgramChart(analysis.hwInfo.totalVirtualRam, "Total Virtual RAM GB");
+    yield return analysis.ToHistorgramChart(analysis.hwInfo.availableVirtualRam, "Available Virtual RAM GB");
     yield return analysis.ToPieChart(analysis.hwInfo.os, "Operating System");
+    yield return analysis.ToHistorgramChart(analysis.hwInfo.gpuDedicatedVRam, "GPU Dedicated VRAM GB");
+    yield return analysis.ToHistorgramChart(analysis.hwInfo.gpuSharedVRam, "GPU Shared VRAM GB");
+    yield return analysis.ToHistorgramChart(analysis.hwInfo.gpuTotalVRam, "GPU Total VRAM GB");
+    yield return analysis.ToHistorgramChart(analysis.hwInfo.gpuFreeVRam, "GPU Free VRAM GB");
     yield return analysis.ToPieChart(analysis.hwInfo.gpu, "GPU");
     yield return analysis.ToPieChart(analysis.hwInfo.gpuVendorId, "GPU Vendor");
     yield return analysis.ToPieChart(analysis.hwInfo.primaryLanguage, "Primary UI Language");
@@ -181,6 +209,8 @@ public class SubSystemInfo : ElementResponse
     yield return analysis.ToPieChart(analysis.hwInfo.monitorCount, "Monitor Count");
     yield return analysis.ToPieChart(analysis.hwInfo.monitorSize, "Monitor Size");
     yield return analysis.ToPieChart(analysis.hwInfo.totalMonitorSize, "Total Monitor Size");
+    yield return analysis.ToHistorgramChart(analysis.hwInfo.availableStorage, "Available Storage GB");
+    yield return analysis.ToHistorgramChart(analysis.hwInfo.totalStorage, "Total Storage GB");
     yield return analysis.ToPieChart(analysis.hwInfo.deviceManufacturer, "Device Manufacturer");
     yield return analysis.ToPieChart(analysis.hwInfo.deviceManufacturerModel, "Device Model");
   }
@@ -356,6 +386,105 @@ public class ValueInfo : ElementResponse
   }
 }
 
+public class ValueRangeInfo : ElementResponse
+{
+  public ValueRangeInfo() : base("range") { }
+
+  protected override HElement GetElement(SessionData sessionData)
+  {
+    string productName = sessionData.HttpHeadVariables["p"];
+    ulong majorVersion, minorVersion, valueIndex = 0;
+    string valueType = sessionData.HttpHeadVariables["t"];
+
+    if (productName == null || valueType == null || !ulong.TryParse(sessionData.HttpHeadVariables["V"], out majorVersion) || !ulong.TryParse(sessionData.HttpHeadVariables["v"], out minorVersion) || !ulong.TryParse(sessionData.HttpHeadVariables["id"], out valueIndex))
+    {
+      return SubSystemInfo.GetMenu(sessionData);
+    }
+    else
+    {
+      switch (valueType)
+      {
+        case "u64": return ltsrv.GetPage("Value Info", ShowValueU64(sessionData, productName, majorVersion, minorVersion, valueIndex));
+        case "i64": return ltsrv.GetPage("Value Info", ShowValueI64(sessionData, productName, majorVersion, minorVersion, valueIndex));
+        case "f64": return ltsrv.GetPage("Value Info", ShowValueF64(sessionData, productName, majorVersion, minorVersion, valueIndex));
+        default: return SubSystemInfo.GetMenu(sessionData);
+      }
+    }
+  }
+
+  private IEnumerable<HElement> ShowValueU64(SessionData sessionData, string productName, ulong majorVersion, ulong minorVersion, ulong valueIndex)
+  {
+    var container = ltsrv._Analysis[productName][(uint64_t)majorVersion][(uint64_t)minorVersion];
+    var info = container.info;
+    var analysis = container.analysis;
+
+    var s = analysis.observedRangeU64.FindItem((uint64_t)valueIndex);
+
+    yield return new HHeadline(info.GetValueRangeNameU64((uint64_t)valueIndex)) { Class = "stateName" };
+
+    yield return analysis.ToHistorgramChart(s, "Info");
+  }
+
+  private IEnumerable<HElement> ShowValueI64(SessionData sessionData, string productName, ulong majorVersion, ulong minorVersion, ulong valueIndex)
+  {
+    var container = ltsrv._Analysis[productName][(uint64_t)majorVersion][(uint64_t)minorVersion];
+    var info = container.info;
+    var analysis = container.analysis;
+
+    var s = analysis.observedRangeI64.FindItem((uint64_t)valueIndex);
+
+    yield return new HHeadline(info.GetValueRangeNameI64((uint64_t)valueIndex)) { Class = "stateName" };
+
+    yield return analysis.ToHistorgramChart(s, "Info");
+  }
+
+  private IEnumerable<HElement> ShowValueF64(SessionData sessionData, string productName, ulong majorVersion, ulong minorVersion, ulong valueIndex)
+  {
+    var container = ltsrv._Analysis[productName][(uint64_t)majorVersion][(uint64_t)minorVersion];
+    var info = container.info;
+    var analysis = container.analysis;
+
+    var s = analysis.observedRangeF64.FindItem((uint64_t)valueIndex);
+
+    yield return new HHeadline(info.GetValueRangeNameF64((uint64_t)valueIndex)) { Class = "stateName" };
+
+    yield return analysis.ToHistorgramChart(s, "Info");
+  }
+}
+
+public class PerformanceMetricInfo : ElementResponse
+{
+  public PerformanceMetricInfo() : base("perfmet") { }
+
+  protected override HElement GetElement(SessionData sessionData)
+  {
+    string productName = sessionData.HttpHeadVariables["p"];
+    ulong majorVersion, minorVersion, valueIndex = 0;
+
+    if (productName == null || !ulong.TryParse(sessionData.HttpHeadVariables["V"], out majorVersion) || !ulong.TryParse(sessionData.HttpHeadVariables["v"], out minorVersion) || !ulong.TryParse(sessionData.HttpHeadVariables["id"], out valueIndex))
+    {
+      return SubSystemInfo.GetMenu(sessionData);
+    }
+    else
+    {
+      return ltsrv.GetPage("Value Info", ShowMetric(sessionData, productName, majorVersion, minorVersion, valueIndex));
+    }
+  }
+
+  private IEnumerable<HElement> ShowMetric(SessionData sessionData, string productName, ulong majorVersion, ulong minorVersion, ulong valueIndex)
+  {
+    var container = ltsrv._Analysis[productName][(uint64_t)majorVersion][(uint64_t)minorVersion];
+    var info = container.info;
+    var analysis = container.analysis;
+
+    var s = analysis.perfMetrics.FindItem((uint64_t)valueIndex);
+
+    yield return new HHeadline(info.GetPerfMetricName((uint64_t)valueIndex)) { Class = "stateName" };
+
+    yield return analysis.ToHistorgramChart(s, "Info");
+  }
+}
+
 public static class ExtentionMethods
 {
   public static T1 FindItem<T, T1>(this List<Ref<T, T1>> list, T index) where T : IEquatable<T>
@@ -374,6 +503,18 @@ public static class ExtentionMethods
         return x.value;
 
     return null;
+  }
+
+  public static double ToDouble(this object d)
+  {
+    if (d is double)
+      return (double)d;
+    else if (d is uint64_t)
+      return (double)((uint64_t)d).value;
+    else if (d is int64_t)
+      return (double)((int64_t)d).value;
+    else
+      return Convert.ToDouble(d);
   }
 }
 
@@ -482,6 +623,24 @@ public class GlobalExactValueDataWithAverage<T> : GlobalExactValueData<T>
   public T min, max;
 }
 
+public class GlobalValueRange<T>
+{
+  public double average;
+  public T min, max;
+  public uint64_t count;
+  public uint64_t[] histogram;
+}
+
+public class ValueRange<T> : GlobalValueRange<T>
+{
+  public TransitionData data;
+}
+
+public class PerfValueRange<T> : ValueRange<T>
+{
+  public HardwareInfoShort minInfo, maxInfo;
+}
+
 public struct Size2<T>
 {
   public T x, y;
@@ -496,7 +655,9 @@ public struct HardwareInfo
 {
   public GlobalExactValueData<string> cpu;
   public GlobalExactValueDataWithAverage<uint> cpuCores;
+  public GlobalValueRange<double> totalPhysicalRam, totalVirtualRam, availablePhysicalRam, availableVirtualRam;
   public GlobalExactValueData<string> os;
+  public GlobalValueRange<double> gpuDedicatedVRam, gpuSharedVRam, gpuTotalVRam, gpuFreeVRam;
   public GlobalExactValueData<uint> gpuVendorId;
   public GlobalExactValueData<string> gpu;
   public GlobalExactValueData<string> primaryLanguage;
@@ -505,6 +666,7 @@ public struct HardwareInfo
   public GlobalExactValueData<Size2<uint>> monitorSize;
   public GlobalExactValueData<Size2<uint>> totalMonitorSize;
   public GlobalExactValueDataWithAverage<uint> monitorDpi;
+  public GlobalValueRange<double> availableStorage, totalStorage;
   public GlobalExactValueData<string> deviceManufacturer;
   public GlobalExactValueData<string> deviceManufacturerModel;
 }
@@ -519,6 +681,12 @@ public class Analysis
   public List<Ref<uint64_t, ExactValueDataWithAverage<uint64_t>>> observedU64;
   public List<Ref<uint64_t, ExactValueDataWithAverage<int64_t>>> observedI64;
   public List<Ref<uint64_t, ExactValueData<string>>> observedString;
+
+  public List<Ref<uint64_t, ValueRange<uint64_t>>> observedRangeU64;
+  public List<Ref<uint64_t, ValueRange<int64_t>>> observedRangeI64;
+  public List<Ref<uint64_t, ValueRange<double>>> observedRangeF64;
+
+  public List<Ref<uint64_t, PerfValueRange<double>>> perfMetrics;
 
   public string GetLink(uint64_t subSystem, uint64_t operationIndex) => $"/op?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&ss={subSystem}&id={operationIndex}";
 
@@ -873,6 +1041,72 @@ public class Analysis
     HTable graph = new HTable(contents.ToArray()) { Class = "BarGraphContainer" };
 
     return new HContainer() { Class = "DataInfo", Elements = { new HHeadline(name), graph } };
+  }
+
+  public HContainer DisplayInfo<T>(ValueRange<T> data)
+  {
+    return new HContainer() { Elements = { new HHeadline("Delay", 2), new HText($"{data.data.count}") { Class = "DataCount" }, new HText($"{data.data.avgDelay:0.####} s") { Class = "DataDelay" }, new HText($"{data.data.minDelay:0.####} s") { Class = "DataDelayMin" }, new HText($"{data.data.maxDelay:0.####} s") { Class = "DataDelayMax" } } };
+  }
+
+  internal HElement ToHistorgramChart<T>(GlobalValueRange<T> data, string name)
+  {
+    if (data.count == 0)
+      return new HContainer() { Class = "NoData", Elements = { new HText($"No '{name}' Data Available.") } };
+
+    var ret = new HContainer() { Class = "DataInfo", Elements = { new HHeadline(name) } };
+
+    if (data is PerfValueRange<T>)
+    {
+      var d = data as PerfValueRange<T>;
+
+      ret.AddElement(new HContainer() { Elements = { new HText($"{data.count}") { Class = "DataCount" }, new HText($"{data.average:0.####}") { Class = "DataDelay" }, new HText($"{data.min:0.####}") { Class = "DataDelayMin", Title = d.minInfo.ToString() }, new HText($"{data.max:0.####}") { Class = "DataDelayMax", Title = d.maxInfo.ToString() } } });
+    }
+    else
+    {
+      ret.AddElement(new HContainer() { Elements = { new HText($"{data.count}") { Class = "DataCount" }, new HText($"{data.average:0.####}") { Class = "DataDelay" }, new HText($"{data.min:0.####}") { Class = "DataDelayMin" }, new HText($"{data.max:0.####}") { Class = "DataDelayMax" } } });
+    }
+
+    if (data is ValueRange<T>)
+      ret.AddElement(DisplayInfo((ValueRange<T>)data));
+
+    if (data.histogram.Length > 1)
+    {
+      HContainer histogram = new HContainer() { Class = "Histogram Large" };
+
+      ulong max = 0;
+
+      double[] histVal = new double[data.histogram.Length];
+
+      int i = 0;
+      double min = data.min.ToDouble();
+      double diff = (double)(data.max.ToDouble() - min);
+
+      foreach (var y in data.histogram)
+      {
+        if (y > max)
+          max = y;
+
+        histVal[i] = min + diff * ((double)i / (double)(data.histogram.Length - 1));
+        i++;
+      }
+
+      i = -1;
+
+      foreach (var y in data.histogram)
+      {
+        i++;
+
+        double percentage = (double)y / max * 100.0;
+        histogram.AddElement(new HContainer() { Class = "HistogramElement Large", Title = $"{histVal[i]:0.###} ({y})", Style = $"--value:{percentage};" });
+      }
+
+      ret.AddElement(histogram);
+
+      ret.AddElement(new HText(data.min.ToString()) { Class = "HistMin" });
+      ret.AddElement(new HText(data.max.ToString()) { Class = "HistMax" });
+    }
+
+    return ret;
   }
 }
 
