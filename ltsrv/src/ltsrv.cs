@@ -214,6 +214,7 @@ public class SubSystemInfo : ElementResponse
     yield return analysis.ToPieChart(analysis.hwInfo.monitorCount, "Monitor Count");
     yield return analysis.ToPieChart(analysis.hwInfo.monitorSize, "Monitor Size");
     yield return analysis.ToPieChart(analysis.hwInfo.totalMonitorSize, "Total Monitor Size");
+    yield return analysis.ToPieChart(analysis.hwInfo.monitorDpi, "Monitor DPI");
     yield return analysis.ToHistorgramChart(analysis.hwInfo.availableStorage, "Available Storage GB");
     yield return analysis.ToHistorgramChart(analysis.hwInfo.totalStorage, "Total Storage GB");
     yield return analysis.ToPieChart(analysis.hwInfo.deviceManufacturer, "Device Manufacturer");
