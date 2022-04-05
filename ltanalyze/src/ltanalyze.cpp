@@ -3,6 +3,22 @@
 #include "lta_io.h"
 #include "lta_op.h"
 
+#include <windows.h>
+#include <debugapi.h>
+#include <psapi.h>
+#include <atlutil.h>
+#include <dia2.h>
+#include <diacreate.h>
+#include <cvconst.h>
+#include <initguid.h>
+#include <fcntl.h>
+
+extern "C"
+{
+#define ZYCORE_STATIC_DEFINE
+#include <Zydis/Zydis.h>
+}
+
 //////////////////////////////////////////////////////////////////////////
 
 struct lt_sub_system
@@ -59,14 +75,24 @@ void update_previous_state_timing(lt_sub_system *pSubSystem, lt_state_identifier
 
 //////////////////////////////////////////////////////////////////////////
 
-struct analyze_options
+struct lt_pdb_context
+{
+  IDiaSession *pPdbSession = nullptr;
+  bool disasmAvailable = false;
+  ZydisDecoder disasmDecoder;
+  ZydisFormatter disasmFormatter;
+};
+
+//////////////////////////////////////////////////////////////////////////
+
+struct lt_analyze_options
 {
   bool ignoreMinorVersionDiff = false;
 };
 
 //////////////////////////////////////////////////////////////////////////
 
-bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNewFile, IN const analyze_options *pOptions)
+bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNewFile, IN const lt_analyze_options *pOptions, IN lt_pdb_context *pPdbContext)
 {
   lt_analyze_state state;
 
@@ -507,24 +533,73 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
       case lt_t_error:
       case lt_t_warning:
       {
-        //uint16_t size = 0;
-        //FATAL_IF(!stream.read(&size), "Insufficient data stream.");
-        //
-        //SKIP_X64(",", "timestamp", stream);
-        //SKIP_X64(",", "subSystem", stream);
-        //SKIP_X64(",", "errorCode", stream);
-        //SKIP_STRING(",", "description", stream);
-        //
-        //uint16_t stackTraceLength = 0;
-        //FATAL_IF(!stream.read(&stackTraceLength), "Insufficient data stream.");
-        //
-        //if (stackTraceLength > 0)
-        //{
-        //  const uint8_t *pStackTraceData = stream.pData;
-        //  FATAL_IF(!stream.read<uint8_t >(nullptr, stackTraceLength), "Insufficient data stream.");
-        //  fputs(",\"stacktrace\":", stdout);
-        //  print_bytes_as_base64string(pStackTraceData, stackTraceLength);
-        //}
+        uint16_t size = 0;
+        FATAL_IF(!stream.read(&size), "Insufficient data stream.");
+        
+        uint64_t timestamp, subSystem, errorCode;
+        char description[0x100];
+
+        READ(&stream, timestamp);
+        READ(&stream, subSystem);
+        READ(&stream, errorCode);
+        READ_STRING(&stream, description);
+        
+        uint8_t stackTraceData[1024 * 10];
+
+        uint16_t stackTraceLength = 0;
+        FATAL_IF(!stream.read(&stackTraceLength), "Insufficient data stream.");
+        FATAL_IF(stackTraceLength > sizeof(stackTraceData), "Stack Trace size exceeds capacity.");
+
+        uint32_t stackTraceHash = 0;
+
+        if (stackTraceLength > 0)
+        {
+          const uint8_t *pStackTraceData = stream.pData;
+          FATAL_IF(!stream.read<uint8_t >(nullptr, stackTraceLength), "Insufficient data stream.");
+          memcpy(stackTraceData, pStackTraceData, stackTraceLength);
+
+          FATAL_IF(stackTraceLength < 6, "Insufficient StackTrace Length.");
+          stackTraceHash = *reinterpret_cast<uint32_t *>(stackTraceData + 1);
+        }
+
+        lt_sub_system *pSubSystem = get_sub_system(&state, subSystem);
+        SoaList<uint64_t, lt_error_data> *pErrors = nullptr;
+        uint64_t cmpTimestamp = startTimestamp;
+
+        if (pSubSystem->hasLastState)
+        {
+          lt_state *pState = get_state(pAnalyze, subSystem, pSubSystem->lastState.stateIndex, pSubSystem->lastState.subStateIndex);
+
+          pErrors = type == lt_t_error ? &pState->errors : &pState->warnings;
+          cmpTimestamp = pSubSystem->lastStateTimestamp;
+        }
+        else
+        {
+          // What now?
+          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        }
+
+        if (pErrors != nullptr)
+        {
+          lt_error_identifier id;
+          bool isNewEntry;
+
+          lt_error_data *pErrorData = get_error_data(pErrors, errorCode, strnlen(description, sizeof(description)) != 0, description, stackTraceLength > 0, stackTraceHash, &isNewEntry, &id);
+
+          if (pErrorData->error.hasStackTrace && pErrorData->error.stackTrace.size() == 0 && pPdbContext != nullptr)
+          {
+            // TODO: Fill Stack Trace from PDB.
+            !!!!!!!!!!!!!!!!!!!!!!!!!
+          }
+
+          update_transition_data(&pErrorData->data, timestamp - cmpTimestamp);
+
+          if (pSubSystem->hasLastOperation)
+          {
+            // TODO: Place reference to the error here.
+            !!!!!!!!!!!!!!!!!!!!!!!!!!
+          }
+        }
 
         break;
       }
@@ -790,19 +865,33 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
 static const char _Option_IgnoreMinorVersionDiff[] = OPTION_IGNORE_MINOR_VERSION_DIFF;
 static const wchar_t _wOption_IgnoreMinorVersionDiff[] = TEXT(OPTION_IGNORE_MINOR_VERSION_DIFF);
 
+#define OPTION_PDB "--pdb"
+static const char _Option_PDB[] = OPTION_PDB;
+static const wchar_t _wOption_PDB[] = TEXT(OPTION_PDB);
+
+#define OPTION_DISASM "--disasm"
+static const char _Option_Disasm[] = OPTION_DISASM;
+static const wchar_t _wOption_Disasm[] = TEXT(OPTION_DISASM);
+
+#define OPTION_OUT "--out"
+static const char _Option_Out[] = OPTION_OUT;
+static const wchar_t _wOption_Out[] = TEXT(OPTION_OUT);
+
 int32_t main(void)
 {
   const wchar_t *commandLine = GetCommandLineW();
 
   int32_t argc = 0;
   wchar_t **pArgv = CommandLineToArgvW(commandLine, &argc);
-  FATAL_IF(argc < 4, "Invalid Parameter.\nUsage: [-io <LT Analyze File> | -o <New LT Analyze File>] [%s] <LT Log File> ... ", _Option_IgnoreMinorVersionDiff);
+  FATAL_IF(argc < 4, "Invalid Parameter.\nUsage: [-io <LT Analyze File> | -o <New LT Analyze File>] [%s] [%s <PDB File>] [%s] <LT Log File> ... [%s <OUT Filename>]", _Option_IgnoreMinorVersionDiff, _Option_PDB, _Option_Disasm, _Option_Out);
 
   const wchar_t *outputFileName = pArgv[2];
   bool isNewFile = true;
+  FILE *pOutFile = stdout;
 
   lt_analyze analyze;
-  analyze_options options;
+  lt_analyze_options options;
+  lt_pdb_context pdbContext;
 
   // Read Analyze File (if -o)
   if (0 != wcsncmp(pArgv[1], L"-o", 3))
@@ -850,9 +939,63 @@ int32_t main(void)
     {
       options.ignoreMinorVersionDiff = true;
     }
+    else if (wcsncmp(pArgv[i], _wOption_PDB, ARRAYSIZE(_wOption_PDB)) == 0)
+    {
+      FATAL_IF(i + 1 >= argc, "Missing PDB File after argument.");
+      FATAL_IF(pdbContext.pPdbSession != nullptr, "PDB Source is already initialized.");
+
+      HRESULT hr;
+      FATAL_IF(FAILED(hr = CoInitialize(nullptr)), "Failed to Initialize. Aborting.");
+
+      CComPtr<IDiaDataSource> pdbSource;
+
+      if (FAILED(hr = CoCreateInstance(CLSID_DiaSource, nullptr, CLSCTX_INPROC_SERVER, __uuidof(IDiaDataSource), (void **)&pdbSource)) || pdbSource == nullptr)
+      {
+        // See https://github.com/baldurk/renderdoc/blob/c3ca732ab9d49d710922ce0243e7bd7b404415d1/renderdoc/os/win32/win32_callstack.cpp
+
+        wchar_t *dllPath = L"msdia140.dll";
+        HMODULE msdia140dll = LoadLibraryW(dllPath);
+        FATAL_IF(msdia140dll == nullptr, "Failed to load '%ws'. Aborting.", dllPath);
+
+        typedef decltype(&DllGetClassObject) DllGetClassObjectFunc;
+        DllGetClassObjectFunc pDllGetClassObject = reinterpret_cast<DllGetClassObjectFunc>(GetProcAddress(msdia140dll, "DllGetClassObject"));
+        FATAL_IF(pDllGetClassObject == nullptr, "Failed to load symbol from '%ws'. Aborting.", dllPath);
+
+        CComPtr<IClassFactory> classFactory;
+        FATAL_IF(FAILED(hr = pDllGetClassObject(__uuidof(DiaSource), IID_IClassFactory, reinterpret_cast<void **>(&classFactory))) || classFactory == nullptr, "Failed to retrieve COM Class Factory. Aborting.");
+
+        FATAL_IF(FAILED(hr = classFactory->CreateInstance(nullptr, __uuidof(IDiaDataSource), reinterpret_cast<void **>(&pdbSource))) || pdbSource == nullptr, "Failed to create debug source from class factory. Aborting.");
+      }
+
+      if (FAILED(pdbSource->loadDataFromPdb(pArgv[i + 1])))
+        FATAL("Failed to load pdb. ('%ws')", pArgv[i + 1]);
+
+      FATAL_IF(FAILED(hr = pdbSource->openSession(&pdbContext.pPdbSession)), "Failed to Open Session.");
+
+      i++;
+    }
+    else if (wcsncmp(pArgv[i], _wOption_Disasm, ARRAYSIZE(_wOption_Disasm)) == 0)
+    {
+      FATAL_IF(pdbContext.disasmAvailable, "Disasm is already available.");
+
+      pdbContext.disasmAvailable = ZYAN_SUCCESS(ZydisDecoderInit(&pdbContext.disasmDecoder, ZYDIS_MACHINE_MODE_LONG_64, ZYDIS_ADDRESS_WIDTH_64)) &&
+        ZYAN_SUCCESS(ZydisFormatterInit(&pdbContext.disasmFormatter, ZYDIS_FORMATTER_STYLE_INTEL)) &&
+        ZYAN_SUCCESS(ZydisFormatterSetProperty(&pdbContext.disasmFormatter, ZYDIS_FORMATTER_PROP_FORCE_SEGMENT, ZYAN_TRUE)) &&
+        ZYAN_SUCCESS(ZydisFormatterSetProperty(&pdbContext.disasmFormatter, ZYDIS_FORMATTER_PROP_FORCE_SIZE, ZYAN_TRUE));
+    }
+    else if (wcsncmp(pArgv[i], _wOption_Out, ARRAYSIZE(_wOption_Out)) == 0)
+    {
+      FATAL_IF(i + 1 >= argc, "Missing out File path after argument.");
+
+      pOutFile = _wfopen(pArgv[i + 1], L"w");
+
+      FATAL_IF(pOutFile == nullptr, "Failed to open output file '%ws'.", pArgv[i + 1]);
+
+      i++;
+    }
     else
     {
-      FATAL_IF(!analyze_file(pArgv[i], &analyze, isNewFile, &options), "Failed to analyze file %ws", pArgv[i]);
+      FATAL_IF(!analyze_file(pArgv[i], &analyze, isNewFile, &options, &pdbContext), "Failed to analyze file %ws", pArgv[i]);
 
       isNewFile = false;
     }
@@ -890,7 +1033,7 @@ int32_t main(void)
 
   // Write analyze json file.
   {
-    JsonWriter writer(stdout);
+    JsonWriter writer(pOutFile);
 
     FATAL_IF(!jsonify(&analyze, &writer), "Failed to jsonify analyze data.");
   }

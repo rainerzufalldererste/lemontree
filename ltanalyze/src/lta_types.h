@@ -232,17 +232,8 @@ struct lt_operation_transition_data : lt_transition_data
 
 struct lt_error_identifier
 {
-  uint64_t subSystem;
   uint64_t errorIndex;
 };
-
-struct lt_error_ref
-{
-  lt_error_identifier index;
-  lt_transition_data data;
-};
-
-typedef lt_error_ref lt_warning_ref, lt_log_ref;
 
 struct lt_crash_ref
 {
@@ -250,7 +241,31 @@ struct lt_crash_ref
   lt_transition_data data;
 };
 
-typedef lt_crash_ref lt_value_ref;
+struct lt_error
+{
+  uint64_t errorCode;
+
+  bool hasDescription = false;
+  char description[0x100];
+
+  bool hasStackTrace = false;
+  uint32_t stackTraceHash;
+  std::string stackTrace;
+};
+
+struct lt_error_data
+{
+  lt_error error;
+  lt_transition_data data;
+};
+
+struct lt_log
+{
+  uint64_t subSystem;
+
+  size_t descriptionLength = 0;
+  char description[0x100];
+};
 
 struct lt_short_hw_info
 {
@@ -301,8 +316,9 @@ struct lt_state
   SoaList<lt_operation_identifier, lt_transition_data> operationReach;
 
   std::vector<lt_perf_data> profilerData;
-  //std::vector<lt_error_ref> errors;
-  //std::vector<lt_warning_ref> warnings;
+  SoaList<uint64_t, lt_error_data> errors; // DO NOT REORDER THESE.
+  SoaList<uint64_t, lt_error_data> warnings; // DO NOT REORDER THESE.
+
   //std::vector<lt_log_ref> logs;
   //std::vector<lt_crash_ref> crashes;
 };
@@ -317,37 +333,12 @@ struct lt_operation
   SoaList<lt_state_identifier, lt_transition_data> nextState;
   SoaList<lt_operation_identifier, lt_transition_data> lastOperation;
   SoaList<lt_operation_identifier, lt_operation_transition_data> nextOperation;
-  //std::vector<lt_error_ref> errors;
-  //std::vector<lt_warning_ref> warnings;
+
+  SoaList<lt_error_identifier, lt_transition_data> errors;
+  SoaList<lt_error_identifier, lt_transition_data> warnings;
+  
   //std::vector<lt_log_ref> logs;
   //std::vector<lt_crash_ref> crashes;
-  //std::vector<lt_value_ref> observedU64;
-  //std::vector<lt_value_ref> observedI64;
-  //std::vector<lt_value_ref> observedF64;
-  //std::vector<lt_value_ref> observedString;
-  //std::vector<lt_value_ref> observedRangeU64;
-  //std::vector<lt_value_ref> observedRangeI64;
-  //std::vector<lt_value_ref> observedRangeF64;
-};
-
-struct lt_error
-{
-  uint64_t subSystem;
-  uint64_t errorCode;
-
-  size_t descriptionLength = 0;
-  char *description = nullptr;
-
-  size_t stackTraceLength = 0;
-  uint8_t *pStackTrace = nullptr;
-};
-
-struct lt_log
-{
-  uint64_t subSystem;
-
-  size_t descriptionLength = 0;
-  char *description = nullptr;
 };
 
 struct lt_monitor_info

@@ -205,6 +205,50 @@ inline lt_perf_value_range<T> *get_perf_value_range_data(SoaList<uint64_t, lt_pe
   return &pList->value.back();
 }
 
+inline lt_error_data *get_error_data(SoaList<uint64_t, lt_error_data> *pList, const uint64_t errorCode, const bool hasDescription, const char *description, const bool hasStackTrace, const uint32_t stackTraceHash, OUT bool *pIsNewEntry, OUT lt_error_identifier *pId)
+{
+  for (size_t i = 0; i < pList->size(); i++)
+  {
+    if (pList->index[i] == errorCode)
+    {
+      if (pList->value[i].error.hasDescription != hasDescription)
+        continue;
+
+      if (hasDescription && strncmp(pList->value[i].error.description, description, sizeof(pList->value[i].error.description)) != 0)
+        continue;
+
+      if (pList->value[i].error.hasStackTrace != hasStackTrace)
+        continue;
+
+      if (hasStackTrace && pList->value[i].error.stackTraceHash != stackTraceHash)
+        continue;
+
+      pErrorIndex->errorIndex = i;
+      *pIsNewEntry = false;
+
+      return &pList->value[i];
+    }
+  }
+
+  lt_error_data error;
+  error.error.errorCode = errorCode;
+  error.error.hasDescription = hasDescription;
+  error.error.hasStackTrace = hasStackTrace;
+
+  if (hasDescription)
+    strcpy_s(error.error.description, description);
+
+  if (hasStackTrace)
+    error.error.stackTraceHash = stackTraceHash;
+
+  pErrorIndex->errorIndex = pList->size();
+  *pIsNewEntry = true;
+
+  pList->push_back(errorCode, std::move(error));
+
+  return &pList->value.back();
+}
+
 inline void update_transition_data(lt_transition_data *pTransition, const uint64_t delay)
 {
   pTransition->avgDelayS = adjust(pTransition->avgDelayS, to_seconds(delay), pTransition->count);

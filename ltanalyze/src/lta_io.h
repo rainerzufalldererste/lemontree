@@ -22,14 +22,14 @@
   { FATAL_IF(!stream.read(buffer256, length), "Insufficient data stream"); \
   } } while (0);
 
-#define READ(pWriter, value) do { if (!pWriter->read(&(value))) return false; } while (0)
-#define WRITE(pWriter, value) do { if (!pWriter->write(&(value))) return false; } while (0)
+#define READ(pWriter, value) do { if (!(pWriter)->read(&(value))) return false; } while (0)
+#define WRITE(pWriter, value) do { if (!(pWriter)->write(&(value))) return false; } while (0)
 #define READ_STRING(pWriter, value) do { uint8_t __len__; if (!(pWriter)->read(&__len__)) return false; if (__len__ >= sizeof(value)) return false; if (!(pWriter)->read((value), __len__)) return false; (value)[__len__] = '\0'; } while (0)
 #define WRITE_STRING(pWriter, value) do { \
   const uint8_t __len__ = (uint8_t)min(0xFF, strlen(value)); \
-  if (!pWriter->write(&__len__)) \
+  if (!(pWriter)->write(&__len__)) \
     return false; \
-  if (__len__ > 0 && !pWriter->write((value), __len__)) \
+  if (__len__ > 0 && !(pWriter)->write((value), __len__)) \
     return false; \
   } while (0)
 
