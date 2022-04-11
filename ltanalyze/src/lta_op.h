@@ -146,6 +146,17 @@ inline lt_transition_data *get_transition_data(SoaList<lt_operation_identifier, 
   return &pList->value.back();
 }
 
+inline lt_transition_data *get_transition_data(SoaList<lt_error_identifier, lt_transition_data> *pList, const lt_error_identifier *pId)
+{
+  for (size_t i = 0; i < pList->size(); i++)
+    if (pList->index[i].stateIndex == pId->stateIndex && pList->index[i].errorIndex == pId->errorIndex)
+      return &pList->value[i];
+
+  pList->push_back(*pId, lt_transition_data());
+
+  return &pList->value.back();
+}
+
 inline lt_operation_transition_data *get_operation_transition_data(SoaList<lt_operation_identifier, lt_operation_transition_data> *pList, const lt_operation_identifier *pId)
 {
   for (size_t i = 0; i < pList->size(); i++)
@@ -205,7 +216,7 @@ inline lt_perf_value_range<T> *get_perf_value_range_data(SoaList<uint64_t, lt_pe
   return &pList->value.back();
 }
 
-inline lt_error_data *get_error_data(SoaList<uint64_t, lt_error_data> *pList, const uint64_t errorCode, const bool hasDescription, const char *description, const bool hasStackTrace, const uint32_t stackTraceHash, OUT bool *pIsNewEntry, OUT lt_error_identifier *pId)
+inline lt_error_data *get_error_data(SoaList<uint64_t, lt_error_data> *pList, const uint64_t errorCode, const bool hasDescription, const char *description, const bool hasStackTrace, const uint32_t stackTraceHash, OUT bool *pIsNewEntry, OUT uint64_t *pErrorIndex)
 {
   for (size_t i = 0; i < pList->size(); i++)
   {
@@ -223,7 +234,7 @@ inline lt_error_data *get_error_data(SoaList<uint64_t, lt_error_data> *pList, co
       if (hasStackTrace && pList->value[i].error.stackTraceHash != stackTraceHash)
         continue;
 
-      pErrorIndex->errorIndex = i;
+      *pErrorIndex = i;
       *pIsNewEntry = false;
 
       return &pList->value[i];
@@ -241,7 +252,7 @@ inline lt_error_data *get_error_data(SoaList<uint64_t, lt_error_data> *pList, co
   if (hasStackTrace)
     error.error.stackTraceHash = stackTraceHash;
 
-  pErrorIndex->errorIndex = pList->size();
+  *pErrorIndex = pList->size();
   *pIsNewEntry = true;
 
   pList->push_back(errorCode, std::move(error));

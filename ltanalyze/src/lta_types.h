@@ -232,6 +232,8 @@ struct lt_operation_transition_data : lt_transition_data
 
 struct lt_error_identifier
 {
+  bool hasStateIndex = false;
+  lt_state_identifier state;
   uint64_t errorIndex;
 };
 
@@ -239,6 +241,41 @@ struct lt_crash_ref
 {
   uint64_t index;
   lt_transition_data data;
+};
+
+enum lt_stack_trace_type : uint8_t
+{
+  lt_stt_ExternalModule,
+  lt_stt_InternalOffset,
+  lt_stt_FunctionName,
+};
+
+struct lt_stack_trace
+{
+  uint8_t stackTraceType;
+  uint32_t offset;
+
+  union
+  {
+    struct
+    {
+      char moduleName[0x100];
+    } externalModule;
+
+    struct
+    {
+    } internalOffset;
+
+    struct
+    {
+      char functionName[0x100];
+      char file[0x100];
+      uint32_t line;
+    } functionName;
+  } info;
+
+  bool hasDisasm = false;
+  char disasm[0x100];
 };
 
 struct lt_error
@@ -380,6 +417,7 @@ struct lt_sub_system_data
   SoaList<lt_state_identifier, lt_state> states;
   SoaList<lt_operation_identifier, lt_operation> operations;
   std::vector<lt_perf_data> profilerData;
+  SoaList<uint64_t, lt_error_data> noStateErrors, noStateWarnings;
 };
 
 template <typename T>
