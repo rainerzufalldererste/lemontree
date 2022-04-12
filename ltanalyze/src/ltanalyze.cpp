@@ -93,13 +93,13 @@ bool get_tracktrace_from_pdb(IN_OUT ByteStream *pStream, IN lt_pdb_context *pPdb
     uint32_t u32;
 
     if (!pStream->read(&u8))
-      return false;
+      RETURN_ERROR;
 
     if (u8 != lt_st_start) // invalid header.
-      return false;
+      RETURN_ERROR;
 
     if (!pStream->read(&u32)) // hash.
-      return false;
+      RETURN_ERROR;
 
     char moduleName[256] = "<Invalid Module>";
 
@@ -110,7 +110,7 @@ bool get_tracktrace_from_pdb(IN_OUT ByteStream *pStream, IN lt_pdb_context *pPdb
       uint8_t type;
 
       if (!pStream->read(&type))
-        return false;
+        RETURN_ERROR;
 
       bool end = false;
 
@@ -118,7 +118,7 @@ bool get_tracktrace_from_pdb(IN_OUT ByteStream *pStream, IN lt_pdb_context *pPdb
       {
       default:
       {
-        return false; // Invalid Type.
+        RETURN_ERROR; // Invalid Type.
         break;
       }
 
@@ -133,7 +133,7 @@ bool get_tracktrace_from_pdb(IN_OUT ByteStream *pStream, IN lt_pdb_context *pPdb
         trace.stackTraceType = lt_stt_internal_offset;
 
         if (!pStream->read(&trace.offset))
-          return false;
+          RETURN_ERROR;
 
         CComPtr<IDiaEnumLineNumbers> lineNumEnum;
         CComPtr<IDiaSymbol> symbol;
@@ -208,7 +208,7 @@ bool get_tracktrace_from_pdb(IN_OUT ByteStream *pStream, IN lt_pdb_context *pPdb
         trace.stackTraceType = lt_stt_external_module;
 
         if (!pStream->read(&trace.offset))
-          return false;
+          RETURN_ERROR;
 
         strncpy_s(trace.info.externalModule.moduleName, moduleName, sizeof(moduleName));
 
@@ -224,7 +224,7 @@ bool get_tracktrace_from_pdb(IN_OUT ByteStream *pStream, IN lt_pdb_context *pPdb
         READ_STRING(pStream, moduleName);
 
         if (!pStream->read(&trace.offset))
-          return false;
+          RETURN_ERROR;
 
         strncpy_s(trace.info.externalModule.moduleName, moduleName, sizeof(moduleName));
 
@@ -238,7 +238,7 @@ bool get_tracktrace_from_pdb(IN_OUT ByteStream *pStream, IN lt_pdb_context *pPdb
         uint8_t data[16];
 
         if (!pStream->read(data, 16))
-          return false;
+          RETURN_ERROR;
 
         if (pStackTrace->size() > 0 && pPdbContext->disasmAvailable)
         {
@@ -780,10 +780,12 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
 
         lt_error_data *pErrorData = get_error_data(pErrors, errorCode, strnlen(description, sizeof(description)) != 0, description, stackTraceLength > 0, stackTraceHash, &isNewEntry, &errorIndex);
 
-        if (pErrorData->error.hasStackTrace && pErrorData->error.stackTrace.size() == 0 && pPdbContext != nullptr)
+        if (pErrorData->error.hasStackTrace && pErrorData->error.stackTrace.size() == 0 && pPdbContext->pPdbSession != nullptr)
         {
-          if (!get_tracktrace_from_pdb(&stream, pPdbContext, &pErrorData->error.stackTrace))
-            return false;
+          ByteStream stackTraceStream(stackTraceData, stackTraceLength);
+
+          if (!get_tracktrace_from_pdb(&stackTraceStream, pPdbContext, &pErrorData->error.stackTrace))
+            RETURN_ERROR;
         }
 
         update_transition_data(&pErrorData->data, timestamp - cmpTimestamp);
@@ -1085,7 +1087,7 @@ int32_t main(void)
 
   int32_t argc = 0;
   wchar_t **pArgv = CommandLineToArgvW(commandLine, &argc);
-  FATAL_IF(argc < 4, "Invalid Parameter.\nUsage: [-io <LT Analyze File> | -o <New LT Analyze File>] [%s] [%s <PDB File>] [%s] <LT Log File> ... [%s <OUT Filename>]", _Option_IgnoreMinorVersionDiff, _Option_PDB, _Option_Disasm, _Option_Out);
+  FATAL_IF(argc < 4, "Invalid Parameter.\nUsage: [-io <LT Analyze File> | -o <New LT Analyze File>] [%s] [%s <PDB File> [%s]] <LT Log File> ... [%s <OUT Filename>]", _Option_IgnoreMinorVersionDiff, _Option_PDB, _Option_Disasm, _Option_Out);
 
   const wchar_t *outputFileName = pArgv[2];
   bool isNewFile = true;
