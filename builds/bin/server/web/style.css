@@ -178,15 +178,19 @@ p.DataDelayMax {
   font-family: Consolas, monospace;
 }
 
-p.Bar {
+p.Bar, p.BarError {
   width: calc(var(--value, 0) * 3pt);
   height: 10pt;
   color: #fff;
   background: linear-gradient(90deg, #1f61b3, #79dded);
   border-radius: 10pt;
-  padding: 0 5pt 5pt 5pt;
+  padding: 0 5pt 5pt 5pt !important;
   text-align: right;
   margin: 0 10pt 0 0;
+}
+
+div.ErrorBarContainer {
+  width: 320pt;
 }
 
 p.StartDelay::before {
@@ -297,4 +301,58 @@ p.HistMin {
 
 p.HistMax {
   float: right;
+}
+
+.ErrorDescription p, .ErrorDescription button, .ErrorDescription div {
+  display: inline-block;
+  padding: 2pt;
+}
+
+button.ErrorInfoShowButton {
+  background: #838383;
+  border: 1pt solid #d1d1d1;
+  padding: 2pt 5pt;
+  border-radius: 10pt;
+  margin: 0 5pt;
+  color: #fff;
+}
+
+.ErrorInfo {
+  display: none;
+}
+
+.StackTrace {
+  padding: 2pt 25pt;
+}
+
+.StackTraceElement p {
+  display: inline;
+  padding: 0 5pt 0 0;
+  font-family: "Consolas", monospace;
+  color: #888;
+}
+
+p.StackTraceElementFunctionName {
+  color: #6cdfb4;
+  border-radius: 2pt;
+  padding: 1pt 3pt;
+  user-select: all;
+}
+
+p.StackTraceElementFile, p.StackTraceElementLine {
+  font-family: 'Segoe UI', sans-serif;
+  user-select: all;
+  color: #999;
+}
+
+p.StackTraceElementModule {
+  color: #7ba195;
+  background: #3c5242;
+  border-radius: 2pt;
+  padding: 1pt;
+  margin: 0 2pt 0 0;
+}
+
+p.StackTraceElementOffset {
+  color: #555;
 }

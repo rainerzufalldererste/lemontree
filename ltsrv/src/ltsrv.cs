@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using LamestWebserver;
 using LamestWebserver.UI;
+using LamestWebserver.JScriptBuilder;
 using LamestWebserver.Core;
 using LamestWebserver.Serialization;
 using System.IO;
@@ -231,15 +232,20 @@ public class SubSystemInfo : ElementResponse
 
     yield return new HHeadline("States", 2);
 
-    foreach (var x in analysis.subSystems.FindItem((uint64_t)subSystem).states)
+    var s = analysis.subSystems.FindItem((uint64_t)subSystem);
+
+    foreach (var x in s.states)
       yield return new HLink(info.GetStateName((uint64_t)subSystem, x.index.state, x.index.subState), $"/state?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&ss={subSystem}&id={x.index.state}&sid={x.index.subState}") { Class = "Button" };
 
     yield return new HHeadline("Operations", 2);
 
-    foreach (var x in analysis.subSystems.FindItem((uint64_t)subSystem).operations)
+    foreach (var x in s.operations)
       yield return new HLink(info.GetOperationName((uint64_t)subSystem, x.index), $"/p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&ss={subSystem}&id={x.index}") { Class = "Button" };
 
-    yield return analysis.ToHistorgramChart((uint64_t)subSystem, analysis.subSystems[(int)subSystem].value.profileData, "Performance", info);
+    yield return analysis.ToErrorChart((uint64_t)subSystem, s.noStateErrors, "Errors not attributable to a state", info);
+    yield return analysis.ToErrorChart((uint64_t)subSystem, s.noStateWarnings, "Warnings not attributable to a state", info);
+
+    yield return analysis.ToHistorgramChart((uint64_t)subSystem, s.profileData, "Performance", info);
   }
 }
 
@@ -278,6 +284,10 @@ public class StateInfo : ElementResponse
     yield return analysis.ToPieChart((uint64_t)subSystem, s.operations, "Operations", info);
     yield return analysis.ToPieChart((uint64_t)subSystem, s.previousOperation, "Previous Operation", info);
     yield return analysis.ToHistorgramChart((uint64_t)subSystem, s.profileData, "Performance", info);
+
+    yield return analysis.ToErrorChart((uint64_t)subSystem, s.errors, "Errors", info);
+    yield return analysis.ToErrorChart((uint64_t)subSystem, s.warnings, "Warnings", info);
+
     yield return analysis.ToBarGraph((uint64_t)subSystem, s.stateReach, "State Reach", info);
     yield return analysis.ToBarGraph((uint64_t)subSystem, s.operationReach, "Operation Reach", info);
   }
@@ -318,6 +328,9 @@ public class OperationInfo : ElementResponse
     yield return analysis.ToPieChart((uint64_t)subSystem, s.parentState, "Parent State", info);
     yield return analysis.ToPieChart((uint64_t)subSystem, s.nextState, "Next State", info);
     yield return analysis.ToPieChart((uint64_t)subSystem, s.lastOperation, "Previous Operation", info);
+
+    yield return analysis.ToErrorChart((uint64_t)subSystem, s.errors, "Errors", info, true);
+    yield return analysis.ToErrorChart((uint64_t)subSystem, s.warnings, "Warnings", info, false);
   }
 }
 
@@ -592,120 +605,11 @@ public struct int64_t : IEquatable<int64_t>, IComparable<int64_t>
   public int CompareTo(int64_t other) => value.CompareTo(other.value);
 }
 
-public class SubStateData
-{
-  public List<Ref<StateId, State>> states;
-  public List<Ref<uint64_t, Operation>> operations;
-  public List<ProfileData> profileData;
-  public List<Error> noStateErrors, noStateWarnings;
-}
-
-public struct StackTrace
-{
-  public uint64_t offset;
-
-  public string function;
-  public string file;
-  public uint? line;
-
-  public string module;
-}
-
-public struct Error
-{
-  public uint64_t errorCode;
-  public string description;
-  public List<StackTrace> stackTrace;
-}
-
-public struct ErrorId
-{
-  public uint64_t errorIndex;
-  public StateId? state;
-}
-
-public struct ValueCount<T>
-{
-  public T value;
-  public uint64_t count;
-}
-
-public class GlobalExactValueData<T>
-{
-  public uint64_t count;
-  public List<ValueCount<T>> values;
-}
-
-public class ExactValueData<T> : GlobalExactValueData<T>
-{
-  public TransitionData data;
-}
-
-public class ExactValueDataWithAverage<T> : ExactValueData<T>
-{
-  public double average;
-  public T min, max;
-}
-
-public class GlobalExactValueDataWithAverage<T> : GlobalExactValueData<T>
-{
-  public double average;
-  public T min, max;
-}
-
-public class GlobalValueRange<T>
-{
-  public double average;
-  public T min, max;
-  public uint64_t count;
-  public uint64_t[] histogram;
-}
-
-public class ValueRange<T> : GlobalValueRange<T>
-{
-  public TransitionData data;
-}
-
-public class PerfValueRange<T> : ValueRange<T>
-{
-  public HardwareInfoShort minInfo, maxInfo;
-}
-
-public struct Size2<T>
-{
-  public T x, y;
-
-  public override string ToString()
-  {
-    return $"{x} x {y}";
-  }
-}
-
-public struct HardwareInfo
-{
-  public GlobalExactValueData<string> cpu;
-  public GlobalExactValueDataWithAverage<uint> cpuCores;
-  public GlobalValueRange<double> totalPhysicalRam, totalVirtualRam, availablePhysicalRam, availableVirtualRam;
-  public GlobalExactValueData<string> os;
-  public GlobalValueRange<double> gpuDedicatedVRam, gpuSharedVRam, gpuTotalVRam, gpuFreeVRam;
-  public GlobalExactValueData<uint> gpuVendorId;
-  public GlobalExactValueData<string> gpu;
-  public GlobalExactValueData<string> primaryLanguage;
-  public GlobalExactValueData<bool> isElevated;
-  public GlobalExactValueDataWithAverage<uint64_t> monitorCount;
-  public GlobalExactValueData<Size2<uint>> monitorSize;
-  public GlobalExactValueData<Size2<uint>> totalMonitorSize;
-  public GlobalExactValueDataWithAverage<uint> monitorDpi;
-  public GlobalValueRange<double> availableStorage, totalStorage;
-  public GlobalExactValueData<string> deviceManufacturer;
-  public GlobalExactValueData<string> deviceManufacturerModel;
-}
-
 public class Analysis
 {
   public string productName;
   public uint64_t majorVersion, minorVersion;
-  public List<Ref<uint64_t, SubStateData>> subSystems;
+  public List<Ref<uint64_t, SubSystemData>> subSystems;
   public HardwareInfo hwInfo;
 
   public List<Ref<uint64_t, ExactValueDataWithAverage<uint64_t>>> observedU64;
@@ -1138,6 +1042,225 @@ public class Analysis
 
     return ret;
   }
+
+  private static void AppendErrorData(HContainer container, ulong maxCount, Error e, TransitionData t)
+  {
+    double percentage = ((double)t.count.value / (double)maxCount) * 100.0;
+
+    var errorInfo = new HContainer() { ID = Hash.GetHash(), Class = "ErrorInfo" };
+
+    container.AddElement(new HContainer() { Class = "ErrorDescription", Elements = { new HContainer() { Class = "ErrorBarContainer", Elements = { new HText($"{t.count}") { Class = "BarError", Style = $"--value:{percentage};", Title = t.count.ToString() } } }, new HText(e.errorCode.ToString()) { Name = e.description ?? "" }, new HButton("+", "", $"document.getElementById(\"{errorInfo.ID}\").style.display = \"block\";") { Class = "ErrorInfoShowButton" }, new HContainer() { Elements = { new HText($"{t.avgDelay:0.####}s") { Class = "DataDelay" }, new HText($"{t.minDelay:0.####}s") { Class = "DataDelayMin" }, new HText($"{t.maxDelay:0.####}s") { Class = "DataDelayMax" } } } } });
+
+    container.AddElement(errorInfo);
+
+    if (!string.IsNullOrWhiteSpace(e.description))
+      errorInfo.AddElement(new HText(e.description) { Class = "ErrorDescriptionText" });
+
+    if (e.stackTrace != null)
+    {
+      var stackTrace = new HContainer() { Class = "StackTrace" };
+      errorInfo.AddElement(stackTrace);
+
+      foreach (var s in e.stackTrace)
+      {
+        var element = new HContainer() { Class = "StackTraceElement" };
+        stackTrace.Elements.Add(element);
+
+        if (!string.IsNullOrWhiteSpace(s.module))
+          element.AddElement(new HText(s.module) { Class = "StackTraceElementModule" });
+
+        if (!string.IsNullOrWhiteSpace(s.function))
+          element.AddElement(new HText(s.function) { Class = "StackTraceElementFunctionName" });
+
+        if (!string.IsNullOrWhiteSpace(s.file))
+        {
+          element.AddElement(new HText(s.file) { Class = "StackTraceElementFile" });
+
+          if (s.line.HasValue)
+            element.AddElement(new HText(s.line.Value.ToString()) { Class = "StackTraceElementLine" });
+        }
+
+        element.AddElement(new HText($"0x{s.offset:X}") { Class = "StackTraceElementOffset" });
+      }
+    }
+  }
+
+  internal HElement ToErrorChart(uint64_t subSystem, List<ErrorData> data, string name, Info info)
+  {
+    if (data.Count == 0)
+      return new HContainer() { Class = "NoData", Elements = { new HText($"No '{name}' Data Available.") } };
+
+    var ret = new HContainer() { Class = "DataInfo", Elements = { new HHeadline(name) } };
+
+    ulong max = 0;
+
+    foreach (var x in data)
+      if (max < x.data.count)
+        max = x.data.count;
+
+    foreach (var x in data)
+      AppendErrorData(ret, max, x.error, x.data);
+
+    return ret;
+  }
+
+  internal HElement ToErrorChart(uint64_t subSystem, List<Ref<ErrorId, TransitionData>> data, string name, Info info, bool isErrorNotWarningsList)
+  {
+    if (data.Count == 0)
+      return new HContainer() { Class = "NoData", Elements = { new HText($"No '{name}' Data Available.") } };
+
+    var ret = new HContainer() { Class = "DataInfo", Elements = { new HHeadline(name) } };
+
+    SubSystemData subSys = this.subSystems.FindItem(subSystem);
+    List<Tuple<Error, TransitionData>> errors = new List<Tuple<Error, TransitionData>>();
+    ulong max = 0;
+
+    foreach (var x in data)
+    {
+      if (max < x.value.count)
+        max = x.value.count;
+
+      Error e;
+
+      if (x.index.state.HasValue)
+      {
+        if (isErrorNotWarningsList)
+          e = subSys.states.FindItem(x.index.state.Value).errors[(int)x.index.errorIndex.value].error;
+        else
+          e = subSys.states.FindItem(x.index.state.Value).warnings[(int)x.index.errorIndex.value].error;
+      }
+      else
+      {
+        if (isErrorNotWarningsList)
+          e = subSys.noStateErrors[(int)x.index.errorIndex.value].error;
+        else
+          e = subSys.noStateWarnings[(int)x.index.errorIndex.value].error;
+      }
+
+      errors.Add(Tuple.Create(e, x.value));
+    }
+
+    foreach (var x in errors)
+      AppendErrorData(ret, max, x.Item1, x.Item2);
+
+    return ret;
+
+  }
+}
+
+public class SubSystemData
+{
+  public List<Ref<StateId, State>> states;
+  public List<Ref<uint64_t, Operation>> operations;
+  public List<ProfileData> profileData;
+  public List<ErrorData> noStateErrors, noStateWarnings;
+}
+
+public struct StackTrace
+{
+  public uint64_t offset;
+
+  public string function;
+  public string file;
+  public uint? line;
+
+  public string module;
+}
+
+public class Error
+{
+  public uint64_t errorCode;
+  public string description;
+  public List<StackTrace> stackTrace;
+}
+
+public struct ErrorData
+{
+  public Error error;
+  public TransitionData data;
+}
+
+public struct ErrorId
+{
+  public uint64_t errorIndex;
+  public StateId? state;
+}
+
+public struct ValueCount<T>
+{
+  public T value;
+  public uint64_t count;
+}
+
+public class GlobalExactValueData<T>
+{
+  public uint64_t count;
+  public List<ValueCount<T>> values;
+}
+
+public class ExactValueData<T> : GlobalExactValueData<T>
+{
+  public TransitionData data;
+}
+
+public class ExactValueDataWithAverage<T> : ExactValueData<T>
+{
+  public double average;
+  public T min, max;
+}
+
+public class GlobalExactValueDataWithAverage<T> : GlobalExactValueData<T>
+{
+  public double average;
+  public T min, max;
+}
+
+public class GlobalValueRange<T>
+{
+  public double average;
+  public T min, max;
+  public uint64_t count;
+  public uint64_t[] histogram;
+}
+
+public class ValueRange<T> : GlobalValueRange<T>
+{
+  public TransitionData data;
+}
+
+public class PerfValueRange<T> : ValueRange<T>
+{
+  public HardwareInfoShort minInfo, maxInfo;
+}
+
+public struct Size2<T>
+{
+  public T x, y;
+
+  public override string ToString()
+  {
+    return $"{x} x {y}";
+  }
+}
+
+public struct HardwareInfo
+{
+  public GlobalExactValueData<string> cpu;
+  public GlobalExactValueDataWithAverage<uint> cpuCores;
+  public GlobalValueRange<double> totalPhysicalRam, totalVirtualRam, availablePhysicalRam, availableVirtualRam;
+  public GlobalExactValueData<string> os;
+  public GlobalValueRange<double> gpuDedicatedVRam, gpuSharedVRam, gpuTotalVRam, gpuFreeVRam;
+  public GlobalExactValueData<uint> gpuVendorId;
+  public GlobalExactValueData<string> gpu;
+  public GlobalExactValueData<string> primaryLanguage;
+  public GlobalExactValueData<bool> isElevated;
+  public GlobalExactValueDataWithAverage<uint64_t> monitorCount;
+  public GlobalExactValueData<Size2<uint>> monitorSize;
+  public GlobalExactValueData<Size2<uint>> totalMonitorSize;
+  public GlobalExactValueDataWithAverage<uint> monitorDpi;
+  public GlobalValueRange<double> availableStorage, totalStorage;
+  public GlobalExactValueData<string> deviceManufacturer;
+  public GlobalExactValueData<string> deviceManufacturerModel;
 }
 
 public class Ref<Index, Value>
@@ -1214,7 +1337,7 @@ public class State : TransitionDataWithDelay
   public List<Ref<StateId, TransitionData>> stateReach;
   public List<Ref<uint64_t, TransitionData>> operationReach;
   public List<ProfileData> profileData;
-  public List<Error> errors, warnings;
+  public List<ErrorData> errors, warnings;
 }
 
 public class Operation : TransitionDataWithDelay
