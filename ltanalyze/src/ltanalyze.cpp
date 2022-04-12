@@ -83,15 +83,15 @@ struct lt_pdb_context
   ZydisFormatter disasmFormatter;
 };
 
-bool get_tracktrace_from_pdb(IN_OUT ByteStream *pStream, OUT lt_error_data *pErrorData, IN lt_pdb_context *pPdbContext)
+bool get_tracktrace_from_pdb(IN_OUT ByteStream *pStream, IN lt_pdb_context *pPdbContext, OUT std::vector<lt_stack_trace> *pStackTrace)
 {
-  std::string out;
+  pStackTrace->clear();
 
   // Print Stacktraces.
   {
     uint8_t u8;
     uint32_t u32;
-    
+
     if (!pStream->read(&u8))
       return false;
 
@@ -101,193 +101,181 @@ bool get_tracktrace_from_pdb(IN_OUT ByteStream *pStream, OUT lt_error_data *pErr
     if (!pStream->read(&u32)) // hash.
       return false;
 
-      out = "[";
+    char moduleName[256] = "<Invalid Module>";
 
-      char moduleName[256] = "<Invalid Module>";
-      uint64_t offset = 0;
-      bool isFirstElement = true;
+    while (true)
+    {
+      lt_stack_trace trace = {};
 
-      while (true)
+      uint8_t type;
+
+      if (!pStream->read(&type))
+        return false;
+
+      bool end = false;
+
+      switch (type)
       {
-        uint8_t type;
+      default:
+      {
+        return false; // Invalid Type.
+        break;
+      }
 
-        if (!pStream->read(&type))
+      case lt_st_end:
+      {
+        end = true;
+        break;
+      }
+
+      case lt_st_app_offset:
+      {
+        trace.stackTraceType = lt_stt_internal_offset;
+
+        if (!pStream->read(&trace.offset))
           return false;
 
-        bool end = false;
+        CComPtr<IDiaEnumLineNumbers> lineNumEnum;
+        CComPtr<IDiaSymbol> symbol;
 
-        switch (type)
+        wchar_t *symbolName = nullptr;
+
+        if (SUCCEEDED(pPdbContext->pPdbSession->findSymbolByVA(trace.offset, SymTagFunction, &symbol)) && symbol != nullptr && ((SUCCEEDED(symbol->get_undecoratedName(&symbolName)) && symbolName != nullptr) || SUCCEEDED(symbol->get_name(&symbolName))))
         {
-        default:
-        {
-          return false; // Invalid Type.
-          break;
-        }
-
-        case lt_st_end:
-        {
-          end = true;
-          out += "]";
-          break;
-        }
-
-        case lt_st_app_offset:
-        {
-          if (!isFirstElement)
-            out += ",";
-
-          isFirstElement = false;
-
-          if (!pStream->read(&offset))
-            return false;
-
-          char buffer[0x1000];
-          sprintf_s(buffer, "{\"offset\":\"0x%" PRIX64 "\"", offset);
-          out += buffer;
-
-          CComPtr<IDiaEnumLineNumbers> lineNumEnum;
-          CComPtr<IDiaSymbol> symbol;
-
-          wchar_t *symbolName = nullptr;
-
-          if (SUCCEEDED(pPdbContext->pPdbSession->findSymbolByVA(offset, SymTagFunction, &symbol)) && symbol != nullptr && ((SUCCEEDED(symbol->get_undecoratedName(&symbolName)) && symbolName != nullptr) || SUCCEEDED(symbol->get_name(&symbolName))))
+          if (0 < WideCharToMultiByte(CP_UTF8, 0, symbolName, (int32_t)wcslen(symbolName), trace.info.functionName.functionName, (int32_t)sizeof(trace.info.functionName.functionName), nullptr, false))
           {
-            out += ",\"function\":";
-            print_string_as_json(symbolName);
-          }
-
-          if (symbolName != nullptr)
-            SysFreeString(symbolName);
-
-          if (SUCCEEDED(pdbSession->findLinesByVA(offset, 1, &lineNumEnum)))
-          {
-            CComPtr<IDiaLineNumber> lineNumber;
-            ULONG fetched;
-
-            if (SUCCEEDED(lineNumEnum->Next(1, &lineNumber, &fetched)) && fetched != 0)
-            {
-              DWORD sourceFileId;
-
-              if (SUCCEEDED(lineNumber->get_sourceFileId(&sourceFileId)))
-              {
-                CComPtr<IDiaSourceFile> sourceFile;
-
-                if (SUCCEEDED(lineNumber->get_sourceFile(&sourceFile)))
-                {
-                  wchar_t *sourceFileName = nullptr;
-
-                  if (SUCCEEDED(sourceFile->get_fileName(&sourceFileName)))
-                  {
-                    fputs(",\"file\":", stdout);
-                    print_string_as_json(sourceFileName);
-
-                    DWORD line = 0;
-
-                    if (SUCCEEDED(lineNumber->get_lineNumber(&line)))
-                      printf(",\"line\":%" PRIu32 "", line);
-                  }
-
-                  if (sourceFileName != nullptr)
-                    SysFreeString(sourceFileName);
-                }
-              }
-            }
-          }
-
-          fputs("}", stdout);
-
-          break;
-        }
-
-        case lt_st_same_dll_offset:
-        {
-          offset = *reinterpret_cast<const uint64_t *>(pStackTraces);
-          pStackTraces += sizeof(uint64_t);
-
-          if (!isFirstElement)
-            out += ",";
-
-          isFirstElement = false;
-
-          printf("{\"offset\":\"0x%" PRIX64 "\",\"module\":", offset);
-          print_string_as_json(moduleName);
-          fputs("}", stdout);
-
-          break;
-        }
-
-        case lt_st_dll_offset:
-        {
-          const uint8_t count = *pStackTraces;
-          pStackTraces++;
-
-          memcpy(moduleName, pStackTraces, count);
-          pStackTraces += count;
-          moduleName[(size_t)count] = '\0';
-
-          offset = *reinterpret_cast<const uint64_t *>(pStackTraces);
-          pStackTraces += sizeof(uint64_t);
-
-          if (!isFirstElement)
-            out += ",";
-
-          isFirstElement = false;
-
-          printf("{\"offset\":\"0x%" PRIX64 "\",\"module\":", offset);
-          print_string_as_json(moduleName);
-          fputs("}", stdout);
-
-          break;
-        }
-
-        case lt_st_data16:
-        {
-          if (!isFirstElement)
-            out += ",";
-
-          isFirstElement = false;
-
-          fputs("{\"is_disasm\":1,\"data\":\"", stdout);
-
-          for (size_t i = 0; i < 16; i++)
-            printf("%02" PRIX8 "", pStackTraces[i]);
-
-          fputs("\"", stdout);
-
-          if (disasmAvailable)
-          {
-            ZydisDecodedInstruction instruction;
-            char disasmBuffer[256] = {};
-
-            if (ZYAN_SUCCESS(ZydisDecoderDecodeBuffer(&disasmDecoder, pStackTraces, 16, &instruction)) && ZYAN_SUCCESS(ZydisFormatterFormatInstruction(&disasmFormatter, &instruction, disasmBuffer, sizeof(disasmBuffer), offset)))
-            {
-              fputs(",\"disasm\":", stdout);
-              print_string_as_json(disasmBuffer);
-              fputs("}", stdout);
-            }
-            else
-            {
-              fputs(",\"error\":\"disasm_failed\"}", stdout);
-            }
+            trace.stackTraceType = lt_stt_function_name;
           }
           else
           {
-            fputs(",\"error\":\"disasm_not_available\"}", stdout);
+            trace.info.functionName.functionName[0] = '\0';
           }
-
-          pStackTraces += 16;
-
-          break;
-        }
         }
 
-        if (end)
-          break;
+        if (symbolName != nullptr)
+          SysFreeString(symbolName);
+
+        if (SUCCEEDED(pPdbContext->pPdbSession->findLinesByVA(trace.offset, 1, &lineNumEnum)))
+        {
+          CComPtr<IDiaLineNumber> lineNumber;
+          ULONG fetched;
+
+          if (SUCCEEDED(lineNumEnum->Next(1, &lineNumber, &fetched)) && fetched != 0)
+          {
+            DWORD sourceFileId;
+
+            if (SUCCEEDED(lineNumber->get_sourceFileId(&sourceFileId)))
+            {
+              CComPtr<IDiaSourceFile> sourceFile;
+
+              if (SUCCEEDED(lineNumber->get_sourceFile(&sourceFile)))
+              {
+                wchar_t *sourceFileName = nullptr;
+
+                if (SUCCEEDED(sourceFile->get_fileName(&sourceFileName)))
+                {
+                  if (0 < WideCharToMultiByte(CP_UTF8, 0, sourceFileName, (int32_t)wcslen(sourceFileName), trace.info.functionName.file, (int32_t)sizeof(trace.info.functionName.file), nullptr, false))
+                  {
+                    trace.stackTraceType = lt_stt_function_name;
+                  }
+                  else
+                  {
+                    trace.info.functionName.file[0] = '\0';
+                  }
+
+                  DWORD line;
+
+                  if (SUCCEEDED(lineNumber->get_lineNumber(&line)))
+                    trace.info.functionName.line = (uint32_t)line;
+                  else
+                    trace.info.functionName.line = 0;
+                }
+
+                if (sourceFileName != nullptr)
+                  SysFreeString(sourceFileName);
+              }
+            }
+          }
+        }
+
+        pStackTrace->emplace_back(std::move(trace));
+
+        break;
       }
-    }
 
-    fputs("]}", stdout);
+      case lt_st_same_dll_offset:
+      {
+        trace.stackTraceType = lt_stt_external_module;
+
+        if (!pStream->read(&trace.offset))
+          return false;
+
+        strncpy_s(trace.info.externalModule.moduleName, moduleName, sizeof(moduleName));
+
+        pStackTrace->emplace_back(std::move(trace));
+
+        break;
+      }
+
+      case lt_st_dll_offset:
+      {
+        trace.stackTraceType = lt_stt_external_module;
+
+        READ_STRING(pStream, moduleName);
+
+        if (!pStream->read(&trace.offset))
+          return false;
+
+        strncpy_s(trace.info.externalModule.moduleName, moduleName, sizeof(moduleName));
+
+        pStackTrace->emplace_back(std::move(trace));
+
+        break;
+      }
+
+      case lt_st_data16:
+      {
+        uint8_t data[16];
+
+        if (!pStream->read(data, 16))
+          return false;
+
+        if (pStackTrace->size() > 0 && pPdbContext->disasmAvailable)
+        {
+          lt_stack_trace *pTrace = &pStackTrace->back();
+
+          ZydisDecodedInstruction instruction;
+
+          if (ZYAN_SUCCESS(ZydisDecoderDecodeBuffer(&pPdbContext->disasmDecoder, data, 16, &instruction)) && ZYAN_SUCCESS(ZydisFormatterFormatInstruction(&pPdbContext->disasmFormatter, &instruction, pTrace->disasm, sizeof(pTrace->disasm), pTrace->offset)))
+          {
+            pTrace->hasDisasm = true;
+          }
+          else
+          {
+            char lut[] = "0123456789ABCDEF";
+
+            for (size_t i = 0; i < 16; i++)
+            {
+              pTrace->disasm[i * 3 + 0] = lut[data[i] >> 4];
+              pTrace->disasm[i * 3 + 1] = lut[data[i] & 0xF];
+              pTrace->disasm[i * 3 + 2] = ' ';
+            }
+
+            pTrace->disasm[15 * 3 + 2] = '\0';
+            pTrace->hasDisasm = true;
+          }
+        }
+
+        break;
+      }
+      }
+
+      if (end)
+        break;
+    }
   }
+
+  return true;
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -782,9 +770,9 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
         }
         else
         {
-          lt_sub_system_data *pSubSystem = get_sub_system_data(pAnalyze, subSystem);
+          lt_sub_system_data *pSubSystemData = get_sub_system_data(pAnalyze, subSystem);
 
-          pErrors = type == lt_t_error ? &pSubSystem->noStateErrors : &pSubSystem->noStateWarnings;
+          pErrors = type == lt_t_error ? &pSubSystemData->noStateErrors : &pSubSystemData->noStateWarnings;
         }
 
         uint64_t errorIndex;
@@ -794,9 +782,8 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
 
         if (pErrorData->error.hasStackTrace && pErrorData->error.stackTrace.size() == 0 && pPdbContext != nullptr)
         {
-          // TODO: Fill Stack Trace from PDB.
-          !!!!!!!!!!!!!!!!!!!!!!!!!
-            get_tracktrace_from_pdb
+          if (!get_tracktrace_from_pdb(&stream, pPdbContext, &pErrorData->error.stackTrace))
+            return false;
         }
 
         update_transition_data(&pErrorData->data, timestamp - cmpTimestamp);
@@ -804,7 +791,7 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
         if (pSubSystem->hasLastOperation)
         {
           lt_operation *pOp = get_operation(pAnalyze, subSystem, pSubSystem->lastOperation.operationType);
-          SoaList<lt_error_identifier, lt_transition_data> *pErrors = type == lt_t_error ? &pOp->errors : &pOp->warnings;
+          SoaList<lt_error_identifier, lt_transition_data> *pErrorTransitionData = type == lt_t_error ? &pOp->errors : &pOp->warnings;
 
           lt_error_identifier idx;
           idx.errorIndex = errorIndex;
@@ -813,7 +800,7 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
           if (pSubSystem->hasLastState)
             idx.state = pSubSystem->lastState;
 
-          update_transition_data(get_transition_data(pErrors, &idx), timestamp - pSubSystem->lastOperationTimestamp);
+          update_transition_data(get_transition_data(pErrorTransitionData, &idx), timestamp - pSubSystem->lastOperationTimestamp);
         }
 
         break;

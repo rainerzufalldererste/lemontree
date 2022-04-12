@@ -37,7 +37,7 @@
 
 enum
 {
-  lt_analyze_file_version = 5,
+  lt_analyze_file_version = 6,
 };
 
 inline bool deserialize(OUT uint8_t *pValue, IN ByteStream *pStream, const uint32_t /* version */)
@@ -655,6 +655,15 @@ inline bool deserialize(OUT lt_state *pValue, IN ByteStream *pStream, const uint
     if (!deserialize(&pValue->profilerData, pStream, version))
       return false;
 
+  if (version >= 6)
+  {
+    if (!deserialize(&pValue->errors, pStream, version))
+      return false;
+
+    if (!deserialize(&pValue->warnings, pStream, version))
+      return false;
+  }
+
   return true;
 }
 
@@ -684,6 +693,12 @@ inline bool serialize(IN const lt_state *pValue, IN StreamWriter *pStream)
     return false;
 
   if (!serialize(&pValue->profilerData, pStream))
+    return false;
+
+  if (!serialize(&pValue->errors, pStream))
+    return false;
+
+  if (!serialize(&pValue->warnings, pStream))
     return false;
 
   return true;
@@ -734,6 +749,16 @@ inline bool jsonify(IN const lt_state *pValue, IN JsonWriter *pWriter)
   if (!jsonify(&pValue->profilerData, pWriter))
     return false;
 
+  pWriter->write_name("errors");
+
+  if (!jsonify(&pValue->errors, pWriter))
+    return false;
+
+  pWriter->write_name("warnings");
+
+  if (!jsonify(&pValue->warnings, pWriter))
+    return false;
+
   pWriter->end();
 
   return true;
@@ -761,6 +786,15 @@ inline bool deserialize(OUT lt_operation *pValue, IN ByteStream *pStream, const 
   if (!deserialize(&pValue->nextOperation, pStream, version))
     return false;
 
+  if (version >= 6)
+  {
+    if (!deserialize(&pValue->errors, pStream, version))
+      return false;
+
+    if (!deserialize(&pValue->warnings, pStream, version))
+      return false;
+  }
+
   return true;
 }
 
@@ -784,6 +818,12 @@ inline bool serialize(IN const lt_operation *pValue, IN StreamWriter *pStream)
     return false;
 
   if (!serialize(&pValue->nextOperation, pStream))
+    return false;
+
+  if (!serialize(&pValue->errors, pStream))
+    return false;
+
+  if (!serialize(&pValue->warnings, pStream))
     return false;
 
   return true;
@@ -824,6 +864,16 @@ inline bool jsonify(IN const lt_operation *pValue, IN JsonWriter *pWriter)
   if (!jsonify(&pValue->nextOperation, pWriter))
     return false;
 
+  pWriter->write_name("errors");
+
+  if (!jsonify(&pValue->errors, pWriter))
+    return false;
+
+  pWriter->write_name("warnings");
+
+  if (!jsonify(&pValue->warnings, pWriter))
+    return false;
+
   pWriter->end();
 
   return true;
@@ -840,6 +890,15 @@ inline bool deserialize(OUT lt_sub_system_data *pData, IN ByteStream *pStream, c
   if (!deserialize(&pData->profilerData, pStream, version))
     return false;
 
+  if (version >= 6)
+  {
+    if (!deserialize(&pData->noStateErrors, pStream, version))
+      return false;
+
+    if (!deserialize(&pData->noStateWarnings, pStream, version))
+      return false;
+  }
+
   return true;
 }
 
@@ -852,6 +911,12 @@ inline bool serialize(IN const lt_sub_system_data *pData, IN StreamWriter *pStre
     return false;
 
   if (!serialize(&pData->profilerData, pStream))
+    return false;
+
+  if (!serialize(&pData->noStateErrors, pStream))
+    return false;
+
+  if (!serialize(&pData->noStateWarnings, pStream))
     return false;
 
   return true;
@@ -875,6 +940,304 @@ inline bool jsonify(IN const lt_sub_system_data *pValue, IN JsonWriter *pWriter)
 
   if (!jsonify(&pValue->profilerData, pWriter))
     return false;
+
+  pWriter->write_name("noStateErrors");
+
+  if (!jsonify(&pValue->noStateErrors, pWriter))
+    return false;
+
+  pWriter->write_name("noStateWarnings");
+
+  if (!jsonify(&pValue->noStateWarnings, pWriter))
+    return false;
+
+  pWriter->end();
+
+  return true;
+}
+
+inline bool deserialize(OUT lt_stack_trace *pData, IN ByteStream *pStream, const uint32_t version)
+{
+  if (version < 6)
+    return false;
+
+  READ(pStream, pData->stackTraceType);
+  READ(pStream, pData->offset);
+
+  switch (pData->stackTraceType)
+  {
+  case lt_stt_internal_offset:
+  {
+    break;
+  }
+
+  case lt_stt_external_module:
+  {
+    READ_STRING(pStream, pData->info.externalModule.moduleName);
+    
+    break;
+  }
+
+  case lt_stt_function_name:
+  {
+    READ_STRING(pStream, pData->info.functionName.functionName);
+    READ_STRING(pStream, pData->info.functionName.file);
+    READ(pStream, pData->info.functionName.line);
+
+    break;
+  }
+
+  default:
+    return false;
+  }
+
+  READ(pStream, pData->hasDisasm);
+
+  if (pData->hasDisasm)
+    READ_STRING(pStream, pData->disasm);
+
+  return true;
+}
+
+inline bool serialize(IN const lt_stack_trace *pData, IN StreamWriter *pStream)
+{
+  WRITE(pStream, pData->stackTraceType);
+  WRITE(pStream, pData->offset);
+
+  switch (pData->stackTraceType)
+  {
+  case lt_stt_internal_offset:
+  {
+    break;
+  }
+
+  case lt_stt_external_module:
+  {
+    WRITE_STRING(pStream, pData->info.externalModule.moduleName);
+
+    break;
+  }
+
+  case lt_stt_function_name:
+  {
+    WRITE_STRING(pStream, pData->info.functionName.functionName);
+    WRITE_STRING(pStream, pData->info.functionName.file);
+    WRITE(pStream, pData->info.functionName.line);
+
+    break;
+  }
+
+  default:
+    return false;
+  }
+
+  WRITE(pStream, pData->hasDisasm);
+
+  if (pData->hasDisasm)
+    WRITE_STRING(pStream, pData->disasm);
+
+  return true;
+}
+
+inline bool jsonify(IN const lt_stack_trace *pData, IN JsonWriter *pWriter)
+{
+  pWriter->begin_body();
+
+  pWriter->write("offset", pData->offset);
+
+  switch (pData->stackTraceType)
+  {
+  case lt_stt_internal_offset:
+  {
+    break;
+  }
+
+  case lt_stt_external_module:
+  {
+    pWriter->write("module", pData->info.externalModule.moduleName);
+
+    break;
+  }
+
+  case lt_stt_function_name:
+  {
+    if (pData->info.functionName.functionName[0] == '\0')
+      pWriter->write("function", pData->info.functionName.functionName);
+    
+    if (pData->info.functionName.file[0] == '\0')
+      pWriter->write("file", pData->info.functionName.file);
+    
+    if (pData->info.functionName.line != 0)
+      pWriter->write("line", pData->info.functionName.line);
+
+    break;
+  }
+
+  default:
+    return false;
+  }
+
+  if (pData->hasDisasm)
+    pWriter->write("disassembly", pData->disasm);
+
+  pWriter->end();
+
+  return true;
+}
+
+inline bool deserialize(OUT lt_error *pData, IN ByteStream *pStream, const uint32_t version)
+{
+  if (version < 6)
+    return false;
+
+  READ(pStream, pData->errorCode);
+
+  READ(pStream, pData->hasDescription);
+  
+  if (pData->hasDescription)
+    READ_STRING(pStream, pData->description);
+
+  READ(pStream, pData->hasStackTrace);
+
+  if (pData->hasStackTrace)
+  {
+    READ(pStream, pData->stackTraceHash);
+
+    if (!deserialize(&pData->stackTrace, pStream, version))
+      return false;
+  }
+  
+  return true;
+}
+
+inline bool serialize(IN const lt_error *pData, IN StreamWriter *pStream)
+{
+  WRITE(pStream, pData->errorCode);
+
+  WRITE(pStream, pData->hasDescription);
+
+  if (pData->hasDescription)
+    WRITE_STRING(pStream, pData->description);
+
+  WRITE(pStream, pData->hasStackTrace);
+
+  if (pData->hasStackTrace)
+  {
+    WRITE(pStream, pData->stackTraceHash);
+
+    if (!serialize(&pData->stackTrace, pStream))
+      return false;
+  }
+
+  return true;
+}
+
+inline bool jsonify(IN const lt_error *pData, IN JsonWriter *pWriter)
+{
+  pWriter->begin_body();
+
+  pWriter->write("errorCode", pData->errorCode);
+
+  if (pData->hasDescription)
+    pWriter->write("description", pData->description);
+
+  if (pData->hasStackTrace && pData->stackTrace.size() > 0)
+  {
+    pWriter->write_name("stackTrace");
+
+    if (!jsonify(&pData->stackTrace, pWriter))
+      return false;
+  }
+
+  pWriter->end();
+
+  return true;
+}
+
+inline bool deserialize(OUT lt_error_data *pData, IN ByteStream *pStream, const uint32_t version)
+{
+  if (version < 6)
+    return false;
+
+  if (!deserialize(&pData->error, pStream, version))
+    return false;
+
+  if (!deserialize(&pData->data, pStream, version))
+    return false;
+
+  return true;
+}
+
+inline bool serialize(IN const lt_error_data *pData, IN StreamWriter *pStream)
+{
+  if (!serialize(&pData->error, pStream))
+    return false;
+
+  if (!serialize(&pData->data, pStream))
+    return false;
+
+  return true;
+}
+
+inline bool jsonify(IN const lt_error_data *pValue, IN JsonWriter *pWriter)
+{
+  pWriter->begin_body();
+
+  pWriter->write_name("error");
+
+  if (!jsonify(&pValue->error, pWriter))
+    return false;
+
+  pWriter->write_name("data");
+
+  if (!jsonify(&pValue->data, pWriter))
+    return false;
+
+  pWriter->end();
+
+  return true;
+}
+
+inline bool deserialize(OUT lt_error_identifier *pData, IN ByteStream *pStream, const uint32_t version)
+{
+  if (version < 6)
+    return false;
+
+  READ(pStream, pData->errorIndex);
+  READ(pStream, pData->hasStateIndex);
+
+  if (pData->hasStateIndex)
+    if (!deserialize(&pData->state, pStream, version))
+      return false;
+
+  return true;
+}
+
+inline bool serialize(IN const lt_error_identifier *pData, IN StreamWriter *pStream)
+{
+  WRITE(pStream, pData->errorIndex);
+  WRITE(pStream, pData->hasStateIndex);
+
+  if (pData->hasStateIndex)
+    if (!serialize(&pData->state, pStream))
+      return false;
+
+  return true;
+}
+
+inline bool jsonify(IN const lt_error_identifier *pData, IN JsonWriter *pWriter)
+{
+  pWriter->begin_body();
+
+  pWriter->write("errorIndex", pData->errorIndex);
+
+  if (pData->hasStateIndex)
+  {
+    pWriter->write_name("state");
+
+    if (!jsonify(&pData->state, pWriter))
+      return false;
+  }
 
   pWriter->end();
 

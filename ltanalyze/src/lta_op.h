@@ -149,7 +149,7 @@ inline lt_transition_data *get_transition_data(SoaList<lt_operation_identifier, 
 inline lt_transition_data *get_transition_data(SoaList<lt_error_identifier, lt_transition_data> *pList, const lt_error_identifier *pId)
 {
   for (size_t i = 0; i < pList->size(); i++)
-    if (pList->index[i].stateIndex == pId->stateIndex && pList->index[i].errorIndex == pId->errorIndex)
+    if (pList->index[i].hasStateIndex == pId->hasStateIndex && (!pId->hasStateIndex || (pList->index[i].state.stateIndex == pId->state.stateIndex && pList->index[i].state.subStateIndex == pId->state.subStateIndex)) && pList->index[i].errorIndex == pId->errorIndex)
       return &pList->value[i];
 
   pList->push_back(*pId, lt_transition_data());

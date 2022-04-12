@@ -245,15 +245,15 @@ struct lt_crash_ref
 
 enum lt_stack_trace_type : uint8_t
 {
-  lt_stt_ExternalModule,
-  lt_stt_InternalOffset,
-  lt_stt_FunctionName,
+  lt_stt_external_module,
+  lt_stt_internal_offset,
+  lt_stt_function_name,
 };
 
 struct lt_stack_trace
 {
   uint8_t stackTraceType;
-  uint32_t offset;
+  uint64_t offset;
 
   union
   {
@@ -287,7 +287,7 @@ struct lt_error
 
   bool hasStackTrace = false;
   uint32_t stackTraceHash;
-  std::string stackTrace;
+  std::vector<lt_stack_trace> stackTrace;
 };
 
 struct lt_error_data
