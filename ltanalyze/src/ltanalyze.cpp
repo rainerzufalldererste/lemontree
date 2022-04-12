@@ -297,7 +297,7 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
   // Read Telemetry File.
   {
     HANDLE file = CreateFileW(inputFileName, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
-    FATAL_IF(file == INVALID_HANDLE_VALUE, "Failed to open log file. (0x%" PRIX32 ")", GetLastError());
+    FATAL_IF(file == INVALID_HANDLE_VALUE, "Failed to open log file. ('%ws' / 0x%" PRIX32 ")", inputFileName, GetLastError());
 
     LARGE_INTEGER _fileSize;
     FATAL_IF(!GetFileSizeEx(file, &_fileSize), "Failed to retrieve file size.");
@@ -315,7 +315,7 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
       const DWORD bytesToRead = (DWORD)min(bytesRemaining, MAXDWORD);
       DWORD bytesRead = 0;
 
-      FATAL_IF(!ReadFile(file, pData + offset, bytesToRead, &bytesRead, nullptr), "Failed to read log file. (0x%" PRIX32 ")", GetLastError());
+      FATAL_IF(!ReadFile(file, pData + offset, bytesToRead, &bytesRead, nullptr), "Failed to read log file. ('%ws' / 0x%" PRIX32 ")", inputFileName, GetLastError());
       FATAL_IF(bytesRead == 0, "Failed to read from log file.");
 
       offset += bytesRead;

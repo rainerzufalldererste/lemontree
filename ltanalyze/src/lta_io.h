@@ -751,12 +751,12 @@ inline bool jsonify(IN const lt_state *pValue, IN JsonWriter *pWriter)
 
   pWriter->write_name("errors");
 
-  if (!jsonify(&pValue->errors, pWriter))
+  if (!jsonify(&pValue->errors.value, pWriter))
     return false;
 
   pWriter->write_name("warnings");
 
-  if (!jsonify(&pValue->warnings, pWriter))
+  if (!jsonify(&pValue->warnings.value, pWriter))
     return false;
 
   pWriter->end();
@@ -943,12 +943,12 @@ inline bool jsonify(IN const lt_sub_system_data *pValue, IN JsonWriter *pWriter)
 
   pWriter->write_name("noStateErrors");
 
-  if (!jsonify(&pValue->noStateErrors, pWriter))
+  if (!jsonify(&pValue->noStateErrors.value, pWriter))
     return false;
 
   pWriter->write_name("noStateWarnings");
 
-  if (!jsonify(&pValue->noStateWarnings, pWriter))
+  if (!jsonify(&pValue->noStateWarnings.value, pWriter))
     return false;
 
   pWriter->end();
@@ -1061,10 +1061,10 @@ inline bool jsonify(IN const lt_stack_trace *pData, IN JsonWriter *pWriter)
 
   case lt_stt_function_name:
   {
-    if (pData->info.functionName.functionName[0] == '\0')
+    if (pData->info.functionName.functionName[0] != '\0')
       pWriter->write("function", pData->info.functionName.functionName);
     
-    if (pData->info.functionName.file[0] == '\0')
+    if (pData->info.functionName.file[0] != '\0')
       pWriter->write("file", pData->info.functionName.file);
     
     if (pData->info.functionName.line != 0)

@@ -597,8 +597,32 @@ public class SubStateData
   public List<Ref<StateId, State>> states;
   public List<Ref<uint64_t, Operation>> operations;
   public List<ProfileData> profileData;
+  public List<Error> noStateErrors, noStateWarnings;
 }
 
+public struct StackTrace
+{
+  public uint64_t offset;
+
+  public string function;
+  public string file;
+  public uint? line;
+
+  public string module;
+}
+
+public struct Error
+{
+  public uint64_t errorCode;
+  public string description;
+  public List<StackTrace> stackTrace;
+}
+
+public struct ErrorId
+{
+  public uint64_t errorIndex;
+  public StateId? state;
+}
 
 public struct ValueCount<T>
 {
@@ -1190,6 +1214,7 @@ public class State : TransitionDataWithDelay
   public List<Ref<StateId, TransitionData>> stateReach;
   public List<Ref<uint64_t, TransitionData>> operationReach;
   public List<ProfileData> profileData;
+  public List<Error> errors, warnings;
 }
 
 public class Operation : TransitionDataWithDelay
@@ -1199,6 +1224,7 @@ public class Operation : TransitionDataWithDelay
   public List<Ref<uint64_t, OperationTransitionData>> nextOperation;
   public List<Ref<uint64_t, TransitionData>> lastOperation;
   public List<Ref<uint64_t, uint64_t>> operationIndexCount;
+  public List<Ref<ErrorId, TransitionData>> errors, warnings;
 }
 
 public class InfoSubSystem
