@@ -2340,7 +2340,7 @@ inline bool jsonify(IN const lt_analyze *pAnalyze, OUT JsonWriter *pWriter)
 
   pWriter->write_name("crashes");
 
-  if (!jsonify(&pAnalyze->crashes, pWriter))
+  if (!jsonify(&pAnalyze->crashes.value, pWriter))
     return false;
 
   pWriter->end();

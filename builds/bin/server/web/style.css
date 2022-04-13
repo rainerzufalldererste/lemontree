@@ -321,10 +321,7 @@ button.ErrorInfoShowButton {
   display: none;
   background: #303030;
   border-left: 2pt solid #58dfb4;
-}
-
-.StackTrace {
-  padding: 2pt 25pt;
+  padding: 6pt 30pt;
 }
 
 .StackTraceElement p {
@@ -357,4 +354,16 @@ p.StackTraceElementModule {
 
 p.StackTraceElementOffset {
   color: #555;
+}
+
+p.StackTraceElementAppModule:before {
+  content: 'Unknown Symbol in App Module';
+}
+
+p.ErrorCode {
+  background: #9b645b;
+  border: 1pt solid #ff7c7c;
+  border-radius: 2pt;
+  color: #ffffff;
+  font-family: Consolas, monospace;
 }

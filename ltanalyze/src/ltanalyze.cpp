@@ -131,20 +131,23 @@ bool get_tracktrace_from_pdb(IN_OUT ByteStream *pStream, IN lt_pdb_context *pPdb
 
         wchar_t *symbolName = nullptr;
 
-        if (SUCCEEDED(pPdbContext->pPdbSession->findSymbolByVA(trace.offset, SymTagFunction, &symbol)) && symbol != nullptr && ((SUCCEEDED(symbol->get_undecoratedName(&symbolName)) && symbolName != nullptr) || SUCCEEDED(symbol->get_name(&symbolName))))
+        if (SUCCEEDED(pPdbContext->pPdbSession->findSymbolByVA(trace.offset, SymTagFunction, &symbol)) && symbol != nullptr)
         {
-          if (0 < WideCharToMultiByte(CP_UTF8, 0, symbolName, (int32_t)wcslen(symbolName), trace.info.functionName.functionName, (int32_t)sizeof(trace.info.functionName.functionName), nullptr, false) || GetLastError() == ERROR_INSUFFICIENT_BUFFER)
+          if ((SUCCEEDED(symbol->get_undecoratedName(&symbolName)) && symbolName != nullptr) || SUCCEEDED(symbol->get_name(&symbolName)))
           {
-            trace.stackTraceType = lt_stt_function_name;
+            if (0 < WideCharToMultiByte(CP_UTF8, 0, symbolName, (int32_t)wcslen(symbolName) + 1, trace.info.functionName.functionName, (int32_t)sizeof(trace.info.functionName.functionName), nullptr, false) || GetLastError() == ERROR_INSUFFICIENT_BUFFER)
+            {
+              trace.stackTraceType = lt_stt_function_name;
+            }
+            else
+            {
+              trace.info.functionName.functionName[0] = '\0';
+            }
           }
-          else
-          {
-            trace.info.functionName.functionName[0] = '\0';
-          }
-        }
 
-        if (symbolName != nullptr)
-          SysFreeString(symbolName);
+          if (symbolName != nullptr)
+            SysFreeString(symbolName);
+        }
 
         if (SUCCEEDED(pPdbContext->pPdbSession->findLinesByVA(trace.offset, 1, &lineNumEnum)))
         {
@@ -165,7 +168,7 @@ bool get_tracktrace_from_pdb(IN_OUT ByteStream *pStream, IN lt_pdb_context *pPdb
 
                 if (SUCCEEDED(sourceFile->get_fileName(&sourceFileName)))
                 {
-                  if (0 < WideCharToMultiByte(CP_UTF8, 0, sourceFileName, (int32_t)wcslen(sourceFileName), trace.info.functionName.functionName, (int32_t)sizeof(trace.info.functionName.functionName), nullptr, false) || GetLastError() == ERROR_INSUFFICIENT_BUFFER)
+                  if (0 < WideCharToMultiByte(CP_UTF8, 0, sourceFileName, (int32_t)wcslen(sourceFileName) + 1, trace.info.functionName.file, (int32_t)sizeof(trace.info.functionName.file), nullptr, false) || GetLastError() == ERROR_INSUFFICIENT_BUFFER)
                   {
                     trace.stackTraceType = lt_stt_function_name;
                   }
@@ -723,7 +726,9 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
 
         if (isNewEntry)
         {
-          if (0 >= WideCharToMultiByte(CP_UTF8, 0, inputFileName, (int32_t)wcslen(inputFileName), pErrorData->crash.firstOccurence, (int32_t)sizeof(pErrorData->crash.firstOccurence), nullptr, false) && GetLastError() != ERROR_INSUFFICIENT_BUFFER)
+          const DWORD chars = WideCharToMultiByte(CP_UTF8, 0, inputFileName, (int32_t)wcslen(inputFileName) + 1, pErrorData->crash.firstOccurence, (int32_t)sizeof(pErrorData->crash.firstOccurence), nullptr, false);
+
+          if (chars <= 0 && GetLastError() != ERROR_INSUFFICIENT_BUFFER)
           {
             pErrorData->crash.firstOccurence[0] = '\0';
           }

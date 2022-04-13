@@ -160,6 +160,10 @@ public class SubSystemInfo : ElementResponse
     foreach (var x in analysis.subSystems)
       yield return new HLink(x.index.ToString(), $"/subsystem?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&ss={x.index}") { Class = "LargeButton" };
 
+    yield return new HHeadline($"Crashes", 2);
+
+    yield return analysis.ToErrorChart(analysis.crashes, "Crashes");
+
     yield return new HHeadline($"Observed Values U64", 2);
 
     foreach (var x in analysis.observedU64)
@@ -235,15 +239,16 @@ public class SubSystemInfo : ElementResponse
     var s = analysis.subSystems.FindItem((uint64_t)subSystem);
 
     foreach (var x in s.states)
-      yield return new HLink(info.GetStateName((uint64_t)subSystem, x.index.state, x.index.subState), $"/state?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&ss={subSystem}&id={x.index.state}&sid={x.index.subState}") { Class = "Button" };
+      yield return new HLink(info.GetStateName((uint64_t)subSystem, x.index.state, x.index.subState, (x.value.errors.Count != 0 ? "🚫" : "") + (x.value.warnings.Count != 0 ? "⚠️" : "")), $"/state?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&ss={subSystem}&id={x.index.state}&sid={x.index.subState}") { Class = "Button" };
 
     yield return new HHeadline("Operations", 2);
 
     foreach (var x in s.operations)
-      yield return new HLink(info.GetOperationName((uint64_t)subSystem, x.index), $"/p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&ss={subSystem}&id={x.index}") { Class = "Button" };
+      yield return new HLink(info.GetOperationName((uint64_t)subSystem, x.index, (x.value.errors.Count != 0 ? "🚫" : "") + (x.value.warnings.Count != 0 ? "⚠️" : "")), $"/op?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&ss={subSystem}&id={x.index}") { Class = "Button" };
 
-    yield return analysis.ToErrorChart((uint64_t)subSystem, s.noStateErrors, "Errors not attributable to a state", info);
-    yield return analysis.ToErrorChart((uint64_t)subSystem, s.noStateWarnings, "Warnings not attributable to a state", info);
+    yield return analysis.ToErrorChart(s.noStateErrors, "Errors not attributable to a state");
+    yield return analysis.ToErrorChart(s.noStateWarnings, "Warnings not attributable to a state");
+    yield return analysis.ToPieChart(s.noStateLogs.values, "Log Messages not attributed to a state", info, s.noStateLogs.count);
 
     yield return analysis.ToHistorgramChart((uint64_t)subSystem, s.profileData, "Performance", info);
   }
@@ -285,8 +290,9 @@ public class StateInfo : ElementResponse
     yield return analysis.ToPieChart((uint64_t)subSystem, s.previousOperation, "Previous Operation", info);
     yield return analysis.ToHistorgramChart((uint64_t)subSystem, s.profileData, "Performance", info);
 
-    yield return analysis.ToErrorChart((uint64_t)subSystem, s.errors, "Errors", info);
-    yield return analysis.ToErrorChart((uint64_t)subSystem, s.warnings, "Warnings", info);
+    yield return analysis.ToErrorChart(s.errors, "Errors");
+    yield return analysis.ToErrorChart(s.warnings, "Warnings");
+    yield return analysis.ToPieChart(s.logs.values, "Logs", info, s.logs.count);
 
     yield return analysis.ToBarGraph((uint64_t)subSystem, s.stateReach, "State Reach", info);
     yield return analysis.ToBarGraph((uint64_t)subSystem, s.operationReach, "Operation Reach", info);
@@ -329,8 +335,9 @@ public class OperationInfo : ElementResponse
     yield return analysis.ToPieChart((uint64_t)subSystem, s.nextState, "Next State", info);
     yield return analysis.ToPieChart((uint64_t)subSystem, s.lastOperation, "Previous Operation", info);
 
-    yield return analysis.ToErrorChart((uint64_t)subSystem, s.errors, "Errors", info, true);
-    yield return analysis.ToErrorChart((uint64_t)subSystem, s.warnings, "Warnings", info, false);
+    yield return analysis.ToErrorChart((uint64_t)subSystem, s.errors, "Errors", true);
+    yield return analysis.ToErrorChart((uint64_t)subSystem, s.warnings, "Warnings", false);
+    yield return analysis.ToPieChart(s.logs.values, "Logs", info, s.logs.count);
   }
 }
 
@@ -621,6 +628,8 @@ public class Analysis
   public List<Ref<uint64_t, ValueRange<double>>> observedRangeF64;
 
   public List<Ref<uint64_t, PerfValueRange<double>>> perfMetrics;
+
+  public List<CrashData> crashes;
 
   public string GetLink(uint64_t subSystem, uint64_t operationIndex) => $"/op?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&ss={subSystem}&id={operationIndex}";
 
@@ -1049,9 +1058,12 @@ public class Analysis
 
     var errorInfo = new HContainer() { ID = Hash.GetHash(), Class = "ErrorInfo" };
 
-    container.AddElement(new HContainer() { Class = "ErrorDescription", Elements = { new HContainer() { Class = "ErrorBarContainer", Elements = { new HText($"{t.count}") { Class = "BarError", Style = $"--value:{percentage};", Title = t.count.ToString() } } }, new HText(e.errorCode.ToString()) { Name = e.description ?? "" }, new HButton("+", "", $"document.getElementById(\"{errorInfo.ID}\").style.display = \"block\";") { Class = "ErrorInfoShowButton" }, new HContainer() { Elements = { new HText($"{t.avgDelay:0.####}s") { Class = "DataDelay" }, new HText($"{t.minDelay:0.####}s") { Class = "DataDelayMin" }, new HText($"{t.maxDelay:0.####}s") { Class = "DataDelayMax" } } } } });
+    container.AddElement(new HContainer() { Class = "ErrorDescription", Elements = { new HContainer() { Class = "ErrorBarContainer", Elements = { new HText($"{t.count}") { Class = "BarError", Style = $"--value:{percentage};", Title = t.count.ToString() } } }, new HText(e.errorCode.ToString()) { Class = "ErrorCode", Name = e.description ?? "" }, new HButton("+", "", $"document.getElementById(\"{errorInfo.ID}\").style.display = \"block\";") { Class = "ErrorInfoShowButton" }, new HContainer() { Elements = { new HText($"{t.avgDelay:0.####}s") { Class = "DataDelay" }, new HText($"{t.minDelay:0.####}s") { Class = "DataDelayMin" }, new HText($"{t.maxDelay:0.####}s") { Class = "DataDelayMax" } } } } });
 
     container.AddElement(errorInfo);
+
+    if (e is Crash)
+      errorInfo.AddElement(new HText((e as Crash).firstOccurence) { Class = "CrashFirstOccurence" });
 
     if (!string.IsNullOrWhiteSpace(e.description))
       errorInfo.AddElement(new HText(e.description) { Class = "ErrorDescriptionText" });
@@ -1080,12 +1092,18 @@ public class Analysis
             element.AddElement(new HText(s.line.Value.ToString()) { Class = "StackTraceElementLine" });
         }
 
+        if (element.Elements.Count == 0)
+          element.AddElement(new HText() { Class = "StackTraceElementAppModule" });
+
         element.AddElement(new HText($"0x{s.offset:X}") { Class = "StackTraceElementOffset" });
       }
     }
+
+    if (errorInfo.Elements.Count == 0)
+      errorInfo.AddElement(new HText("No Extended Error Information Available."));
   }
 
-  internal HElement ToErrorChart(uint64_t subSystem, List<ErrorData> data, string name, Info info)
+  internal HElement ToErrorChart(List<ErrorData> data, string name)
   {
     if (data.Count == 0)
       return new HContainer() { Class = "NoData", Elements = { new HText($"No '{name}' Data Available.") } };
@@ -1104,7 +1122,7 @@ public class Analysis
     return ret;
   }
 
-  internal HElement ToErrorChart(uint64_t subSystem, List<Ref<ErrorId, TransitionData>> data, string name, Info info, bool isErrorNotWarningsList)
+  internal HElement ToErrorChart(uint64_t subSystem, List<Ref<ErrorId, TransitionData>> data, string name, bool isErrorNotWarningsList)
   {
     if (data.Count == 0)
       return new HContainer() { Class = "NoData", Elements = { new HText($"No '{name}' Data Available.") } };
@@ -1146,6 +1164,25 @@ public class Analysis
     return ret;
 
   }
+
+  internal HElement ToErrorChart(List<CrashData> data, string name)
+  {
+    if (data.Count == 0)
+      return new HContainer() { Class = "NoData", Elements = { new HText($"No '{name}' Data Available.") } };
+
+    var ret = new HContainer() { Class = "DataInfo", Elements = { new HHeadline(name) } };
+
+    ulong max = 0;
+
+    foreach (var x in data)
+      if (max < x.data.count)
+        max = x.data.count;
+
+    foreach (var x in data)
+      AppendErrorData(ret, max, x.crash, x.data);
+
+    return ret;
+  }
 }
 
 public class SubSystemData
@@ -1154,6 +1191,7 @@ public class SubSystemData
   public List<Ref<uint64_t, Operation>> operations;
   public List<ProfileData> profileData;
   public List<ErrorData> noStateErrors, noStateWarnings;
+  public ExactValueData<string> noStateLogs;
 }
 
 public struct StackTrace
@@ -1174,9 +1212,20 @@ public class Error
   public List<StackTrace> stackTrace;
 }
 
+public class Crash : Error
+{
+  public string firstOccurence;
+}
+
 public struct ErrorData
 {
   public Error error;
+  public TransitionData data;
+}
+
+public struct CrashData
+{
+  public Crash crash;
   public TransitionData data;
 }
 
@@ -1338,6 +1387,7 @@ public class State : TransitionDataWithDelay
   public List<Ref<uint64_t, TransitionData>> operationReach;
   public List<ProfileData> profileData;
   public List<ErrorData> errors, warnings;
+  public ExactValueData<string> logs;
 }
 
 public class Operation : TransitionDataWithDelay
@@ -1348,6 +1398,7 @@ public class Operation : TransitionDataWithDelay
   public List<Ref<uint64_t, TransitionData>> lastOperation;
   public List<Ref<uint64_t, uint64_t>> operationIndexCount;
   public List<Ref<ErrorId, TransitionData>> errors, warnings;
+  public ExactValueData<string> logs;
 }
 
 public class InfoSubSystem
@@ -1385,7 +1436,7 @@ public class Info
       throw new ArrayTypeMismatchException();
   }
 
-  public string GetStateName(uint64_t subSystem, uint64_t stateIndex, uint64_t subStateIndex)
+  public string GetStateName(uint64_t subSystem, uint64_t stateIndex, uint64_t subStateIndex, string append = "")
   {
     if (subSystems != null)
     {
@@ -1394,7 +1445,7 @@ public class Info
         if (subSys.index == subSystem)
         {
           if ((ulong)subSys.value.states.Count > stateIndex)
-            return $"{subSys.value.states[(int)stateIndex.value]} ({subStateIndex})";
+            return $"{subSys.value.states[(int)stateIndex.value]} ({subStateIndex}) {append}";
 
           break;
         }
@@ -1404,7 +1455,7 @@ public class Info
     return $"State #{stateIndex} ({subStateIndex})";
   }
 
-  public string GetOperationName(uint64_t subSystem, uint64_t operationType)
+  public string GetOperationName(uint64_t subSystem, uint64_t operationType, string append = "")
   {
     if (subSystems != null)
     {
@@ -1413,7 +1464,7 @@ public class Info
         if (subSys.index == subSystem)
         {
           if ((ulong)subSys.value.operations.Count > operationType)
-            return subSys.value.operations[(int)operationType.value];
+            return subSys.value.operations[(int)operationType.value] + append;
 
           break;
         }
