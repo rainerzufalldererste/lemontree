@@ -92,14 +92,9 @@ bool get_tracktrace_from_pdb(IN_OUT ByteStream *pStream, IN lt_pdb_context *pPdb
     uint8_t u8;
     uint32_t u32;
 
-    if (!pStream->read(&u8))
-      RETURN_ERROR;
-
-    if (u8 != lt_st_start) // invalid header.
-      RETURN_ERROR;
-
-    if (!pStream->read(&u32)) // hash.
-      RETURN_ERROR;
+    RETURN_ERROR_IF(!pStream->read(&u8), "Failed to read header from stacktrace");
+    RETURN_ERROR_IF(u8 != lt_st_start, "Invalid stack trace header.");
+    RETURN_ERROR_IF(!pStream->read(&u32), "Failed to read stack trace hash.");
 
     char moduleName[256] = "<Invalid Module>";
 
@@ -108,9 +103,7 @@ bool get_tracktrace_from_pdb(IN_OUT ByteStream *pStream, IN lt_pdb_context *pPdb
       lt_stack_trace trace = {};
 
       uint8_t type;
-
-      if (!pStream->read(&type))
-        RETURN_ERROR;
+      READ(pStream, type);
 
       bool end = false;
 
@@ -118,7 +111,7 @@ bool get_tracktrace_from_pdb(IN_OUT ByteStream *pStream, IN lt_pdb_context *pPdb
       {
       default:
       {
-        RETURN_ERROR; // Invalid Type.
+        RETURN_ERROR("Invalid Type");
         break;
       }
 
@@ -131,9 +124,7 @@ bool get_tracktrace_from_pdb(IN_OUT ByteStream *pStream, IN lt_pdb_context *pPdb
       case lt_st_app_offset:
       {
         trace.stackTraceType = lt_stt_internal_offset;
-
-        if (!pStream->read(&trace.offset))
-          RETURN_ERROR;
+        READ(pStream, trace.offset);
 
         CComPtr<IDiaEnumLineNumbers> lineNumEnum;
         CComPtr<IDiaSymbol> symbol;
@@ -142,7 +133,7 @@ bool get_tracktrace_from_pdb(IN_OUT ByteStream *pStream, IN lt_pdb_context *pPdb
 
         if (SUCCEEDED(pPdbContext->pPdbSession->findSymbolByVA(trace.offset, SymTagFunction, &symbol)) && symbol != nullptr && ((SUCCEEDED(symbol->get_undecoratedName(&symbolName)) && symbolName != nullptr) || SUCCEEDED(symbol->get_name(&symbolName))))
         {
-          if (0 < WideCharToMultiByte(CP_UTF8, 0, symbolName, (int32_t)wcslen(symbolName), trace.info.functionName.functionName, (int32_t)sizeof(trace.info.functionName.functionName), nullptr, false))
+          if (0 < WideCharToMultiByte(CP_UTF8, 0, symbolName, (int32_t)wcslen(symbolName), trace.info.functionName.functionName, (int32_t)sizeof(trace.info.functionName.functionName), nullptr, false) || GetLastError() == ERROR_INSUFFICIENT_BUFFER)
           {
             trace.stackTraceType = lt_stt_function_name;
           }
@@ -174,7 +165,7 @@ bool get_tracktrace_from_pdb(IN_OUT ByteStream *pStream, IN lt_pdb_context *pPdb
 
                 if (SUCCEEDED(sourceFile->get_fileName(&sourceFileName)))
                 {
-                  if (0 < WideCharToMultiByte(CP_UTF8, 0, sourceFileName, (int32_t)wcslen(sourceFileName), trace.info.functionName.file, (int32_t)sizeof(trace.info.functionName.file), nullptr, false))
+                  if (0 < WideCharToMultiByte(CP_UTF8, 0, sourceFileName, (int32_t)wcslen(sourceFileName), trace.info.functionName.functionName, (int32_t)sizeof(trace.info.functionName.functionName), nullptr, false) || GetLastError() == ERROR_INSUFFICIENT_BUFFER)
                   {
                     trace.stackTraceType = lt_stt_function_name;
                   }
@@ -206,9 +197,7 @@ bool get_tracktrace_from_pdb(IN_OUT ByteStream *pStream, IN lt_pdb_context *pPdb
       case lt_st_same_dll_offset:
       {
         trace.stackTraceType = lt_stt_external_module;
-
-        if (!pStream->read(&trace.offset))
-          RETURN_ERROR;
+        READ(pStream, trace.offset);
 
         strncpy_s(trace.info.externalModule.moduleName, moduleName, sizeof(moduleName));
 
@@ -222,9 +211,7 @@ bool get_tracktrace_from_pdb(IN_OUT ByteStream *pStream, IN lt_pdb_context *pPdb
         trace.stackTraceType = lt_stt_external_module;
 
         READ_STRING(pStream, moduleName);
-
-        if (!pStream->read(&trace.offset))
-          RETURN_ERROR;
+        READ(pStream, trace.offset);
 
         strncpy_s(trace.info.externalModule.moduleName, moduleName, sizeof(moduleName));
 
@@ -236,9 +223,7 @@ bool get_tracktrace_from_pdb(IN_OUT ByteStream *pStream, IN lt_pdb_context *pPdb
       case lt_st_data16:
       {
         uint8_t data[16];
-
-        if (!pStream->read(data, 16))
-          RETURN_ERROR;
+        RETURN_ERROR_IF(!pStream->read(data, 16), "Failed to read data");
 
         if (pStackTrace->size() > 0 && pPdbContext->disasmAvailable)
         {
@@ -342,25 +327,25 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
     ByteStream stream(pData, fileSize);
 
     uint8_t u8 = (uint8_t)~lt_t_start;
-    FATAL_IF(!stream.read(&u8), "Insufficient Data");
+    READ(&stream, u8);
     FATAL_IF(u8 != lt_t_start, "Invalid Header");
 
-    FATAL_IF(!stream.read(&ltVersion), "Insufficient Data");
-    FATAL_IF(!stream.read(&startTimestamp), "Insufficient Data");
+    READ(&stream, ltVersion);
+    READ(&stream, startTimestamp);
 
     uint8_t productNameLength = 0;
-    FATAL_IF(!stream.read(&productNameLength), "Insufficient Data");
+    READ(&stream, productNameLength);
     FATAL_IF(!stream.read(productName, productNameLength), "Insufficient Data");
     productName[productNameLength] = '\0';
 
-    FATAL_IF(!stream.read(&majorVersion), "Insufficient Data");
-    FATAL_IF(!stream.read(&minorVersion), "Insufficient Data");
+    READ(&stream, majorVersion);
+    READ(&stream, minorVersion);
 
-    FATAL_IF(!stream.read(&u8), "Insufficient Data");
+    READ(&stream, u8);
     isDebugBuild = (u8 != 0);
 
     uint8_t remoteHostLength = 0;
-    FATAL_IF(!stream.read(&remoteHostLength), "Insufficient Data");
+    READ(&stream, remoteHostLength);
     FATAL_IF(!stream.read(remoteHost, remoteHostLength), "Insufficient Data");
     remoteHost[remoteHostLength] = '\0';
 
@@ -369,13 +354,13 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
       const uint8_t *pPtr = stream.pData;
 
       uint8_t type = 0;
-      FATAL_IF(!stream.read(&type), "Insufficient Data");
+      READ(&stream, type);
       FATAL_IF(type == 0, "New Start Detected.");
 
       if (type < __lt_t_fixed_length)
       {
         uint16_t size;
-        FATAL_IF(!stream.read(&size), "Insufficient Data");
+        READ(&stream, size);
         FATAL_IF(size < 3, "Invalid Section Size");
         FATAL_IF(!stream.read<uint8_t>(nullptr, size - 3), "Insufficient Data");
 
@@ -440,7 +425,7 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
       ByteStream stream(_item);
 
       uint8_t type = 0;
-      FATAL_IF(!stream.read(&type), "Insufficient Data");
+      READ(&stream, type);
 
       switch (type)
       {
@@ -449,10 +434,10 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
         lt_state_identifier id;
         uint64_t subSystem, timestamp;
 
-        FATAL_IF(!stream.read(&subSystem), "Insufficient Data");
-        FATAL_IF(!stream.read(&id.stateIndex), "Insufficient Data");
-        FATAL_IF(!stream.read(&id.subStateIndex), "Insufficient Data");
-        FATAL_IF(!stream.read(&timestamp), "Insufficient Data");
+        READ(&stream, subSystem);
+        READ(&stream, id.stateIndex);
+        READ(&stream, id.subStateIndex);
+        READ(&stream, timestamp);
 
         lt_sub_system *pSubSystem = get_sub_system(&state, subSystem);
         lt_state *pSelf = get_state(pAnalyze, subSystem, id.stateIndex, id.subStateIndex);
@@ -503,10 +488,10 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
         uint64_t subSystem, operationIndex, timestamp;
         lt_operation_identifier id;
 
-        FATAL_IF(!stream.read(&subSystem), "Insufficient Data");
-        FATAL_IF(!stream.read(&id.operationType), "Insufficient Data");
-        FATAL_IF(!stream.read(&operationIndex), "Insufficient Data");
-        FATAL_IF(!stream.read(&timestamp), "Insufficient Data");
+        READ(&stream, subSystem);
+        READ(&stream, id.operationType);
+        READ(&stream, operationIndex);
+        READ(&stream, timestamp);
 
         lt_sub_system *pSubSystem = get_sub_system(&state, subSystem);
         lt_operation *pSelf = get_operation(pAnalyze, subSystem, id.operationType);
@@ -556,13 +541,13 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
       case lt_t_perf_metric:
       {
         uint64_t valueIndex;
-        FATAL_IF(!stream.read(&valueIndex), "Insufficient data steam.");
+        READ(&stream, valueIndex);
 
         double value = 0;
-        FATAL_IF(!stream.read(&value), "Insufficient data stream.");
+        READ(&stream, value);
 
         uint64_t timestamp;
-        FATAL_IF(!stream.read(&timestamp), "Insufficient data stream.");
+        READ(&stream, timestamp);
 
         lt_perf_value_range<double> *pValue = get_perf_value_range_data(&pAnalyze->perfMetrics, valueIndex);
         update_perf_value_range(pValue, value, timestamp - startTimestamp, &hwInfoShort);
@@ -573,10 +558,10 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
       case lt_t_observed_value:
       {
         uint8_t dataType = 0;
-        FATAL_IF(!stream.read(&dataType), "Insufficient data steam.");
+        READ(&stream, dataType);
 
         uint64_t valueIndex;
-        FATAL_IF(!stream.read(&valueIndex), "Insufficient data steam.");
+        READ(&stream, valueIndex);
         
         uint64_t u64 = 0;
         int64_t i64 = 0;
@@ -585,15 +570,15 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
         switch (dataType)
         {
         case lt_vt_u64:
-          FATAL_IF(!stream.read(&u64), "Insufficient data stream.");
+          READ(&stream, u64);
           break;
         
         case lt_vt_i64:
-          FATAL_IF(!stream.read(&i64), "Insufficient data stream.");
+          READ(&stream, i64);
           break;
         
         case lt_vt_f64:
-          FATAL_IF(!stream.read(&f64), "Insufficient data stream.");
+          READ(&stream, f64);
           break;
         
         default:
@@ -602,7 +587,7 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
         }
 
         uint64_t timestamp;
-        FATAL_IF(!stream.read(&timestamp), "Insufficient data stream.");
+        READ(&stream, timestamp);
 
         switch (dataType)
         {
@@ -644,10 +629,10 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
       case lt_t_observed_exact_value:
       {
         uint8_t dataType = 0;
-        FATAL_IF(!stream.read(&dataType), "Insufficient data steam.");
+        READ(&stream, dataType);
 
         uint64_t valueIndex;
-        FATAL_IF(!stream.read(&valueIndex), "Insufficient data steam.");
+        READ(&stream, valueIndex);
 
         uint64_t u64 = 0;
         int64_t i64 = 0;
@@ -655,11 +640,11 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
         switch (dataType)
         {
         case lt_vt_u64:
-          FATAL_IF(!stream.read(&u64), "Insufficient data stream.");
+          READ(&stream, u64);
           break;
         
         case lt_vt_i64:
-          FATAL_IF(!stream.read(&i64), "Insufficient data stream.");
+          READ(&stream, i64);
           break;
         
         //case lt_vt_f64:
@@ -672,7 +657,7 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
         }
         
         uint64_t timestamp;
-        FATAL_IF(!stream.read(&timestamp), "Insufficient data stream.");
+        READ(&stream, timestamp);
 
         switch (dataType)
         {
@@ -704,23 +689,55 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
 
       case lt_t_crash:
       {
-        //uint16_t size = 0;
-        //FATAL_IF(!stream.read(&size), "Insufficient data stream.");
-        //
-        //SKIP_X64(",", "timestamp", stream);
-        //SKIP_X64(",", "errorCode", stream);
-        //SKIP_STRING(",", "description", stream);
-        //
-        //uint16_t stackTraceLength = 0;
-        //FATAL_IF(!stream.read(&stackTraceLength), "Insufficient data stream.");
-        //
-        //if (stackTraceLength > 0)
-        //{
-        //  const uint8_t *pStackTraceData = stream.pData;
-        //  FATAL_IF(!stream.read<uint8_t >(nullptr, stackTraceLength), "Insufficient data stream.");
-        //  fputs(",\"stacktrace\":", stdout);
-        //  print_bytes_as_base64string(pStackTraceData, stackTraceLength);
-        //}
+        uint16_t size = 0;
+        READ(&stream, size);
+        
+        uint64_t timestamp, errorCode;
+        char description[0x100];
+
+        READ(&stream, timestamp);
+        READ(&stream, errorCode);
+        READ_STRING(&stream, description);
+        
+        uint8_t stackTraceData[1024 * 10];
+
+        uint16_t stackTraceLength = 0;
+        READ(&stream, stackTraceLength);
+        FATAL_IF(stackTraceLength > sizeof(stackTraceData), "Stack Trace size exceeds capacity.");
+
+        uint32_t stackTraceHash = 0;
+
+        if (stackTraceLength > 0)
+        {
+          const uint8_t *pStackTraceData = stream.pData;
+          FATAL_IF(!stream.read<uint8_t >(nullptr, stackTraceLength), "Insufficient data stream.");
+          memcpy(stackTraceData, pStackTraceData, stackTraceLength);
+
+          FATAL_IF(stackTraceLength < 6, "Insufficient StackTrace Length.");
+          stackTraceHash = *reinterpret_cast<uint32_t *>(stackTraceData + 1);
+        }
+
+        bool isNewEntry = false;
+
+        lt_crash_data *pErrorData = get_crash_data(&pAnalyze->crashes, errorCode, strnlen(description, sizeof(description)) != 0, description, stackTraceLength > 0, stackTraceHash, &isNewEntry);
+
+        if (isNewEntry)
+        {
+          if (0 >= WideCharToMultiByte(CP_UTF8, 0, inputFileName, (int32_t)wcslen(inputFileName), pErrorData->crash.firstOccurence, (int32_t)sizeof(pErrorData->crash.firstOccurence), nullptr, false) && GetLastError() != ERROR_INSUFFICIENT_BUFFER)
+          {
+            pErrorData->crash.firstOccurence[0] = '\0';
+          }
+        }
+
+        if (pErrorData->crash.hasStackTrace && pErrorData->crash.stackTrace.size() == 0 && pPdbContext->pPdbSession != nullptr)
+        {
+          ByteStream stackTraceStream(stackTraceData, stackTraceLength);
+
+          if (!get_tracktrace_from_pdb(&stackTraceStream, pPdbContext, &pErrorData->crash.stackTrace))
+            RETURN_ERROR("Failed to extract stacktrace from PDB.");
+        }
+
+        update_transition_data(&pErrorData->data, timestamp - startTimestamp);
 
         break;
       }
@@ -729,7 +746,7 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
       case lt_t_warning:
       {
         uint16_t size = 0;
-        FATAL_IF(!stream.read(&size), "Insufficient data stream.");
+        READ(&stream, size);
 
         uint64_t timestamp, subSystem, errorCode;
         char description[0x100];
@@ -742,7 +759,7 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
         uint8_t stackTraceData[1024 * 10];
 
         uint16_t stackTraceLength = 0;
-        FATAL_IF(!stream.read(&stackTraceLength), "Insufficient data stream.");
+        READ(&stream, stackTraceLength);
         FATAL_IF(stackTraceLength > sizeof(stackTraceData), "Stack Trace size exceeds capacity.");
 
         uint32_t stackTraceHash = 0;
@@ -785,7 +802,7 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
           ByteStream stackTraceStream(stackTraceData, stackTraceLength);
 
           if (!get_tracktrace_from_pdb(&stackTraceStream, pPdbContext, &pErrorData->error.stackTrace))
-            RETURN_ERROR;
+            RETURN_ERROR("Failed to extract stacktrace from PDB.");
         }
 
         update_transition_data(&pErrorData->data, timestamp - cmpTimestamp);
@@ -810,12 +827,44 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
 
       case lt_t_log:
       {
-        //uint16_t size = 0;
-        //FATAL_IF(!stream.read(&size), "Insufficient data stream.");
-        //
-        //SKIP_X64(",", "timestamp", stream);
-        //SKIP_X64(",", "subSystem", stream);
-        //SKIP_STRING(",", "description", stream);
+        uint16_t size = 0;
+        READ(&stream, size);
+        
+        uint64_t timestamp, subSystem;
+        char description[0x100];
+
+        READ(&stream, timestamp);
+        READ(&stream, subSystem);
+        READ_STRING(&stream, description);
+
+        lt_sub_system *pSubSystem = get_sub_system(&state, subSystem);
+        uint64_t cmpTimestamp = startTimestamp;
+        lt_values<lt_string_value_entry> *pValue = nullptr;
+
+        if (pSubSystem->hasLastState)
+        {
+          lt_state *pState = get_state(pAnalyze, subSystem, pSubSystem->lastState.stateIndex, pSubSystem->lastState.subStateIndex);
+
+          pValue = &pState->logs;
+          cmpTimestamp = pSubSystem->lastStateTimestamp;
+        }
+        else
+        {
+          lt_sub_system_data *pSubSystemData = get_sub_system_data(pAnalyze, subSystem);
+
+          pValue = &pSubSystemData->noStateLogs;
+        }
+
+        update_transition_data(&pValue->data, timestamp - startTimestamp);
+        update_string_value(&pValue->values, description);
+
+        if (pSubSystem->hasLastOperation)
+        {
+          lt_operation *pOp = get_operation(pAnalyze, subSystem, pSubSystem->lastOperation.operationType);
+          
+          update_transition_data(&pOp->logs.data, timestamp - pSubSystem->lastOperationTimestamp);
+          update_string_value(&pOp->logs.values, description);
+        }
 
         break;
       }
@@ -823,15 +872,15 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
       case lt_t_perf_data:
       {
         uint16_t size = 0;
-        FATAL_IF(!stream.read(&size), "Insufficient data stream.");
+        READ(&stream, size);
 
         uint64_t subSystem, timestamp;
 
-        FATAL_IF(!stream.read(&timestamp), "Insufficient Data");
-        FATAL_IF(!stream.read(&subSystem), "Insufficient Data");
+        READ(&stream, timestamp);
+        READ(&stream, subSystem);
 
         uint8_t count = 0;
-        FATAL_IF(!stream.read(&count), "Insufficient data stream.");
+        READ(&stream, count);
 
         lt_sub_system *pSubSystem = get_sub_system(&state, subSystem);
         lt_sub_system_data *pSSData = get_sub_system_data(pAnalyze, subSystem);
@@ -856,14 +905,14 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
       case lt_t_observed_exact_value_variable_length:
       {
         uint16_t size = 0;
-        FATAL_IF(!stream.read(&size), "Insufficient data stream.");
+        READ(&stream, size);
         
         uint8_t dataType = 0;
-        FATAL_IF(!stream.read(&dataType), "Insufficient data stream.");
+        READ(&stream, dataType);
         
         uint64_t valueIndex, timestamp;
-        FATAL_IF(!stream.read(&valueIndex), "Insufficient data stream.");
-        FATAL_IF(!stream.read(&timestamp), "Insufficient data stream.");
+        READ(&stream, valueIndex);
+        READ(&stream, timestamp);
         
         RECOVERABLE_ERROR_IF(dataType != lt_vt_string, "Invalid Value Type.");
         
@@ -883,14 +932,14 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
       case lt_t_system_info:
       {
         uint16_t size = 0;
-        FATAL_IF(!stream.read(&size), "Insufficient data stream.");
+        READ(&stream, size);
         
         ByteStream *pStream = &stream;
 
         while (stream.sizeRemaining > 0)
         {
           uint8_t infoType = 0;
-          FATAL_IF(!stream.read(&infoType), "Insufficient data stream.");
+          READ(&stream, infoType);
         
           switch (infoType)
           {
@@ -961,7 +1010,7 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
             hwInfo.hasMonitorInfo = true;
 
             uint8_t count = 0;
-            FATAL_IF(!stream.read(&count), "Insufficient data stream.");
+            READ(&stream, count);
         
             int32_t minPosX = 0;
             int32_t maxPosX = 0;

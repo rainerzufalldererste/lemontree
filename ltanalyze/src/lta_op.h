@@ -260,6 +260,48 @@ inline lt_error_data *get_error_data(SoaList<uint64_t, lt_error_data> *pList, co
   return &pList->value.back();
 }
 
+inline lt_crash_data *get_crash_data(SoaList<uint64_t, lt_crash_data> *pList, const uint64_t errorCode, const bool hasDescription, const char *description, const bool hasStackTrace, const uint32_t stackTraceHash, OUT bool *pIsNewEntry)
+{
+  for (size_t i = 0; i < pList->size(); i++)
+  {
+    if (pList->index[i] == errorCode)
+    {
+      if (pList->value[i].crash.hasDescription != hasDescription)
+        continue;
+
+      if (hasDescription && strncmp(pList->value[i].crash.description, description, sizeof(pList->value[i].crash.description)) != 0)
+        continue;
+
+      if (pList->value[i].crash.hasStackTrace != hasStackTrace)
+        continue;
+
+      if (hasStackTrace && pList->value[i].crash.stackTraceHash != stackTraceHash)
+        continue;
+
+      *pIsNewEntry = false;
+
+      return &pList->value[i];
+    }
+  }
+
+  lt_crash_data crash;
+  crash.crash.errorCode = errorCode;
+  crash.crash.hasDescription = hasDescription;
+  crash.crash.hasStackTrace = hasStackTrace;
+
+  if (hasDescription)
+    strcpy_s(crash.crash.description, description);
+
+  if (hasStackTrace)
+    crash.crash.stackTraceHash = stackTraceHash;
+
+  *pIsNewEntry = true;
+
+  pList->push_back(errorCode, std::move(crash));
+
+  return &pList->value.back();
+}
+
 inline void update_transition_data(lt_transition_data *pTransition, const uint64_t delay)
 {
   pTransition->avgDelayS = adjust(pTransition->avgDelayS, to_seconds(delay), pTransition->count);

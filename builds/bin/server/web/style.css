@@ -319,6 +319,8 @@ button.ErrorInfoShowButton {
 
 .ErrorInfo {
   display: none;
+  background: #303030;
+  border-left: 2pt solid #58dfb4;
 }
 
 .StackTrace {

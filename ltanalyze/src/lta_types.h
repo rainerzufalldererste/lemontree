@@ -296,12 +296,15 @@ struct lt_error_data
   lt_transition_data data;
 };
 
-struct lt_log
+struct lt_crash : lt_error
 {
-  uint64_t subSystem;
+  char firstOccurence[0x100];
+};
 
-  size_t descriptionLength = 0;
-  char description[0x100];
+struct lt_crash_data
+{
+  lt_crash crash;
+  lt_transition_data data;
 };
 
 struct lt_short_hw_info
@@ -339,45 +342,6 @@ struct lt_perf_data
   lt_operation_identifier minLastOperation, maxLastOperation;
 };
 
-struct lt_state
-{
-  lt_transition_data data;
-  double avgTimeSinceStartS = 0;
-
-  SoaList<lt_state_identifier, lt_transition_data> previousState;
-  SoaList<lt_state_identifier, lt_transition_data> nextState;
-  SoaList<lt_operation_identifier, lt_operation_transition_data> operations;
-  SoaList<lt_operation_identifier, lt_transition_data> previousOperation;
-
-  SoaList<lt_state_identifier, lt_transition_data> stateReach;
-  SoaList<lt_operation_identifier, lt_transition_data> operationReach;
-
-  std::vector<lt_perf_data> profilerData;
-  SoaList<uint64_t, lt_error_data> errors; // DO NOT REORDER THESE.
-  SoaList<uint64_t, lt_error_data> warnings; // DO NOT REORDER THESE.
-
-  //std::vector<lt_log_ref> logs;
-  //std::vector<lt_crash_ref> crashes;
-};
-
-struct lt_operation
-{
-  lt_transition_data data;
-  double avgTimeSinceStartS = 0;
-
-  SoaList<uint64_t, uint64_t> operationIndexCount;
-  SoaList<lt_state_identifier, lt_transition_data> parentState;
-  SoaList<lt_state_identifier, lt_transition_data> nextState;
-  SoaList<lt_operation_identifier, lt_transition_data> lastOperation;
-  SoaList<lt_operation_identifier, lt_operation_transition_data> nextOperation;
-
-  SoaList<lt_error_identifier, lt_transition_data> errors;
-  SoaList<lt_error_identifier, lt_transition_data> warnings;
-  
-  //std::vector<lt_log_ref> logs;
-  //std::vector<lt_crash_ref> crashes;
-};
-
 struct lt_monitor_info
 {
   uint32_t width, height;
@@ -410,14 +374,6 @@ struct lt_hw_info
   bool hasDeviceInfo = false;
   char deviceManufacturerName[0x100];
   char deviceModelName[0x100];
-};
-
-struct lt_sub_system_data
-{
-  SoaList<lt_state_identifier, lt_state> states;
-  SoaList<lt_operation_identifier, lt_operation> operations;
-  std::vector<lt_perf_data> profilerData;
-  SoaList<uint64_t, lt_error_data> noStateErrors, noStateWarnings;
 };
 
 template <typename T>
@@ -520,6 +476,51 @@ struct lt_hw_info_analyze
   lt_global_values<lt_string_value_entry> deviceManufacturerModelName;
 };
 
+struct lt_state
+{
+  lt_transition_data data;
+  double avgTimeSinceStartS = 0;
+
+  SoaList<lt_state_identifier, lt_transition_data> previousState;
+  SoaList<lt_state_identifier, lt_transition_data> nextState;
+  SoaList<lt_operation_identifier, lt_operation_transition_data> operations;
+  SoaList<lt_operation_identifier, lt_transition_data> previousOperation;
+
+  SoaList<lt_state_identifier, lt_transition_data> stateReach;
+  SoaList<lt_operation_identifier, lt_transition_data> operationReach;
+
+  std::vector<lt_perf_data> profilerData;
+  SoaList<uint64_t, lt_error_data> errors; // DO NOT REORDER THESE.
+  SoaList<uint64_t, lt_error_data> warnings; // DO NOT REORDER THESE.
+  lt_values<lt_string_value_entry> logs;
+};
+
+struct lt_operation
+{
+  lt_transition_data data;
+  double avgTimeSinceStartS = 0;
+
+  SoaList<uint64_t, uint64_t> operationIndexCount;
+  SoaList<lt_state_identifier, lt_transition_data> parentState;
+  SoaList<lt_state_identifier, lt_transition_data> nextState;
+  SoaList<lt_operation_identifier, lt_transition_data> lastOperation;
+  SoaList<lt_operation_identifier, lt_operation_transition_data> nextOperation;
+
+  SoaList<lt_error_identifier, lt_transition_data> errors;
+  SoaList<lt_error_identifier, lt_transition_data> warnings;
+  lt_values<lt_string_value_entry> logs;
+};
+
+struct lt_sub_system_data
+{
+  SoaList<lt_state_identifier, lt_state> states;
+  SoaList<lt_operation_identifier, lt_operation> operations;
+  std::vector<lt_perf_data> profilerData;
+  SoaList<uint64_t, lt_error_data> noStateErrors; // DO NOT REORDER THESE.
+  SoaList<uint64_t, lt_error_data> noStateWarnings; // DO NOT REORDER THESE.
+  lt_values<lt_string_value_entry> noStateLogs;
+};
+
 struct lt_analyze
 {
   uint64_t majorVersion = 0;
@@ -539,8 +540,8 @@ struct lt_analyze
   SoaList<uint64_t, lt_value_range<double>> observedRangeF64;
 
   SoaList<uint64_t, lt_perf_value_range<double>> perfMetrics;
-
-  // Errors? Warnings? Crashes?
+  
+  SoaList<uint64_t, lt_crash_data> crashes;
 };
 
 

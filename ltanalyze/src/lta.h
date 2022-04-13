@@ -31,7 +31,8 @@
 #define FATAL_IF(conditional, x, ...) do { if (conditional) { FATAL(x, __VA_ARGS__); } } while (0)
 #define RECOVERABLE_ERROR(x, ...) FATAL(x, __VA_ARGS__)
 #define RECOVERABLE_ERROR_IF(conditional, x, ...) do { if (conditional) { RECOVERABLE_ERROR(x, __VA_ARGS__); } } while (0)
-#define RETURN_ERROR do { DBG_BREAK(); return false; } while (0)
+#define RETURN_ERROR(x, ...) do { printf(x "\n", __VA_ARGS__); DBG_BREAK(); return false; } while (0)
+#define RETURN_ERROR_IF(conditional, x, ...) do { if (conditional) { RETURN_ERROR(x, __VA_ARGS__); } } while (0)
 
 //////////////////////////////////////////////////////////////////////////
 

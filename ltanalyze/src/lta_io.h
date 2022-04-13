@@ -22,22 +22,37 @@
   { FATAL_IF(!stream.read(buffer256, length), "Insufficient data stream"); \
   } } while (0);
 
-#define READ(pWriter, value) do { if (!(pWriter)->read(&(value))) return false; } while (0)
-#define WRITE(pWriter, value) do { if (!(pWriter)->write(&(value))) return false; } while (0)
-#define READ_STRING(pWriter, value) do { uint8_t __len__; if (!(pWriter)->read(&__len__)) return false; if (__len__ >= sizeof(value)) return false; if (!(pWriter)->read((value), __len__)) return false; (value)[__len__] = '\0'; } while (0)
-#define WRITE_STRING(pWriter, value) do { \
-  const uint8_t __len__ = (uint8_t)min(0xFF, strlen(value)); \
-  if (!(pWriter)->write(&__len__)) \
-    return false; \
-  if (__len__ > 0 && !(pWriter)->write((value), __len__)) \
-    return false; \
+#define READ(pWriter, value) \
+  do { \
+    RETURN_ERROR_IF(!(pWriter)->read(&(value)), "Failed to read value '" #value "'."); \
+  } while (0)
+
+#define WRITE(pWriter, value) \
+  do { \
+    RETURN_ERROR_IF(!(pWriter)->write(&(value)), "Failed to write value '" #value "'."); \
+  } while (0)
+
+#define READ_STRING(pWriter, value) \
+  do { \
+    uint8_t __len__; \
+    RETURN_ERROR_IF(!(pWriter)->read(&__len__), "Failed to read length for string '" #value "'."); \
+    RETURN_ERROR_IF(__len__ >= sizeof(value), "The retrieved length for string '" #value "' is invalid (%" PRIu8 ").", __len__); \
+    RETURN_ERROR_IF(!(pWriter)->read((value), __len__), "Failed to read string '" #value "'."); \
+    (value)[__len__] = '\0'; \
+  } while (0)
+
+#define WRITE_STRING(pWriter, value) \
+  do { \
+    const uint8_t __len__ = (uint8_t)min(0xFF, strlen(value)); \
+    RETURN_ERROR_IF(!(pWriter)->write(&__len__), "Failed to write length of string '" #value "'."); \
+    RETURN_ERROR_IF(__len__ > 0 && !(pWriter)->write((value), __len__), "Failed to write string '" #value "'."); \
   } while (0)
 
 //////////////////////////////////////////////////////////////////////////
 
 enum
 {
-  lt_analyze_file_version = 6,
+  lt_analyze_file_version = 7,
 };
 
 inline bool deserialize(OUT uint8_t *pValue, IN ByteStream *pStream, const uint32_t /* version */)
@@ -626,6 +641,122 @@ inline bool jsonify(IN const lt_perf_data *pData, IN JsonWriter *pWriter)
   return true;
 }
 
+template <typename T>
+inline bool deserialize(OUT lt_global_values<T> *pData, IN ByteStream *pStream, const uint32_t version)
+{
+  if (version < 4)
+    return false;
+
+  if (!deserialize(&pData->values, pStream, version))
+    return false;
+
+  return true;
+}
+
+template <typename T>
+inline bool serialize(IN const lt_global_values<T> *pData, IN StreamWriter *pStream)
+{
+  if (!serialize(&pData->values, pStream))
+    return false;
+
+  return true;
+}
+
+template <typename T>
+inline bool jsonify_internal(IN const lt_global_values<T> *pValue, IN JsonWriter *pWriter)
+{
+  uint64_t count = 0;
+
+  for (const auto &_item : pValue->values.value)
+    count += _item;
+
+  pWriter->write("count", count);
+
+  SoaList<T, uint64_t> sorted;
+  sorted.index = pValue->values.index;
+  sorted.value = pValue->values.value;
+
+  sort_by_value(&sorted);
+
+  pWriter->begin_array("values");
+
+  for (size_t i = 0; i < sorted.size() && i < 16; i++)
+  {
+    pWriter->begin_body();
+    pWriter->write_name("value");
+
+    const T val = sorted.index[i];
+
+    if (!jsonify(&val, pWriter))
+      return false;
+
+    pWriter->write("count", sorted.value[i]);
+    pWriter->end();
+  }
+
+  pWriter->end();
+
+  return true;
+}
+
+template <typename T>
+inline bool jsonify(IN const lt_global_values<T> *pValue, IN JsonWriter *pWriter)
+{
+  pWriter->begin_body();
+
+  if (!jsonify_internal(pValue, pWriter))
+    return false;
+
+  pWriter->end();
+
+  return true;
+}
+
+template <typename T>
+inline bool deserialize(OUT lt_values<T> *pData, IN ByteStream *pStream, const uint32_t version)
+{
+  if (version < 4)
+    return false;
+
+  if (!deserialize(static_cast<lt_global_values<T> *>(pData), pStream, version))
+    return false;
+
+  if (!deserialize(&pData->data, pStream, version))
+    return false;
+
+  return true;
+}
+
+template <typename T>
+inline bool serialize(IN const lt_values<T> *pData, IN StreamWriter *pStream)
+{
+  if (!serialize(static_cast<const lt_global_values<T> *>(pData), pStream))
+    return false;
+
+  if (!serialize(&pData->data, pStream))
+    return false;
+
+  return true;
+}
+
+template <typename T>
+inline bool jsonify(IN const lt_values<T> *pValue, IN JsonWriter *pWriter)
+{
+  pWriter->begin_body();
+
+  if (!jsonify_internal(static_cast<const lt_global_values<T> *>(pValue), pWriter))
+    return false;
+
+  pWriter->write_name("data");
+
+  if (!jsonify(&pValue->data, pWriter))
+    return false;
+
+  pWriter->end();
+
+  return true;
+}
+
 inline bool deserialize(OUT lt_state *pValue, IN ByteStream *pStream, const uint32_t version)
 {
   if (!deserialize(&pValue->data, pStream, version))
@@ -664,6 +795,10 @@ inline bool deserialize(OUT lt_state *pValue, IN ByteStream *pStream, const uint
       return false;
   }
 
+  if (version >= 7)
+    if (!deserialize(&pValue->logs, pStream, version))
+      return false;
+
   return true;
 }
 
@@ -699,6 +834,9 @@ inline bool serialize(IN const lt_state *pValue, IN StreamWriter *pStream)
     return false;
 
   if (!serialize(&pValue->warnings, pStream))
+    return false;
+
+  if (!serialize(&pValue->logs, pStream))
     return false;
 
   return true;
@@ -759,6 +897,11 @@ inline bool jsonify(IN const lt_state *pValue, IN JsonWriter *pWriter)
   if (!jsonify(&pValue->warnings.value, pWriter))
     return false;
 
+  pWriter->write_name("logs");
+
+  if (!jsonify(&pValue->logs, pWriter))
+    return false;
+
   pWriter->end();
 
   return true;
@@ -795,6 +938,10 @@ inline bool deserialize(OUT lt_operation *pValue, IN ByteStream *pStream, const 
       return false;
   }
 
+  if (version >= 7)
+    if (!deserialize(&pValue->logs, pStream, version))
+      return false;
+
   return true;
 }
 
@@ -824,6 +971,9 @@ inline bool serialize(IN const lt_operation *pValue, IN StreamWriter *pStream)
     return false;
 
   if (!serialize(&pValue->warnings, pStream))
+    return false;
+
+  if (!serialize(&pValue->logs, pStream))
     return false;
 
   return true;
@@ -874,6 +1024,11 @@ inline bool jsonify(IN const lt_operation *pValue, IN JsonWriter *pWriter)
   if (!jsonify(&pValue->warnings, pWriter))
     return false;
 
+  pWriter->write_name("logs");
+
+  if (!jsonify(&pValue->logs, pWriter))
+    return false;
+
   pWriter->end();
 
   return true;
@@ -899,6 +1054,10 @@ inline bool deserialize(OUT lt_sub_system_data *pData, IN ByteStream *pStream, c
       return false;
   }
 
+  if (version >= 7)
+    if (!deserialize(&pData->noStateLogs, pStream, version))
+      return false;
+
   return true;
 }
 
@@ -917,6 +1076,9 @@ inline bool serialize(IN const lt_sub_system_data *pData, IN StreamWriter *pStre
     return false;
 
   if (!serialize(&pData->noStateWarnings, pStream))
+    return false;
+
+  if (!serialize(&pData->noStateLogs, pStream))
     return false;
 
   return true;
@@ -949,6 +1111,11 @@ inline bool jsonify(IN const lt_sub_system_data *pValue, IN JsonWriter *pWriter)
   pWriter->write_name("noStateWarnings");
 
   if (!jsonify(&pValue->noStateWarnings.value, pWriter))
+    return false;
+
+  pWriter->write_name("noStateLogs");
+
+  if (!jsonify(&pValue->noStateLogs, pWriter))
     return false;
 
   pWriter->end();
@@ -1132,10 +1299,8 @@ inline bool serialize(IN const lt_error *pData, IN StreamWriter *pStream)
   return true;
 }
 
-inline bool jsonify(IN const lt_error *pData, IN JsonWriter *pWriter)
+inline bool jsonify_internal(IN const lt_error *pData, IN JsonWriter *pWriter)
 {
-  pWriter->begin_body();
-
   pWriter->write("errorCode", pData->errorCode);
 
   if (pData->hasDescription)
@@ -1148,6 +1313,53 @@ inline bool jsonify(IN const lt_error *pData, IN JsonWriter *pWriter)
     if (!jsonify(&pData->stackTrace, pWriter))
       return false;
   }
+
+  return true;
+}
+
+inline bool jsonify(IN const lt_error *pData, IN JsonWriter *pWriter)
+{
+  pWriter->begin_body();
+
+  if (!jsonify_internal(pData, pWriter))
+    return false;
+
+  pWriter->end();
+
+  return true;
+}
+
+inline bool deserialize(OUT lt_crash *pData, IN ByteStream *pStream, const uint32_t version)
+{
+  if (version < 7)
+    return false;
+
+  if (!deserialize(static_cast<lt_error *>(pData), pStream, version))
+    return false;
+
+  READ_STRING(pStream, pData->firstOccurence);
+
+  return true;
+}
+
+inline bool serialize(IN const lt_crash *pData, IN StreamWriter *pStream)
+{
+  if (!serialize(static_cast<const lt_error *>(pData), pStream))
+    return false;
+
+  WRITE_STRING(pStream, pData->firstOccurence);
+
+  return true;
+}
+
+inline bool jsonify(IN const lt_crash *pData, IN JsonWriter *pWriter)
+{
+  pWriter->begin_body();
+
+  if (!jsonify_internal(static_cast<const lt_error *>(pData), pWriter))
+    return false;
+
+  pWriter->write("firstOccurence", pData->firstOccurence);
 
   pWriter->end();
 
@@ -1186,6 +1398,50 @@ inline bool jsonify(IN const lt_error_data *pValue, IN JsonWriter *pWriter)
   pWriter->write_name("error");
 
   if (!jsonify(&pValue->error, pWriter))
+    return false;
+
+  pWriter->write_name("data");
+
+  if (!jsonify(&pValue->data, pWriter))
+    return false;
+
+  pWriter->end();
+
+  return true;
+}
+
+inline bool deserialize(OUT lt_crash_data *pData, IN ByteStream *pStream, const uint32_t version)
+{
+  if (version < 7)
+    return false;
+
+  if (!deserialize(&pData->crash, pStream, version))
+    return false;
+
+  if (!deserialize(&pData->data, pStream, version))
+    return false;
+
+  return true;
+}
+
+inline bool serialize(IN const lt_crash_data *pData, IN StreamWriter *pStream)
+{
+  if (!serialize(&pData->crash, pStream))
+    return false;
+
+  if (!serialize(&pData->data, pStream))
+    return false;
+
+  return true;
+}
+
+inline bool jsonify(IN const lt_crash_data *pValue, IN JsonWriter *pWriter)
+{
+  pWriter->begin_body();
+
+  pWriter->write_name("crash");
+
+  if (!jsonify(&pValue->crash, pWriter))
     return false;
 
   pWriter->write_name("data");
@@ -1656,135 +1912,6 @@ inline bool jsonify(IN const lt_perf_value_range<T> *pData, IN JsonWriter *pWrit
   return true;
 }
 
-template <typename T>
-inline bool deserialize(OUT lt_values<T> *pData, IN ByteStream *pStream, const uint32_t version)
-{
-  if (version < 4)
-    return false;
-
-  if (!deserialize(&pData->data, pStream, version))
-    return false;
-
-  if (!deserialize(&pData->values, pStream, version))
-    return false;
-
-  return true;
-}
-
-template <typename T>
-inline bool serialize(IN const lt_values<T> *pData, IN StreamWriter *pStream)
-{
-  if (!serialize(&pData->data, pStream))
-    return false;
-
-  if (!serialize(&pData->values, pStream))
-    return false;
-
-  return true;
-}
-
-template <typename T>
-inline bool jsonify(IN const lt_values<T> *pValue, IN JsonWriter *pWriter)
-{
-  pWriter->begin_body();
-
-  pWriter->write_name("data");
-
-  if (!jsonify(&pValue->data, pWriter))
-    return false;
-
-  uint64_t count = 0;
-
-  for (const auto &_item : pValue->values.value)
-    count += _item;
-
-  pWriter->write("count", count);
-
-  SoaList<T, uint64_t> sorted;
-  sorted.index = pValue->values.index;
-  sorted.value = pValue->values.value;
-
-  sort_by_value(&sorted);
-
-  pWriter->begin_array("values");
-
-  for (size_t i = 0; i < sorted.size() && i < 16; i++)
-  {
-    pWriter->begin_body();
-    pWriter->write("value", sorted.index[i].value);
-    pWriter->write("count", sorted.value[i]);
-    pWriter->end();
-  }
-
-  pWriter->end();
-
-  pWriter->end();
-
-  return true;
-}
-
-template <typename T>
-inline bool deserialize(OUT lt_global_values<T> *pData, IN ByteStream *pStream, const uint32_t version)
-{
-  if (version < 4)
-    return false;
-
-  if (!deserialize(&pData->values, pStream, version))
-    return false;
-
-  return true;
-}
-
-template <typename T>
-inline bool serialize(IN const lt_global_values<T> *pData, IN StreamWriter *pStream)
-{
-  if (!serialize(&pData->values, pStream))
-    return false;
-
-  return true;
-}
-
-template <typename T>
-inline bool jsonify(IN const lt_global_values<T> *pValue, IN JsonWriter *pWriter)
-{
-  pWriter->begin_body();
-
-  uint64_t count = 0;
-
-  for (const auto &_item : pValue->values.value)
-    count += _item;
-
-  pWriter->write("count", count);
-
-  SoaList<T, uint64_t> sorted;
-  sorted.index = pValue->values.index;
-  sorted.value = pValue->values.value;
-
-  sort_by_value(&sorted);
-
-  pWriter->begin_array("values");
-
-  for (size_t i = 0; i < sorted.size() && i < 16; i++)
-  {
-    pWriter->begin_body();
-    pWriter->write_name("value");
-
-    const T val = sorted.index[i];
-
-    if (!jsonify(&val, pWriter))
-      return false;
-
-    pWriter->write("count", sorted.value[i]);
-    pWriter->end();
-  }
-
-  pWriter->end();
-
-  pWriter->end();
-
-  return true;
-}
-
 inline bool deserialize(OUT lt_hw_info_analyze *pData, IN ByteStream *pStream, const uint32_t version)
 {
   if (version < 5)
@@ -2105,6 +2232,12 @@ inline bool deserialize(OUT lt_analyze *pAnalyze, IN ByteStream *pStream)
       return false;
   }
 
+  if (version >= 7)
+  {
+    if (!deserialize(&pAnalyze->crashes, pStream, version))
+      return false;
+  }
+
   return true;
 }
 
@@ -2142,6 +2275,9 @@ inline bool serialize(IN const lt_analyze *pAnalyze, OUT StreamWriter *pStream)
     return false;
 
   if (!serialize(&pAnalyze->perfMetrics, pStream))
+    return false;
+
+  if (!serialize(&pAnalyze->crashes, pStream))
     return false;
 
   return true;
@@ -2200,6 +2336,11 @@ inline bool jsonify(IN const lt_analyze *pAnalyze, OUT JsonWriter *pWriter)
   pWriter->write_name("perfMetrics");
 
   if (!jsonify(&pAnalyze->perfMetrics, pWriter))
+    return false;
+
+  pWriter->write_name("crashes");
+
+  if (!jsonify(&pAnalyze->crashes, pWriter))
     return false;
 
   pWriter->end();
