@@ -285,15 +285,15 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
   // Read Telemetry File.
   {
     HANDLE file = CreateFileW(inputFileName, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
-    FATAL_IF(file == INVALID_HANDLE_VALUE, "Failed to open log file. ('%ws' / 0x%" PRIX32 ")", inputFileName, GetLastError());
+    RETURN_ERROR_IF(file == INVALID_HANDLE_VALUE, "Failed to open log file. ('%ws' / 0x%" PRIX32 ")", inputFileName, GetLastError());
 
     LARGE_INTEGER _fileSize;
-    FATAL_IF(!GetFileSizeEx(file, &_fileSize), "Failed to retrieve file size.");
+    RETURN_ERROR_IF(!GetFileSizeEx(file, &_fileSize), "Failed to retrieve file size.");
 
     fileSize = (size_t)_fileSize.QuadPart;
     pData = reinterpret_cast<uint8_t *>(malloc(fileSize));
 
-    FATAL_IF(pData == nullptr, "Failed to allocate memory.");
+    RETURN_ERROR_IF(pData == nullptr, "Failed to allocate memory.");
 
     size_t bytesRemaining = fileSize;
     size_t offset = 0;
@@ -303,8 +303,8 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
       const DWORD bytesToRead = (DWORD)min(bytesRemaining, MAXDWORD);
       DWORD bytesRead = 0;
 
-      FATAL_IF(!ReadFile(file, pData + offset, bytesToRead, &bytesRead, nullptr), "Failed to read log file. ('%ws' / 0x%" PRIX32 ")", inputFileName, GetLastError());
-      FATAL_IF(bytesRead == 0, "Failed to read from log file.");
+      RETURN_ERROR_IF(!ReadFile(file, pData + offset, bytesToRead, &bytesRead, nullptr), "Failed to read log file. ('%ws' / 0x%" PRIX32 ")", inputFileName, GetLastError());
+      RETURN_ERROR_IF(bytesRead == 0, "Failed to read from log file.");
 
       offset += bytesRead;
       bytesRemaining -= bytesRead;
@@ -331,14 +331,14 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
 
     uint8_t u8 = (uint8_t)~lt_t_start;
     READ(&stream, u8);
-    FATAL_IF(u8 != lt_t_start, "Invalid Header");
+    RETURN_ERROR_IF(u8 != lt_t_start, "Invalid Header");
 
     READ(&stream, ltVersion);
     READ(&stream, startTimestamp);
 
     uint8_t productNameLength = 0;
     READ(&stream, productNameLength);
-    FATAL_IF(!stream.read(productName, productNameLength), "Insufficient Data");
+    RETURN_ERROR_IF(!stream.read(productName, productNameLength), "Insufficient Data");
     productName[productNameLength] = '\0';
 
     READ(&stream, majorVersion);
@@ -349,7 +349,7 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
 
     uint8_t remoteHostLength = 0;
     READ(&stream, remoteHostLength);
-    FATAL_IF(!stream.read(remoteHost, remoteHostLength), "Insufficient Data");
+    RETURN_ERROR_IF(!stream.read(remoteHost, remoteHostLength), "Insufficient Data");
     remoteHost[remoteHostLength] = '\0';
 
     while (stream.sizeRemaining > 0)
@@ -358,14 +358,14 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
 
       uint8_t type = 0;
       READ(&stream, type);
-      FATAL_IF(type == 0, "New Start Detected.");
+      RETURN_ERROR_IF(type == 0, "New Start Detected.");
 
       if (type < __lt_t_fixed_length)
       {
         uint16_t size;
         READ(&stream, size);
-        FATAL_IF(size < 3, "Invalid Section Size");
-        FATAL_IF(!stream.read<uint8_t>(nullptr, size - 3), "Insufficient Data");
+        RETURN_ERROR_IF(size < 3, "Invalid Section Size");
+        RETURN_ERROR_IF(!stream.read<uint8_t>(nullptr, size - 3), "Insufficient Data");
 
         headers.emplace_back(pPtr, size);
       }
@@ -375,31 +375,31 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
         {
         case lt_t_state:
           headers.emplace_back(pPtr, _lt_state_length);
-          FATAL_IF(!stream.read<uint8_t>(nullptr, _lt_state_length - 1), "Insufficient Data");
+          RETURN_ERROR_IF(!stream.read<uint8_t>(nullptr, _lt_state_length - 1), "Insufficient Data");
           break;
 
         case lt_t_operation:
           headers.emplace_back(pPtr, _lt_operation_length);
-          FATAL_IF(!stream.read<uint8_t>(nullptr, _lt_operation_length - 1), "Insufficient Data");
+          RETURN_ERROR_IF(!stream.read<uint8_t>(nullptr, _lt_operation_length - 1), "Insufficient Data");
           break;
 
         case lt_t_observed_value:
           headers.emplace_back(pPtr, _lt_observed_value_length);
-          FATAL_IF(!stream.read<uint8_t>(nullptr, _lt_observed_value_length - 1), "Insufficient Data");
+          RETURN_ERROR_IF(!stream.read<uint8_t>(nullptr, _lt_observed_value_length - 1), "Insufficient Data");
           break;
 
         case lt_t_observed_exact_value:
           headers.emplace_back(pPtr, _lt_observed_exact_value_length);
-          FATAL_IF(!stream.read<uint8_t>(nullptr, _lt_observed_exact_value_length - 1), "Insufficient Data");
+          RETURN_ERROR_IF(!stream.read<uint8_t>(nullptr, _lt_observed_exact_value_length - 1), "Insufficient Data");
           break;
 
         case lt_t_perf_metric:
           headers.emplace_back(pPtr, _lt_perf_metric_length);
-          FATAL_IF(!stream.read<uint8_t>(nullptr, _lt_perf_metric_length - 1), "Insufficient Data");
+          RETURN_ERROR_IF(!stream.read<uint8_t>(nullptr, _lt_perf_metric_length - 1), "Insufficient Data");
           break;
 
         default:
-          FATAL("Unsupported Type (0x%02" PRIX8 ")", type);
+          RETURN_ERROR("Unsupported Type (0x%02" PRIX8 ")", type);
           break;
         }
       }
@@ -410,11 +410,11 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
   {
     if (!isNewFile)
     {
-      FATAL_IF(0 != strncmp(productName, pAnalyze->productName, sizeof(productName)), "Error! Incompatible Product Name. '%s' != '%s'.", productName, pAnalyze->productName);
-      FATAL_IF(majorVersion != pAnalyze->majorVersion, "Error! Incompatible Major Version. 0x%" PRIX64 " != 0x%" PRIX64 ".", majorVersion, pAnalyze->majorVersion);
+      RETURN_ERROR_IF(0 != strncmp(productName, pAnalyze->productName, sizeof(productName)), "Error! Incompatible Product Name. '%s' != '%s'.", productName, pAnalyze->productName);
+      RETURN_ERROR_IF(majorVersion != pAnalyze->majorVersion, "Error! Incompatible Major Version. 0x%" PRIX64 " != 0x%" PRIX64 ".", majorVersion, pAnalyze->majorVersion);
 
       if (!pOptions->ignoreMinorVersionDiff)
-        FATAL_IF(minorVersion != pAnalyze->minorVersion, "Error! Incompatible Major Version. 0x%" PRIX64 " != 0x%" PRIX64 ".", minorVersion, pAnalyze->minorVersion);
+        RETURN_ERROR_IF(minorVersion != pAnalyze->minorVersion, "Error! Incompatible Major Version. 0x%" PRIX64 " != 0x%" PRIX64 ".", minorVersion, pAnalyze->minorVersion);
     }
     else
     {
@@ -706,17 +706,17 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
 
         uint16_t stackTraceLength = 0;
         READ(&stream, stackTraceLength);
-        FATAL_IF(stackTraceLength > sizeof(stackTraceData), "Stack Trace size exceeds capacity.");
+        RETURN_ERROR_IF(stackTraceLength > sizeof(stackTraceData), "Stack Trace size exceeds capacity.");
 
         uint32_t stackTraceHash = 0;
 
         if (stackTraceLength > 0)
         {
           const uint8_t *pStackTraceData = stream.pData;
-          FATAL_IF(!stream.read<uint8_t >(nullptr, stackTraceLength), "Insufficient data stream.");
+          RETURN_ERROR_IF(!stream.read<uint8_t >(nullptr, stackTraceLength), "Insufficient data stream.");
           memcpy(stackTraceData, pStackTraceData, stackTraceLength);
 
-          FATAL_IF(stackTraceLength < 6, "Insufficient StackTrace Length.");
+          RETURN_ERROR_IF(stackTraceLength < 6, "Insufficient StackTrace Length.");
           stackTraceHash = *reinterpret_cast<uint32_t *>(stackTraceData + 1);
         }
 
@@ -765,17 +765,17 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
 
         uint16_t stackTraceLength = 0;
         READ(&stream, stackTraceLength);
-        FATAL_IF(stackTraceLength > sizeof(stackTraceData), "Stack Trace size exceeds capacity.");
+        RETURN_ERROR_IF(stackTraceLength > sizeof(stackTraceData), "Stack Trace size exceeds capacity.");
 
         uint32_t stackTraceHash = 0;
 
         if (stackTraceLength > 0)
         {
           const uint8_t *pStackTraceData = stream.pData;
-          FATAL_IF(!stream.read<uint8_t >(nullptr, stackTraceLength), "Insufficient data stream.");
+          RETURN_ERROR_IF(!stream.read<uint8_t >(nullptr, stackTraceLength), "Insufficient data stream.");
           memcpy(stackTraceData, pStackTraceData, stackTraceLength);
 
-          FATAL_IF(stackTraceLength < 6, "Insufficient StackTrace Length.");
+          RETURN_ERROR_IF(stackTraceLength < 6, "Insufficient StackTrace Length.");
           stackTraceHash = *reinterpret_cast<uint32_t *>(stackTraceData + 1);
         }
 
@@ -891,7 +891,7 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
         lt_sub_system_data *pSSData = get_sub_system_data(pAnalyze, subSystem);
 
         const double *pPerfData = reinterpret_cast<const double *>(stream.pData);
-        FATAL_IF(!stream.read<double>(nullptr, count), "Insufficient data stream.");
+        RETURN_ERROR_IF(!stream.read<double>(nullptr, count), "Insufficient data stream.");
 
         for (uint8_t i = 0; i < count; i++)
           add_perf_data(&pSSData->profilerData, i, pPerfData[i], &hwInfoShort, pSubSystem->hasLastOperation, &pSubSystem->lastOperation);
@@ -1295,6 +1295,8 @@ int32_t main(void)
 
     FATAL_IF(!jsonify(&analyze, &writer), "Failed to jsonify analyze data.");
   }
+
+  puts("Success!");
 
   return 0;
 }

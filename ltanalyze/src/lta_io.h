@@ -86,8 +86,7 @@ inline bool deserialize(OUT std::vector<T> *pVector, IN ByteStream *pStream, con
   {
     T item;
 
-    if (!deserialize(&item, pStream, version))
-      return false;
+    RETURN_ERROR_IF(!deserialize(&item, pStream, version), "Failed to deserialize.");
 
     pVector->push_back(std::move(item));
   }
@@ -102,8 +101,7 @@ inline bool serialize(IN const std::vector<T> *pVector, IN StreamWriter *pStream
   WRITE(pStream, count);
 
   for (const auto &_item : *pVector)
-    if (!serialize(&_item, pStream))
-      return false;
+    RETURN_ERROR_IF(!serialize(&_item, pStream), "Failed to serialize.");
 
   return true;
 }
@@ -114,8 +112,7 @@ inline bool jsonify(IN const std::vector<T> *pVector, IN JsonWriter *pWriter)
   pWriter->begin_array();
 
   for (const auto &_item : *pVector)
-    if (!jsonify(&_item, pWriter))
-      return false;
+    RETURN_ERROR_IF(!jsonify(&_item, pWriter), "Failed to jsonify.");
 
   pWriter->end();
 
@@ -133,11 +130,8 @@ inline bool deserialize(OUT SoaList<T, T2> *pList, IN ByteStream *pStream, const
     T index;
     T2 value;
 
-    if (!deserialize(&index, pStream, version))
-      return false;
-
-    if (!deserialize(&value, pStream, version))
-      return false;
+    RETURN_ERROR_IF(!deserialize(&index, pStream, version), "Failed to deserialize.");
+    RETURN_ERROR_IF(!deserialize(&value, pStream, version), "Failed to deserialize.");
 
     pList->push_back(std::move(index), std::move(value));
   }
@@ -153,11 +147,8 @@ inline bool serialize(IN const SoaList<T, T2> *pList, IN StreamWriter *pStream)
 
   for (size_t i = 0; i < pList->size(); i++)
   {
-    if (!serialize(&pList->index[i], pStream))
-      return false;
-
-    if (!serialize(&pList->value[i], pStream))
-      return false;
+    RETURN_ERROR_IF(!serialize(&pList->index[i], pStream), "Failed to serialize.");
+    RETURN_ERROR_IF(!serialize(&pList->value[i], pStream), "Failed to serialize.");
   }
 
   return true;
@@ -173,14 +164,10 @@ inline bool jsonify(IN const SoaList<T, T2> *pList, IN JsonWriter *pWriter)
     pWriter->begin_body();
 
     pWriter->write_name("index");
-
-    if (!jsonify(&pList->index[i], pWriter))
-      return false;
+    RETURN_ERROR_IF(!jsonify(&pList->index[i], pWriter), "Failed to jsonify.");
 
     pWriter->write_name("value");
-
-    if (!jsonify(&pList->value[i], pWriter))
-      return false;
+    RETURN_ERROR_IF(!jsonify(&pList->value[i], pWriter), "Failed to jsonify.");
 
     pWriter->end();
   }
@@ -380,22 +367,16 @@ inline bool jsonify(IN const lt_operation_identifier *pValue, IN JsonWriter *pWr
 
 inline bool deserialize(OUT lt_operation_transition_data *pData, IN ByteStream *pStream, const uint32_t version)
 {
-  if (!deserialize(static_cast<lt_transition_data *>(pData), pStream, version))
-    return false;
-
-  if (!deserialize(&pData->operationIndexCount, pStream, version))
-    return false;
+  RETURN_ERROR_IF(!deserialize(static_cast<lt_transition_data *>(pData), pStream, version), "Failed to deserialize.");
+  RETURN_ERROR_IF(!deserialize(&pData->operationIndexCount, pStream, version), "Failed to deserialize.");
 
   return true;
 }
 
 inline bool serialize(IN const lt_operation_transition_data *pData, IN StreamWriter *pStream)
 {
-  if (!serialize(static_cast<const lt_transition_data *>(pData), pStream))
-    return false;
-
-  if (!serialize(&pData->operationIndexCount, pStream))
-    return false;
+  RETURN_ERROR_IF(!serialize(static_cast<const lt_transition_data *>(pData), pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pData->operationIndexCount, pStream), "Failed to serialize.");
 
   return true;
 }
@@ -411,8 +392,7 @@ inline bool jsonify(IN const lt_operation_transition_data *pValue, IN JsonWriter
 
   pWriter->write_name("operations");
 
-  if (!jsonify(&pValue->operationIndexCount, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pValue->operationIndexCount, pWriter), "Failed to jsonify.");
 
   pWriter->end();
 
@@ -422,8 +402,7 @@ inline bool jsonify(IN const lt_operation_transition_data *pValue, IN JsonWriter
 template <typename T>
 inline bool deserialize(OUT lt_avg_data<T> *pData, IN ByteStream *pStream, const uint32_t version)
 {
-  if (version < 2)
-    return false;
+  RETURN_ERROR_IF(version < 2, "Invalid Version");
 
   READ(pStream, pData->count);
   READ(pStream, pData->value);
@@ -461,8 +440,7 @@ inline bool jsonify(IN const lt_avg_data<T> *pData, IN JsonWriter *pWriter)
 
 inline bool deserialize(OUT lt_short_hw_info *pData, IN ByteStream *pStream, const uint32_t version)
 {
-  if (version < 2)
-    return false;
+  RETURN_ERROR_IF(version < 2, "Invalid Version");
 
   READ_STRING(pStream, pData->cpuName);
   READ(pStream, pData->cpuCores);
@@ -522,34 +500,25 @@ inline bool jsonify(IN const lt_short_hw_info *pData, IN JsonWriter *pWriter)
 
 inline bool deserialize(OUT lt_perf_data *pData, IN ByteStream *pStream, const uint32_t version)
 {
-  if (version < 2)
-    return false;
+  RETURN_ERROR_IF(version < 2, "Invalid Version");
 
-  if (!pStream->read(pData->hist, ARRAYSIZE(pData->hist)))
-    return false;
+  RETURN_ERROR_IF(!pStream->read(pData->hist, ARRAYSIZE(pData->hist)), "Failed to read data.");
 
-  if (!deserialize(&pData->timeMs, pStream, version))
-    return false;
-
-  if (!deserialize(&pData->minInfo, pStream, version))
-    return false;
-
-  if (!deserialize(&pData->maxInfo, pStream, version))
-    return false;
+  RETURN_ERROR_IF(!deserialize(&pData->timeMs, pStream, version), "Failed to deserialize.");
+  RETURN_ERROR_IF(!deserialize(&pData->minInfo, pStream, version), "Failed to deserialize.");
+  RETURN_ERROR_IF(!deserialize(&pData->maxInfo, pStream, version), "Failed to deserialize.");
 
   if (version >= 3)
   {
     READ(pStream, pData->hasMinLastOperation);
 
     if (pData->hasMinLastOperation)
-      if (!deserialize(&pData->minLastOperation, pStream, version))
-        return false;
+      RETURN_ERROR_IF(!deserialize(&pData->minLastOperation, pStream, version), "Failed to deserialize.");
 
     READ(pStream, pData->hasMaxLastOperation);
 
     if (pData->hasMaxLastOperation)
-      if (!deserialize(&pData->maxLastOperation, pStream, version))
-        return false;
+      RETURN_ERROR_IF(!deserialize(&pData->maxLastOperation, pStream, version), "Failed to deserialize.");
   }
 
   return true;
@@ -557,29 +526,21 @@ inline bool deserialize(OUT lt_perf_data *pData, IN ByteStream *pStream, const u
 
 inline bool serialize(IN const lt_perf_data *pData, IN StreamWriter *pStream)
 {
-  if (!pStream->write(pData->hist, ARRAYSIZE(pData->hist)))
-    return false;
+  RETURN_ERROR_IF(!pStream->write(pData->hist, ARRAYSIZE(pData->hist)), "Failed to write data.");
 
-  if (!serialize(&pData->timeMs, pStream))
-    return false;
-
-  if (!serialize(&pData->minInfo, pStream))
-    return false;
-
-  if (!serialize(&pData->minInfo, pStream))
-    return false;
+  RETURN_ERROR_IF(!serialize(&pData->timeMs, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pData->minInfo, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pData->minInfo, pStream), "Failed to serialize.");
 
   WRITE(pStream, pData->hasMinLastOperation);
 
   if (pData->hasMinLastOperation)
-    if (!serialize(&pData->minLastOperation, pStream))
-      return false;
+    RETURN_ERROR_IF(!serialize(&pData->minLastOperation, pStream), "Failed to serialize.");
 
   WRITE(pStream, pData->hasMaxLastOperation);
 
   if (pData->hasMaxLastOperation)
-    if (!serialize(&pData->maxLastOperation, pStream))
-      return false;
+    RETURN_ERROR_IF(!serialize(&pData->maxLastOperation, pStream), "Failed to serialize.");
 
   return true;
 }
@@ -596,26 +557,19 @@ inline bool jsonify(IN const lt_perf_data *pData, IN JsonWriter *pWriter)
   pWriter->end();
 
   pWriter->write_name("timeMs");
-
-  if (!jsonify(&pData->timeMs, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pData->timeMs, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("minInfo");
-
-  if (!jsonify(&pData->minInfo, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pData->minInfo, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("maxInfo");
-
-  if (!jsonify(&pData->maxInfo, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pData->maxInfo, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("minLastOperation");
 
   if (pData->hasMinLastOperation)
   {
-    if (!jsonify(&pData->minLastOperation, pWriter))
-      return false;
+    RETURN_ERROR_IF(!jsonify(&pData->minLastOperation, pWriter), "Failed to jsonify.");
   }
   else
   {
@@ -627,8 +581,7 @@ inline bool jsonify(IN const lt_perf_data *pData, IN JsonWriter *pWriter)
 
   if (pData->hasMaxLastOperation)
   {
-    if (!jsonify(&pData->maxLastOperation, pWriter))
-      return false;
+    RETURN_ERROR_IF(!jsonify(&pData->maxLastOperation, pWriter), "Failed to jsonify.");
   }
   else
   {
@@ -644,11 +597,9 @@ inline bool jsonify(IN const lt_perf_data *pData, IN JsonWriter *pWriter)
 template <typename T>
 inline bool deserialize(OUT lt_global_values<T> *pData, IN ByteStream *pStream, const uint32_t version)
 {
-  if (version < 4)
-    return false;
+  RETURN_ERROR_IF(version < 4, "Invalid Version");
 
-  if (!deserialize(&pData->values, pStream, version))
-    return false;
+  RETURN_ERROR_IF(!deserialize(&pData->values, pStream, version), "Failed to deserialize.");
 
   return true;
 }
@@ -656,8 +607,7 @@ inline bool deserialize(OUT lt_global_values<T> *pData, IN ByteStream *pStream, 
 template <typename T>
 inline bool serialize(IN const lt_global_values<T> *pData, IN StreamWriter *pStream)
 {
-  if (!serialize(&pData->values, pStream))
-    return false;
+  RETURN_ERROR_IF(!serialize(&pData->values, pStream), "Failed to serialize.");
 
   return true;
 }
@@ -687,8 +637,7 @@ inline bool jsonify_internal(IN const lt_global_values<T> *pValue, IN JsonWriter
 
     const T val = sorted.index[i];
 
-    if (!jsonify(&val, pWriter))
-      return false;
+    RETURN_ERROR_IF(!jsonify(&val, pWriter), "Failed to jsonify.");
 
     pWriter->write("count", sorted.value[i]);
     pWriter->end();
@@ -704,8 +653,7 @@ inline bool jsonify(IN const lt_global_values<T> *pValue, IN JsonWriter *pWriter
 {
   pWriter->begin_body();
 
-  if (!jsonify_internal(pValue, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify_internal(pValue, pWriter), "Failed to jsonify.");
 
   pWriter->end();
 
@@ -715,14 +663,10 @@ inline bool jsonify(IN const lt_global_values<T> *pValue, IN JsonWriter *pWriter
 template <typename T>
 inline bool deserialize(OUT lt_values<T> *pData, IN ByteStream *pStream, const uint32_t version)
 {
-  if (version < 4)
-    return false;
+  RETURN_ERROR_IF(version < 4, "Invalid Version");
 
-  if (!deserialize(static_cast<lt_global_values<T> *>(pData), pStream, version))
-    return false;
-
-  if (!deserialize(&pData->data, pStream, version))
-    return false;
+  RETURN_ERROR_IF(!deserialize(static_cast<lt_global_values<T> *>(pData), pStream, version), "Failed to deserialize.");
+  RETURN_ERROR_IF(!deserialize(&pData->data, pStream, version), "Failed to deserialize.");
 
   return true;
 }
@@ -730,11 +674,8 @@ inline bool deserialize(OUT lt_values<T> *pData, IN ByteStream *pStream, const u
 template <typename T>
 inline bool serialize(IN const lt_values<T> *pData, IN StreamWriter *pStream)
 {
-  if (!serialize(static_cast<const lt_global_values<T> *>(pData), pStream))
-    return false;
-
-  if (!serialize(&pData->data, pStream))
-    return false;
+  RETURN_ERROR_IF(!serialize(static_cast<const lt_global_values<T> *>(pData), pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pData->data, pStream), "Failed to serialize.");
 
   return true;
 }
@@ -744,13 +685,10 @@ inline bool jsonify(IN const lt_values<T> *pValue, IN JsonWriter *pWriter)
 {
   pWriter->begin_body();
 
-  if (!jsonify_internal(static_cast<const lt_global_values<T> *>(pValue), pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify_internal(static_cast<const lt_global_values<T> *>(pValue), pWriter), "Failed to jsonify.");
 
   pWriter->write_name("data");
-
-  if (!jsonify(&pValue->data, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pValue->data, pWriter), "Failed to jsonify.");
 
   pWriter->end();
 
@@ -759,85 +697,47 @@ inline bool jsonify(IN const lt_values<T> *pValue, IN JsonWriter *pWriter)
 
 inline bool deserialize(OUT lt_state *pValue, IN ByteStream *pStream, const uint32_t version)
 {
-  if (!deserialize(&pValue->data, pStream, version))
-    return false;
+  RETURN_ERROR_IF(!deserialize(&pValue->data, pStream, version), "Failed to deserialize.");
 
   READ(pStream, pValue->avgTimeSinceStartS);
 
-  if (!deserialize(&pValue->previousState, pStream, version))
-    return false;
-
-  if (!deserialize(&pValue->nextState, pStream, version))
-    return false;
-
-  if (!deserialize(&pValue->operations, pStream, version))
-    return false;
-
-  if (!deserialize(&pValue->previousOperation, pStream, version))
-    return false;
-
-  if (!deserialize(&pValue->stateReach, pStream, version))
-    return false;
-
-  if (!deserialize(&pValue->operationReach, pStream, version))
-    return false;
-
+  RETURN_ERROR_IF(!deserialize(&pValue->previousState, pStream, version), "Failed to deserialize.");
+  RETURN_ERROR_IF(!deserialize(&pValue->nextState, pStream, version), "Failed to deserialize.");
+  RETURN_ERROR_IF(!deserialize(&pValue->operations, pStream, version), "Failed to deserialize.");
+  RETURN_ERROR_IF(!deserialize(&pValue->previousOperation, pStream, version), "Failed to deserialize.");
+  RETURN_ERROR_IF(!deserialize(&pValue->stateReach, pStream, version), "Failed to deserialize.");
+  RETURN_ERROR_IF(!deserialize(&pValue->operationReach, pStream, version), "Failed to deserialize.");
   if (version >= 2)
-    if (!deserialize(&pValue->profilerData, pStream, version))
-      return false;
+    RETURN_ERROR_IF(!deserialize(&pValue->profilerData, pStream, version), "Failed to deserialize.");
 
   if (version >= 6)
   {
-    if (!deserialize(&pValue->errors, pStream, version))
-      return false;
-
-    if (!deserialize(&pValue->warnings, pStream, version))
-      return false;
+    RETURN_ERROR_IF(!deserialize(&pValue->errors, pStream, version), "Failed to deserialize.");
+    RETURN_ERROR_IF(!deserialize(&pValue->warnings, pStream, version), "Failed to deserialize.");
   }
 
   if (version >= 7)
-    if (!deserialize(&pValue->logs, pStream, version))
-      return false;
+    RETURN_ERROR_IF(!deserialize(&pValue->logs, pStream, version), "Failed to deserialize.");
 
   return true;
 }
 
 inline bool serialize(IN const lt_state *pValue, IN StreamWriter *pStream)
 {
-  if (!serialize(&pValue->data, pStream))
-    return false;
+  RETURN_ERROR_IF(!serialize(&pValue->data, pStream), "Failed to serialize.");
 
   WRITE(pStream, pValue->avgTimeSinceStartS);
 
-  if (!serialize(&pValue->previousState, pStream))
-    return false;
-
-  if (!serialize(&pValue->nextState, pStream))
-    return false;
-
-  if (!serialize(&pValue->operations, pStream))
-    return false;
-
-  if (!serialize(&pValue->previousOperation, pStream))
-    return false;
-
-  if (!serialize(&pValue->stateReach, pStream))
-    return false;
-
-  if (!serialize(&pValue->operationReach, pStream))
-    return false;
-
-  if (!serialize(&pValue->profilerData, pStream))
-    return false;
-
-  if (!serialize(&pValue->errors, pStream))
-    return false;
-
-  if (!serialize(&pValue->warnings, pStream))
-    return false;
-
-  if (!serialize(&pValue->logs, pStream))
-    return false;
+  RETURN_ERROR_IF(!serialize(&pValue->previousState, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pValue->nextState, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pValue->operations, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pValue->previousOperation, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pValue->stateReach, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pValue->operationReach, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pValue->profilerData, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pValue->errors, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pValue->warnings, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pValue->logs, pStream), "Failed to serialize.");
 
   return true;
 }
@@ -853,54 +753,34 @@ inline bool jsonify(IN const lt_state *pValue, IN JsonWriter *pWriter)
   pWriter->write("avgStartDelay", pValue->avgTimeSinceStartS);
 
   pWriter->write_name("previousState");
-
-  if (!jsonify(&pValue->previousState, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pValue->previousState, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("nextState");
-
-  if (!jsonify(&pValue->nextState, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pValue->nextState, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("operations");
-
-  if (!jsonify(&pValue->operations, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pValue->operations, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("previousOperation");
-
-  if (!jsonify(&pValue->previousOperation, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pValue->previousOperation, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("stateReach");
-
-  if (!jsonify(&pValue->stateReach, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pValue->stateReach, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("operationReach");
-
-  if (!jsonify(&pValue->operationReach, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pValue->operationReach, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("profileData");
-
-  if (!jsonify(&pValue->profilerData, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pValue->profilerData, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("errors");
-
-  if (!jsonify(&pValue->errors.value, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pValue->errors.value, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("warnings");
-
-  if (!jsonify(&pValue->warnings.value, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pValue->warnings.value, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("logs");
-
-  if (!jsonify(&pValue->logs, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pValue->logs, pWriter), "Failed to jsonify.");
 
   pWriter->end();
 
@@ -909,72 +789,42 @@ inline bool jsonify(IN const lt_state *pValue, IN JsonWriter *pWriter)
 
 inline bool deserialize(OUT lt_operation *pValue, IN ByteStream *pStream, const uint32_t version)
 {
-  if (!deserialize(&pValue->data, pStream, version))
-    return false;
+  RETURN_ERROR_IF(!deserialize(&pValue->data, pStream, version), "Failed to deserialize.");
 
   READ(pStream, pValue->avgTimeSinceStartS);
 
-  if (!deserialize(&pValue->operationIndexCount, pStream, version))
-    return false;
-
-  if (!deserialize(&pValue->parentState, pStream, version))
-    return false;
-
-  if (!deserialize(&pValue->nextState, pStream, version))
-    return false;
-
-  if (!deserialize(&pValue->lastOperation, pStream, version))
-    return false;
-
-  if (!deserialize(&pValue->nextOperation, pStream, version))
-    return false;
+  RETURN_ERROR_IF(!deserialize(&pValue->operationIndexCount, pStream, version), "Failed to deserialize.");
+  RETURN_ERROR_IF(!deserialize(&pValue->parentState, pStream, version), "Failed to deserialize.");
+  RETURN_ERROR_IF(!deserialize(&pValue->nextState, pStream, version), "Failed to deserialize.");
+  RETURN_ERROR_IF(!deserialize(&pValue->lastOperation, pStream, version), "Failed to deserialize.");
+  RETURN_ERROR_IF(!deserialize(&pValue->nextOperation, pStream, version), "Failed to deserialize.");
 
   if (version >= 6)
   {
-    if (!deserialize(&pValue->errors, pStream, version))
-      return false;
-
-    if (!deserialize(&pValue->warnings, pStream, version))
-      return false;
+    RETURN_ERROR_IF(!deserialize(&pValue->errors, pStream, version), "Failed to deserialize.");
+    RETURN_ERROR_IF(!deserialize(&pValue->warnings, pStream, version), "Failed to deserialize.");
   }
 
   if (version >= 7)
-    if (!deserialize(&pValue->logs, pStream, version))
-      return false;
+    RETURN_ERROR_IF(!deserialize(&pValue->logs, pStream, version), "Failed to deserialize.");
 
   return true;
 }
 
 inline bool serialize(IN const lt_operation *pValue, IN StreamWriter *pStream)
 {
-  if (!serialize(&pValue->data, pStream))
-    return false;
+  RETURN_ERROR_IF(!serialize(&pValue->data, pStream), "Failed to serialize.");
 
   WRITE(pStream, pValue->avgTimeSinceStartS);
 
-  if (!serialize(&pValue->operationIndexCount, pStream))
-    return false;
-
-  if (!serialize(&pValue->parentState, pStream))
-    return false;
-
-  if (!serialize(&pValue->nextState, pStream))
-    return false;
-
-  if (!serialize(&pValue->lastOperation, pStream))
-    return false;
-
-  if (!serialize(&pValue->nextOperation, pStream))
-    return false;
-
-  if (!serialize(&pValue->errors, pStream))
-    return false;
-
-  if (!serialize(&pValue->warnings, pStream))
-    return false;
-
-  if (!serialize(&pValue->logs, pStream))
-    return false;
+  RETURN_ERROR_IF(!serialize(&pValue->operationIndexCount, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pValue->parentState, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pValue->nextState, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pValue->lastOperation, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pValue->nextOperation, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pValue->errors, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pValue->warnings, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pValue->logs, pStream), "Failed to serialize.");
 
   return true;
 }
@@ -990,44 +840,28 @@ inline bool jsonify(IN const lt_operation *pValue, IN JsonWriter *pWriter)
   pWriter->write("avgStartDelay", pValue->avgTimeSinceStartS);
 
   pWriter->write_name("operationIndexCount");
-
-  if (!jsonify(&pValue->operationIndexCount, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pValue->operationIndexCount, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("parentState");
-
-  if (!jsonify(&pValue->parentState, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pValue->parentState, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("nextState");
-
-  if (!jsonify(&pValue->nextState, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pValue->nextState, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("lastOperation");
-
-  if (!jsonify(&pValue->lastOperation, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pValue->lastOperation, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("nextOperation");
-
-  if (!jsonify(&pValue->nextOperation, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pValue->nextOperation, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("errors");
-
-  if (!jsonify(&pValue->errors, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pValue->errors, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("warnings");
-
-  if (!jsonify(&pValue->warnings, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pValue->warnings, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("logs");
-
-  if (!jsonify(&pValue->logs, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pValue->logs, pWriter), "Failed to jsonify.");
 
   pWriter->end();
 
@@ -1036,50 +870,30 @@ inline bool jsonify(IN const lt_operation *pValue, IN JsonWriter *pWriter)
 
 inline bool deserialize(OUT lt_sub_system_data *pData, IN ByteStream *pStream, const uint32_t version)
 {
-  if (!deserialize(&pData->states, pStream, version))
-    return false;
-
-  if (!deserialize(&pData->operations, pStream, version))
-    return false;
-
-  if (!deserialize(&pData->profilerData, pStream, version))
-    return false;
+  RETURN_ERROR_IF(!deserialize(&pData->states, pStream, version), "Failed to deserialize.");
+  RETURN_ERROR_IF(!deserialize(&pData->operations, pStream, version), "Failed to deserialize.");
+  RETURN_ERROR_IF(!deserialize(&pData->profilerData, pStream, version), "Failed to deserialize.");
 
   if (version >= 6)
   {
-    if (!deserialize(&pData->noStateErrors, pStream, version))
-      return false;
-
-    if (!deserialize(&pData->noStateWarnings, pStream, version))
-      return false;
+    RETURN_ERROR_IF(!deserialize(&pData->noStateErrors, pStream, version), "Failed to deserialize.");
+    RETURN_ERROR_IF(!deserialize(&pData->noStateWarnings, pStream, version), "Failed to deserialize.");
   }
 
   if (version >= 7)
-    if (!deserialize(&pData->noStateLogs, pStream, version))
-      return false;
+    RETURN_ERROR_IF(!deserialize(&pData->noStateLogs, pStream, version), "Failed to deserialize.");
 
   return true;
 }
 
 inline bool serialize(IN const lt_sub_system_data *pData, IN StreamWriter *pStream)
 {
-  if (!serialize(&pData->states, pStream))
-    return false;
-
-  if (!serialize(&pData->operations, pStream))
-    return false;
-
-  if (!serialize(&pData->profilerData, pStream))
-    return false;
-
-  if (!serialize(&pData->noStateErrors, pStream))
-    return false;
-
-  if (!serialize(&pData->noStateWarnings, pStream))
-    return false;
-
-  if (!serialize(&pData->noStateLogs, pStream))
-    return false;
+  RETURN_ERROR_IF(!serialize(&pData->states, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pData->operations, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pData->profilerData, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pData->noStateErrors, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pData->noStateWarnings, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pData->noStateLogs, pStream), "Failed to serialize.");
 
   return true;
 }
@@ -1089,34 +903,22 @@ inline bool jsonify(IN const lt_sub_system_data *pValue, IN JsonWriter *pWriter)
   pWriter->begin_body();
 
   pWriter->write_name("states");
-
-  if (!jsonify(&pValue->states, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pValue->states, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("operations");
-
-  if (!jsonify(&pValue->operations, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pValue->operations, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("profileData");
-
-  if (!jsonify(&pValue->profilerData, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pValue->profilerData, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("noStateErrors");
-
-  if (!jsonify(&pValue->noStateErrors.value, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pValue->noStateErrors.value, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("noStateWarnings");
-
-  if (!jsonify(&pValue->noStateWarnings.value, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pValue->noStateWarnings.value, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("noStateLogs");
-
-  if (!jsonify(&pValue->noStateLogs, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pValue->noStateLogs, pWriter), "Failed to jsonify.");
 
   pWriter->end();
 
@@ -1125,8 +927,7 @@ inline bool jsonify(IN const lt_sub_system_data *pValue, IN JsonWriter *pWriter)
 
 inline bool deserialize(OUT lt_stack_trace *pData, IN ByteStream *pStream, const uint32_t version)
 {
-  if (version < 6)
-    return false;
+  RETURN_ERROR_IF(version < 6, "Invalid Version");
 
   READ(pStream, pData->stackTraceType);
   READ(pStream, pData->offset);
@@ -1155,7 +956,7 @@ inline bool deserialize(OUT lt_stack_trace *pData, IN ByteStream *pStream, const
   }
 
   default:
-    return false;
+    RETURN_ERROR("Invalid stack trace type.");
   }
 
   READ(pStream, pData->hasDisasm);
@@ -1195,7 +996,7 @@ inline bool serialize(IN const lt_stack_trace *pData, IN StreamWriter *pStream)
   }
 
   default:
-    return false;
+    RETURN_ERROR("Invalid stack trace type.");
   }
 
   WRITE(pStream, pData->hasDisasm);
@@ -1241,7 +1042,7 @@ inline bool jsonify(IN const lt_stack_trace *pData, IN JsonWriter *pWriter)
   }
 
   default:
-    return false;
+    RETURN_ERROR("Invalid stack trace type.");
   }
 
   if (pData->hasDisasm)
@@ -1254,8 +1055,7 @@ inline bool jsonify(IN const lt_stack_trace *pData, IN JsonWriter *pWriter)
 
 inline bool deserialize(OUT lt_error *pData, IN ByteStream *pStream, const uint32_t version)
 {
-  if (version < 6)
-    return false;
+  RETURN_ERROR_IF(version < 6, "Invalid Version");
 
   READ(pStream, pData->errorCode);
 
@@ -1270,8 +1070,7 @@ inline bool deserialize(OUT lt_error *pData, IN ByteStream *pStream, const uint3
   {
     READ(pStream, pData->stackTraceHash);
 
-    if (!deserialize(&pData->stackTrace, pStream, version))
-      return false;
+    RETURN_ERROR_IF(!deserialize(&pData->stackTrace, pStream, version), "Failed to deserialize.");
   }
   
   return true;
@@ -1292,8 +1091,7 @@ inline bool serialize(IN const lt_error *pData, IN StreamWriter *pStream)
   {
     WRITE(pStream, pData->stackTraceHash);
 
-    if (!serialize(&pData->stackTrace, pStream))
-      return false;
+    RETURN_ERROR_IF(!serialize(&pData->stackTrace, pStream), "Failed to serialize.");
   }
 
   return true;
@@ -1310,8 +1108,7 @@ inline bool jsonify_internal(IN const lt_error *pData, IN JsonWriter *pWriter)
   {
     pWriter->write_name("stackTrace");
 
-    if (!jsonify(&pData->stackTrace, pWriter))
-      return false;
+    RETURN_ERROR_IF(!jsonify(&pData->stackTrace, pWriter), "Failed to jsonify.");
   }
 
   return true;
@@ -1321,8 +1118,7 @@ inline bool jsonify(IN const lt_error *pData, IN JsonWriter *pWriter)
 {
   pWriter->begin_body();
 
-  if (!jsonify_internal(pData, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify_internal(pData, pWriter), "Failed to jsonify.");
 
   pWriter->end();
 
@@ -1331,11 +1127,9 @@ inline bool jsonify(IN const lt_error *pData, IN JsonWriter *pWriter)
 
 inline bool deserialize(OUT lt_crash *pData, IN ByteStream *pStream, const uint32_t version)
 {
-  if (version < 7)
-    return false;
+  RETURN_ERROR_IF(version < 7, "Invalid Version");
 
-  if (!deserialize(static_cast<lt_error *>(pData), pStream, version))
-    return false;
+  RETURN_ERROR_IF(!deserialize(static_cast<lt_error *>(pData), pStream, version), "Failed to deserialize.");
 
   READ_STRING(pStream, pData->firstOccurence);
 
@@ -1344,8 +1138,7 @@ inline bool deserialize(OUT lt_crash *pData, IN ByteStream *pStream, const uint3
 
 inline bool serialize(IN const lt_crash *pData, IN StreamWriter *pStream)
 {
-  if (!serialize(static_cast<const lt_error *>(pData), pStream))
-    return false;
+  RETURN_ERROR_IF(!serialize(static_cast<const lt_error *>(pData), pStream), "Failed to serialize.");
 
   WRITE_STRING(pStream, pData->firstOccurence);
 
@@ -1356,8 +1149,7 @@ inline bool jsonify(IN const lt_crash *pData, IN JsonWriter *pWriter)
 {
   pWriter->begin_body();
 
-  if (!jsonify_internal(static_cast<const lt_error *>(pData), pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify_internal(static_cast<const lt_error *>(pData), pWriter), "Failed to jsonify.");
 
   pWriter->write("firstOccurence", pData->firstOccurence);
 
@@ -1368,25 +1160,18 @@ inline bool jsonify(IN const lt_crash *pData, IN JsonWriter *pWriter)
 
 inline bool deserialize(OUT lt_error_data *pData, IN ByteStream *pStream, const uint32_t version)
 {
-  if (version < 6)
-    return false;
+  RETURN_ERROR_IF(version < 6, "Invalid Version");
 
-  if (!deserialize(&pData->error, pStream, version))
-    return false;
-
-  if (!deserialize(&pData->data, pStream, version))
-    return false;
+  RETURN_ERROR_IF(!deserialize(&pData->error, pStream, version), "Failed to deserialize.");
+  RETURN_ERROR_IF(!deserialize(&pData->data, pStream, version), "Failed to deserialize.");
 
   return true;
 }
 
 inline bool serialize(IN const lt_error_data *pData, IN StreamWriter *pStream)
 {
-  if (!serialize(&pData->error, pStream))
-    return false;
-
-  if (!serialize(&pData->data, pStream))
-    return false;
+  RETURN_ERROR_IF(!serialize(&pData->error, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pData->data, pStream), "Failed to serialize.");
 
   return true;
 }
@@ -1396,14 +1181,10 @@ inline bool jsonify(IN const lt_error_data *pValue, IN JsonWriter *pWriter)
   pWriter->begin_body();
 
   pWriter->write_name("error");
-
-  if (!jsonify(&pValue->error, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pValue->error, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("data");
-
-  if (!jsonify(&pValue->data, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pValue->data, pWriter), "Failed to jsonify.");
 
   pWriter->end();
 
@@ -1412,25 +1193,18 @@ inline bool jsonify(IN const lt_error_data *pValue, IN JsonWriter *pWriter)
 
 inline bool deserialize(OUT lt_crash_data *pData, IN ByteStream *pStream, const uint32_t version)
 {
-  if (version < 7)
-    return false;
+  RETURN_ERROR_IF(version < 7, "Invalid Version");
 
-  if (!deserialize(&pData->crash, pStream, version))
-    return false;
-
-  if (!deserialize(&pData->data, pStream, version))
-    return false;
+  RETURN_ERROR_IF(!deserialize(&pData->crash, pStream, version), "Failed to deserialize.");
+  RETURN_ERROR_IF(!deserialize(&pData->data, pStream, version), "Failed to deserialize.");
 
   return true;
 }
 
 inline bool serialize(IN const lt_crash_data *pData, IN StreamWriter *pStream)
 {
-  if (!serialize(&pData->crash, pStream))
-    return false;
-
-  if (!serialize(&pData->data, pStream))
-    return false;
+  RETURN_ERROR_IF(!serialize(&pData->crash, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pData->data, pStream), "Failed to serialize.");
 
   return true;
 }
@@ -1440,14 +1214,10 @@ inline bool jsonify(IN const lt_crash_data *pValue, IN JsonWriter *pWriter)
   pWriter->begin_body();
 
   pWriter->write_name("crash");
-
-  if (!jsonify(&pValue->crash, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pValue->crash, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("data");
-
-  if (!jsonify(&pValue->data, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pValue->data, pWriter), "Failed to jsonify.");
 
   pWriter->end();
 
@@ -1456,15 +1226,13 @@ inline bool jsonify(IN const lt_crash_data *pValue, IN JsonWriter *pWriter)
 
 inline bool deserialize(OUT lt_error_identifier *pData, IN ByteStream *pStream, const uint32_t version)
 {
-  if (version < 6)
-    return false;
+  RETURN_ERROR_IF(version < 6, "Invalid Version");
 
   READ(pStream, pData->errorIndex);
   READ(pStream, pData->hasStateIndex);
 
   if (pData->hasStateIndex)
-    if (!deserialize(&pData->state, pStream, version))
-      return false;
+    RETURN_ERROR_IF(!deserialize(&pData->state, pStream, version), "Failed to deserialize.");
 
   return true;
 }
@@ -1475,8 +1243,7 @@ inline bool serialize(IN const lt_error_identifier *pData, IN StreamWriter *pStr
   WRITE(pStream, pData->hasStateIndex);
 
   if (pData->hasStateIndex)
-    if (!serialize(&pData->state, pStream))
-      return false;
+    RETURN_ERROR_IF(!serialize(&pData->state, pStream), "Failed to serialize.");
 
   return true;
 }
@@ -1491,8 +1258,7 @@ inline bool jsonify(IN const lt_error_identifier *pData, IN JsonWriter *pWriter)
   {
     pWriter->write_name("state");
 
-    if (!jsonify(&pData->state, pWriter))
-      return false;
+    RETURN_ERROR_IF(!jsonify(&pData->state, pWriter), "Failed to jsonify.");
   }
 
   pWriter->end();
@@ -1503,19 +1269,15 @@ inline bool jsonify(IN const lt_error_identifier *pData, IN JsonWriter *pWriter)
 template <typename T>
 inline bool deserialize(OUT lt_global_values_exact<T> *pData, IN ByteStream *pStream, const uint32_t version)
 {
-  if (version < 4)
-    return false;
+  RETURN_ERROR_IF(version < 4, "Invalid Version");
 
   READ(pStream, pData->average);
   READ(pStream, pData->minValue);
   READ(pStream, pData->maxValue);
   READ(pStream, pData->count);
 
-  if (!deserialize(&pData->single, pStream, version))
-    return false;
-
-  if (!deserialize(&pData->multiple, pStream, version))
-    return false;
+  RETURN_ERROR_IF(!deserialize(&pData->single, pStream, version), "Failed to deserialize.");
+  RETURN_ERROR_IF(!deserialize(&pData->multiple, pStream, version), "Failed to deserialize.");
 
   return true;
 }
@@ -1528,11 +1290,8 @@ inline bool serialize(IN const lt_global_values_exact<T> *pData, IN StreamWriter
   WRITE(pStream, pData->maxValue);
   WRITE(pStream, pData->count);
 
-  if (!serialize(&pData->single, pStream))
-    return false;
-
-  if (!serialize(&pData->multiple, pStream))
-    return false;
+  RETURN_ERROR_IF(!serialize(&pData->single, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pData->multiple, pStream), "Failed to serialize.");
 
   return true;
 }
@@ -1577,22 +1336,16 @@ inline bool jsonify(IN const lt_global_values_exact<T> *pValue, IN JsonWriter *p
 template <typename T>
 inline bool deserialize(OUT lt_values_exact<T> *pData, IN ByteStream *pStream, const uint32_t version)
 {
-  if (version < 4)
-    return false;
+  RETURN_ERROR_IF(version < 4, "Invalid Version");
 
   READ(pStream, pData->average);
   READ(pStream, pData->minValue);
   READ(pStream, pData->maxValue);
   READ(pStream, pData->count);
 
-  if (!deserialize(&pData->single, pStream, version))
-    return false;
-
-  if (!deserialize(&pData->multiple, pStream, version))
-    return false;
-
-  if (!deserialize(&pData->data, pStream, version))
-    return false;
+  RETURN_ERROR_IF(!deserialize(&pData->single, pStream, version), "Failed to deserialize.");
+  RETURN_ERROR_IF(!deserialize(&pData->multiple, pStream, version), "Failed to deserialize.");
+  RETURN_ERROR_IF(!deserialize(&pData->data, pStream, version), "Failed to deserialize.");
 
   return true;
 }
@@ -1605,14 +1358,9 @@ inline bool serialize(IN const lt_values_exact<T> *pData, IN StreamWriter *pStre
   WRITE(pStream, pData->maxValue);
   WRITE(pStream, pData->count);
 
-  if (!serialize(&pData->single, pStream))
-    return false;
-
-  if (!serialize(&pData->multiple, pStream))
-    return false;
-
-  if (!serialize(&pData->data, pStream))
-    return false;
+  RETURN_ERROR_IF(!serialize(&pData->single, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pData->multiple, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pData->data, pStream), "Failed to serialize.");
 
   return true;
 }
@@ -1624,8 +1372,7 @@ inline bool jsonify(IN const lt_values_exact<T> *pValue, IN JsonWriter *pWriter)
 
   pWriter->write_name("data");
 
-  if (!jsonify(&pValue->data, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pValue->data, pWriter), "Failed to jsonify.");
 
   pWriter->write("average", pValue->average);
   pWriter->write("min", pValue->minValue);
@@ -1661,8 +1408,7 @@ inline bool jsonify(IN const lt_values_exact<T> *pValue, IN JsonWriter *pWriter)
 
 inline bool deserialize(OUT lt_string_value_entry *pData, IN ByteStream *pStream, const uint32_t version)
 {
-  if (version < 4)
-    return false;
+  RETURN_ERROR_IF(version < 4, "Invalid Version");
 
   READ_STRING(pStream, pData->value);
 
@@ -1686,8 +1432,7 @@ inline bool jsonify(IN const lt_string_value_entry *pValue, IN JsonWriter *pWrit
 template <typename T>
 inline bool deserialize(OUT lt_vec2<T> *pData, IN ByteStream *pStream, const uint32_t version)
 {
-  if (version < 5)
-    return false;
+  RETURN_ERROR_IF(version < 5, "Invalid Version");
 
   READ(pStream, pData->x);
   READ(pStream, pData->y);
@@ -1720,16 +1465,14 @@ inline bool jsonify(IN const lt_vec2<T> *pValue, IN JsonWriter *pWriter)
 template <typename T>
 inline bool deserialize(OUT lt_global_value_range<T> *pData, IN ByteStream *pStream, const uint32_t version)
 {
-  if (version < 5)
-    return false;
+  RETURN_ERROR_IF(version < 5, "Invalid Version");
 
   READ(pStream, pData->average);
   READ(pStream, pData->minValue);
   READ(pStream, pData->maxValue);
   READ(pStream, pData->count);
 
-  if (!deserialize(&pData->values, pStream, version))
-    return false;
+  RETURN_ERROR_IF(!deserialize(&pData->values, pStream, version), "Failed to deserialize.");
 
   return true;
 }
@@ -1742,8 +1485,7 @@ inline bool serialize(IN const lt_global_value_range<T> *pData, IN StreamWriter 
   WRITE(pStream, pData->maxValue);
   WRITE(pStream, pData->count);
 
-  if (!serialize(&pData->values, pStream))
-    return false;
+  RETURN_ERROR_IF(!serialize(&pData->values, pStream), "Failed to serialize.");
 
   return true;
 }
@@ -1798,8 +1540,7 @@ inline bool jsonify(IN const lt_global_value_range<T> *pData, IN JsonWriter *pWr
 {
   pWriter->begin_body();
 
-  if (!jsonify_internal(pData, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify_internal(pData, pWriter), "Failed to jsonify.");
 
   pWriter->end();
 
@@ -1809,14 +1550,10 @@ inline bool jsonify(IN const lt_global_value_range<T> *pData, IN JsonWriter *pWr
 template <typename T>
 inline bool deserialize(OUT lt_value_range<T> *pData, IN ByteStream *pStream, const uint32_t version)
 {
-  if (version < 5)
-    return false;
+  RETURN_ERROR_IF(version < 5, "Invalid Version");
 
-  if (!deserialize(static_cast<lt_global_value_range<T> *>(pData), pStream, version))
-    return false;
-
-  if (!deserialize(&pData->data, pStream, version))
-    return false;
+  RETURN_ERROR_IF(!deserialize(static_cast<lt_global_value_range<T> *>(pData), pStream, version), "Failed to deserialize.");
+  RETURN_ERROR_IF(!deserialize(&pData->data, pStream, version), "Failed to deserialize.");
 
   return true;
 }
@@ -1824,11 +1561,8 @@ inline bool deserialize(OUT lt_value_range<T> *pData, IN ByteStream *pStream, co
 template <typename T>
 inline bool serialize(IN const lt_value_range<T> *pData, IN StreamWriter *pStream)
 {
-  if (!serialize(static_cast<const lt_global_value_range<T> *>(pData), pStream))
-    return false;
-
-  if (!serialize(&pData->data, pStream))
-    return false;
+  RETURN_ERROR_IF(!serialize(static_cast<const lt_global_value_range<T> *>(pData), pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pData->data, pStream), "Failed to serialize.");
 
   return true;
 }
@@ -1838,13 +1572,10 @@ inline bool jsonify(IN const lt_value_range<T> *pData, IN JsonWriter *pWriter)
 {
   pWriter->begin_body();
 
-  if (!jsonify_internal(static_cast<const lt_global_value_range<T> *>(pData), pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify_internal(static_cast<const lt_global_value_range<T> *>(pData), pWriter), "Failed to jsonify.");
 
   pWriter->write_name("data");
-
-  if (!jsonify(&pData->data, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pData->data, pWriter), "Failed to jsonify.");
 
   pWriter->end();
 
@@ -1854,17 +1585,11 @@ inline bool jsonify(IN const lt_value_range<T> *pData, IN JsonWriter *pWriter)
 template <typename T>
 inline bool deserialize(OUT lt_perf_value_range<T> *pData, IN ByteStream *pStream, const uint32_t version)
 {
-  if (version < 5)
-    return false;
+  RETURN_ERROR_IF(version < 5, "Invalid Version");
 
-  if (!deserialize(static_cast<lt_value_range<T> *>(pData), pStream, version))
-    return false;
-
-  if (!deserialize(&pData->minInfo, pStream, version))
-    return false;
-
-  if (!deserialize(&pData->maxInfo, pStream, version))
-    return false;
+  RETURN_ERROR_IF(!deserialize(static_cast<lt_value_range<T> *>(pData), pStream, version), "Failed to deserialize.");
+  RETURN_ERROR_IF(!deserialize(&pData->minInfo, pStream, version), "Failed to deserialize.");
+  RETURN_ERROR_IF(!deserialize(&pData->maxInfo, pStream, version), "Failed to deserialize.");
 
   return true;
 }
@@ -1872,14 +1597,9 @@ inline bool deserialize(OUT lt_perf_value_range<T> *pData, IN ByteStream *pStrea
 template <typename T>
 inline bool serialize(IN const lt_perf_value_range<T> *pData, IN StreamWriter *pStream)
 {
-  if (!serialize(static_cast<const lt_value_range<T> *>(pData), pStream))
-    return false;
-
-  if (!serialize(&pData->minInfo, pStream))
-    return false;
-
-  if (!serialize(&pData->maxInfo, pStream))
-    return false;
+  RETURN_ERROR_IF(!serialize(static_cast<const lt_value_range<T> *>(pData), pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pData->minInfo, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pData->maxInfo, pStream), "Failed to serialize.");
 
   return true;
 }
@@ -1889,23 +1609,16 @@ inline bool jsonify(IN const lt_perf_value_range<T> *pData, IN JsonWriter *pWrit
 {
   pWriter->begin_body();
 
-  if (!jsonify_internal(static_cast<const lt_global_value_range<T> *>(pData), pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify_internal(static_cast<const lt_global_value_range<T> *>(pData), pWriter), "Failed to jsonify.");
 
   pWriter->write_name("data");
-
-  if (!jsonify(&pData->data, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pData->data, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("minInfo");
-
-  if (!jsonify(&pData->minInfo, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pData->minInfo, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("maxInfo");
-
-  if (!jsonify(&pData->maxInfo, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pData->maxInfo, pWriter), "Failed to jsonify.");
 
   pWriter->end();
 
@@ -1914,151 +1627,60 @@ inline bool jsonify(IN const lt_perf_value_range<T> *pData, IN JsonWriter *pWrit
 
 inline bool deserialize(OUT lt_hw_info_analyze *pData, IN ByteStream *pStream, const uint32_t version)
 {
-  if (version < 5)
-    return false;
+  RETURN_ERROR_IF(version < 5, "Invalid Version");
 
-  if (!deserialize(&pData->cpuName, pStream, version))
-    return false;
-
-  if (!deserialize(&pData->cpuCores, pStream, version))
-    return false;
-
-  if (!deserialize(&pData->ramTotalPhysical, pStream, version))
-    return false;
-
-  if (!deserialize(&pData->ramTotalVirtual, pStream, version))
-    return false;
-
-  if (!deserialize(&pData->ramAvailablePhysical, pStream, version))
-    return false;
-
-  if (!deserialize(&pData->ramAvailableVirtual, pStream, version))
-    return false;
-
-  if (!deserialize(&pData->osName, pStream, version))
-    return false;
-
-  if (!deserialize(&pData->gpuDedicatedVRam, pStream, version))
-    return false;
-
-  if (!deserialize(&pData->gpuSharedVRam, pStream, version))
-    return false;
-
-  if (!deserialize(&pData->gpuTotalVRam, pStream, version))
-    return false;
-
-  if (!deserialize(&pData->gpuFreeVRam, pStream, version))
-    return false;
-
-  if (!deserialize(&pData->gpuVendorId, pStream, version))
-    return false;
-
-  if (!deserialize(&pData->gpuName, pStream, version))
-    return false;
-
-  if (!deserialize(&pData->langPrimaryName, pStream, version))
-    return false;
-
-  if (!deserialize(&pData->elevated, pStream, version))
-    return false;
-
-  if (!deserialize(&pData->monitorCount, pStream, version))
-    return false;
-
-  if (!deserialize(&pData->monitorSize, pStream, version))
-    return false;
-
-  if (!deserialize(&pData->totalMonitorSize, pStream, version))
-    return false;
-
-  if (!deserialize(&pData->monitorDpiAvgXY, pStream, version))
-    return false;
-
-  if (!deserialize(&pData->storageAvailable, pStream, version))
-    return false;
-
-  if (!deserialize(&pData->storageTotal, pStream, version))
-    return false;
-
-  if (!deserialize(&pData->deviceManufacturerName, pStream, version))
-    return false;
-
-  if (!deserialize(&pData->deviceManufacturerModelName, pStream, version))
-    return false;
+  RETURN_ERROR_IF(!deserialize(&pData->cpuName, pStream, version), "Failed to deserialize.");
+  RETURN_ERROR_IF(!deserialize(&pData->cpuCores, pStream, version), "Failed to deserialize.");
+  RETURN_ERROR_IF(!deserialize(&pData->ramTotalPhysical, pStream, version), "Failed to deserialize.");
+  RETURN_ERROR_IF(!deserialize(&pData->ramTotalVirtual, pStream, version), "Failed to deserialize.");
+  RETURN_ERROR_IF(!deserialize(&pData->ramAvailablePhysical, pStream, version), "Failed to deserialize.");
+  RETURN_ERROR_IF(!deserialize(&pData->ramAvailableVirtual, pStream, version), "Failed to deserialize.");
+  RETURN_ERROR_IF(!deserialize(&pData->osName, pStream, version), "Failed to deserialize.");
+  RETURN_ERROR_IF(!deserialize(&pData->gpuDedicatedVRam, pStream, version), "Failed to deserialize.");
+  RETURN_ERROR_IF(!deserialize(&pData->gpuSharedVRam, pStream, version), "Failed to deserialize.");
+  RETURN_ERROR_IF(!deserialize(&pData->gpuTotalVRam, pStream, version), "Failed to deserialize.");
+  RETURN_ERROR_IF(!deserialize(&pData->gpuFreeVRam, pStream, version), "Failed to deserialize.");
+  RETURN_ERROR_IF(!deserialize(&pData->gpuVendorId, pStream, version), "Failed to deserialize.");
+  RETURN_ERROR_IF(!deserialize(&pData->gpuName, pStream, version), "Failed to deserialize.");
+  RETURN_ERROR_IF(!deserialize(&pData->langPrimaryName, pStream, version), "Failed to deserialize.");
+  RETURN_ERROR_IF(!deserialize(&pData->elevated, pStream, version), "Failed to deserialize.");
+  RETURN_ERROR_IF(!deserialize(&pData->monitorCount, pStream, version), "Failed to deserialize.");
+  RETURN_ERROR_IF(!deserialize(&pData->monitorSize, pStream, version), "Failed to deserialize.");
+  RETURN_ERROR_IF(!deserialize(&pData->totalMonitorSize, pStream, version), "Failed to deserialize.");
+  RETURN_ERROR_IF(!deserialize(&pData->monitorDpiAvgXY, pStream, version), "Failed to deserialize.");
+  RETURN_ERROR_IF(!deserialize(&pData->storageAvailable, pStream, version), "Failed to deserialize.");
+  RETURN_ERROR_IF(!deserialize(&pData->storageTotal, pStream, version), "Failed to deserialize.");
+  RETURN_ERROR_IF(!deserialize(&pData->deviceManufacturerName, pStream, version), "Failed to deserialize.");
+  RETURN_ERROR_IF(!deserialize(&pData->deviceManufacturerModelName, pStream, version), "Failed to deserialize.");
 
   return true;
 }
 
 inline bool serialize(IN const lt_hw_info_analyze *pData, IN StreamWriter *pStream)
 {
-  if (!serialize(&pData->cpuName, pStream))
-    return false;
-
-  if (!serialize(&pData->cpuCores, pStream))
-    return false;
-
-  if (!serialize(&pData->ramTotalPhysical, pStream))
-    return false;
-
-  if (!serialize(&pData->ramTotalVirtual, pStream))
-    return false;
-
-  if (!serialize(&pData->ramAvailablePhysical, pStream))
-    return false;
-
-  if (!serialize(&pData->ramAvailableVirtual, pStream))
-    return false;
-
-  if (!serialize(&pData->osName, pStream))
-    return false;
-
-  if (!serialize(&pData->gpuDedicatedVRam, pStream))
-    return false;
-
-  if (!serialize(&pData->gpuSharedVRam, pStream))
-    return false;
-
-  if (!serialize(&pData->gpuTotalVRam, pStream))
-    return false;
-
-  if (!serialize(&pData->gpuFreeVRam, pStream))
-    return false;
-
-  if (!serialize(&pData->gpuVendorId, pStream))
-    return false;
-
-  if (!serialize(&pData->gpuName, pStream))
-    return false;
-
-  if (!serialize(&pData->langPrimaryName, pStream))
-    return false;
-
-  if (!serialize(&pData->elevated, pStream))
-    return false;
-
-  if (!serialize(&pData->monitorCount, pStream))
-    return false;
-
-  if (!serialize(&pData->monitorSize, pStream))
-    return false;
-
-  if (!serialize(&pData->totalMonitorSize, pStream))
-    return false;
-
-  if (!serialize(&pData->monitorDpiAvgXY, pStream))
-    return false;
-
-  if (!serialize(&pData->storageAvailable, pStream))
-    return false;
-
-  if (!serialize(&pData->storageTotal, pStream))
-    return false;
-
-  if (!serialize(&pData->deviceManufacturerName, pStream))
-    return false;
-
-  if (!serialize(&pData->deviceManufacturerModelName, pStream))
-    return false;
+  RETURN_ERROR_IF(!serialize(&pData->cpuName, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pData->cpuCores, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pData->ramTotalPhysical, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pData->ramTotalVirtual, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pData->ramAvailablePhysical, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pData->ramAvailableVirtual, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pData->osName, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pData->gpuDedicatedVRam, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pData->gpuSharedVRam, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pData->gpuTotalVRam, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pData->gpuFreeVRam, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pData->gpuVendorId, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pData->gpuName, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pData->langPrimaryName, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pData->elevated, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pData->monitorCount, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pData->monitorSize, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pData->totalMonitorSize, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pData->monitorDpiAvgXY, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pData->storageAvailable, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pData->storageTotal, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pData->deviceManufacturerName, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pData->deviceManufacturerModelName, pStream), "Failed to serialize.");
 
   return true;
 }
@@ -2068,119 +1690,73 @@ inline bool jsonify(IN const lt_hw_info_analyze *pData, IN JsonWriter *pWriter)
   pWriter->begin_body();
 
   pWriter->write_name("cpu");
-
-  if (!jsonify(&pData->cpuName, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pData->cpuName, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("cpuCores");
-
-  if (!jsonify(&pData->cpuCores, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pData->cpuCores, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("totalPhysicalRam");
-
-  if (!jsonify(&pData->ramTotalPhysical, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pData->ramTotalPhysical, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("totalVirtualRam");
-
-  if (!jsonify(&pData->ramTotalVirtual, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pData->ramTotalVirtual, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("availablePhysicalRam");
-
-  if (!jsonify(&pData->ramAvailablePhysical, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pData->ramAvailablePhysical, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("availableVirtualRam");
-
-  if (!jsonify(&pData->ramAvailableVirtual, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pData->ramAvailableVirtual, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("os");
-
-  if (!jsonify(&pData->osName, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pData->osName, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("gpuDedicatedVRam");
-
-  if (!jsonify(&pData->gpuDedicatedVRam, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pData->gpuDedicatedVRam, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("gpuSharedVRam");
-
-  if (!jsonify(&pData->gpuSharedVRam, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pData->gpuSharedVRam, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("gpuTotalVRam");
-
-  if (!jsonify(&pData->gpuTotalVRam, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pData->gpuTotalVRam, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("gpuFreeVRam");
-
-  if (!jsonify(&pData->gpuFreeVRam, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pData->gpuFreeVRam, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("gpuVendorId");
-
-  if (!jsonify(&pData->gpuVendorId, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pData->gpuVendorId, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("gpu");
-
-  if (!jsonify(&pData->gpuName, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pData->gpuName, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("primaryLanguage");
-
-  if (!jsonify(&pData->langPrimaryName, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pData->langPrimaryName, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("isElevated");
-
-  if (!jsonify(&pData->elevated, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pData->elevated, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("monitorCount");
-
-  if (!jsonify(&pData->monitorCount, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pData->monitorCount, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("monitorSize");
-
-  if (!jsonify(&pData->monitorSize, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pData->monitorSize, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("totalMonitorSize");
-
-  if (!jsonify(&pData->totalMonitorSize, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pData->totalMonitorSize, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("monitorDpi");
-
-  if (!jsonify(&pData->monitorDpiAvgXY, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pData->monitorDpiAvgXY, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("availableStorage");
-
-  if (!jsonify(&pData->storageAvailable, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pData->storageAvailable, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("totalStorage");
-
-  if (!jsonify(&pData->storageTotal, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pData->storageTotal, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("deviceManufacturer");
-
-  if (!jsonify(&pData->deviceManufacturerName, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pData->deviceManufacturerName, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("deviceManufacturerModel");
-
-  if (!jsonify(&pData->deviceManufacturerModelName, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pData->deviceManufacturerModelName, pWriter), "Failed to jsonify.");
 
   pWriter->end();
 
@@ -2192,50 +1768,33 @@ inline bool deserialize(OUT lt_analyze *pAnalyze, IN ByteStream *pStream)
   uint32_t version;
   READ(pStream, version);
 
-  if (version > lt_analyze_file_version)
-    return false;
+  RETURN_ERROR_IF(version > lt_analyze_file_version, "Invalid Version");
 
   READ(pStream, pAnalyze->majorVersion);
   READ(pStream, pAnalyze->minorVersion);
   READ_STRING(pStream, pAnalyze->productName);
 
-  if (!deserialize(&pAnalyze->subSystems, pStream, version))
-    return false;
+  RETURN_ERROR_IF(!deserialize(&pAnalyze->subSystems, pStream, version), "Failed to deserialize.");
 
   if (version >= 4)
   {
-    if (!deserialize(&pAnalyze->observedU64, pStream, version))
-      return false;
-
-    if (!deserialize(&pAnalyze->observedI64, pStream, version))
-      return false;
-
-    if (!deserialize(&pAnalyze->observedString, pStream, version))
-      return false;
+    RETURN_ERROR_IF(!deserialize(&pAnalyze->observedU64, pStream, version), "Failed to deserialize.");
+    RETURN_ERROR_IF(!deserialize(&pAnalyze->observedI64, pStream, version), "Failed to deserialize.");
+    RETURN_ERROR_IF(!deserialize(&pAnalyze->observedString, pStream, version), "Failed to deserialize.");
   }
 
   if (version >= 5)
   {
-    if (!deserialize(&pAnalyze->hwInfo, pStream, version))
-      return false;
-
-    if (!deserialize(&pAnalyze->observedRangeU64, pStream, version))
-      return false;
-
-    if (!deserialize(&pAnalyze->observedRangeI64, pStream, version))
-      return false;
-
-    if (!deserialize(&pAnalyze->observedRangeF64, pStream, version))
-      return false;
-
-    if (!deserialize(&pAnalyze->perfMetrics, pStream, version))
-      return false;
+    RETURN_ERROR_IF(!deserialize(&pAnalyze->hwInfo, pStream, version), "Failed to deserialize.");
+    RETURN_ERROR_IF(!deserialize(&pAnalyze->observedRangeU64, pStream, version), "Failed to deserialize.");
+    RETURN_ERROR_IF(!deserialize(&pAnalyze->observedRangeI64, pStream, version), "Failed to deserialize.");
+    RETURN_ERROR_IF(!deserialize(&pAnalyze->observedRangeF64, pStream, version), "Failed to deserialize.");
+    RETURN_ERROR_IF(!deserialize(&pAnalyze->perfMetrics, pStream, version), "Failed to deserialize.");
   }
 
   if (version >= 7)
   {
-    if (!deserialize(&pAnalyze->crashes, pStream, version))
-      return false;
+    RETURN_ERROR_IF(!deserialize(&pAnalyze->crashes, pStream, version), "Failed to deserialize.");
   }
 
   return true;
@@ -2250,35 +1809,16 @@ inline bool serialize(IN const lt_analyze *pAnalyze, OUT StreamWriter *pStream)
   WRITE(pStream, pAnalyze->minorVersion);
   WRITE_STRING(pStream, pAnalyze->productName);
 
-  if (!serialize(&pAnalyze->subSystems, pStream))
-    return false;
-
-  if (!serialize(&pAnalyze->observedU64, pStream))
-    return false;
-
-  if (!serialize(&pAnalyze->observedI64, pStream))
-    return false;
-
-  if (!serialize(&pAnalyze->observedString, pStream))
-    return false;
-
-  if (!serialize(&pAnalyze->hwInfo, pStream))
-    return false;
-
-  if (!serialize(&pAnalyze->observedRangeU64, pStream))
-    return false;
-
-  if (!serialize(&pAnalyze->observedRangeI64, pStream))
-    return false;
-
-  if (!serialize(&pAnalyze->observedRangeF64, pStream))
-    return false;
-
-  if (!serialize(&pAnalyze->perfMetrics, pStream))
-    return false;
-
-  if (!serialize(&pAnalyze->crashes, pStream))
-    return false;
+  RETURN_ERROR_IF(!serialize(&pAnalyze->subSystems, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pAnalyze->observedU64, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pAnalyze->observedI64, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pAnalyze->observedString, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pAnalyze->hwInfo, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pAnalyze->observedRangeU64, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pAnalyze->observedRangeI64, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pAnalyze->observedRangeF64, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pAnalyze->perfMetrics, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pAnalyze->crashes, pStream), "Failed to serialize.");
 
   return true;
 }
@@ -2294,54 +1834,34 @@ inline bool jsonify(IN const lt_analyze *pAnalyze, OUT JsonWriter *pWriter)
   pWriter->write("minorVersion", pAnalyze->minorVersion);
 
   pWriter->write_name("subSystems");
-
-  if (!jsonify(&pAnalyze->subSystems, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pAnalyze->subSystems, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("hwInfo");
-
-  if (!jsonify(&pAnalyze->hwInfo, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pAnalyze->hwInfo, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("observedU64");
-
-  if (!jsonify(&pAnalyze->observedU64, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pAnalyze->observedU64, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("observedI64");
-
-  if (!jsonify(&pAnalyze->observedI64, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pAnalyze->observedI64, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("observedString");
-
-  if (!jsonify(&pAnalyze->observedString, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pAnalyze->observedString, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("observedRangeU64");
-
-  if (!jsonify(&pAnalyze->observedRangeU64, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pAnalyze->observedRangeU64, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("observedRangeI64");
-
-  if (!jsonify(&pAnalyze->observedRangeI64, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pAnalyze->observedRangeI64, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("observedRangeF64");
-
-  if (!jsonify(&pAnalyze->observedRangeF64, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pAnalyze->observedRangeF64, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("perfMetrics");
-
-  if (!jsonify(&pAnalyze->perfMetrics, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pAnalyze->perfMetrics, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("crashes");
-
-  if (!jsonify(&pAnalyze->crashes.value, pWriter))
-    return false;
+  RETURN_ERROR_IF(!jsonify(&pAnalyze->crashes.value, pWriter), "Failed to jsonify.");
 
   pWriter->end();
 

@@ -3,10 +3,12 @@ using System.Collections.Generic;
 using System.Linq;
 using LamestWebserver;
 using LamestWebserver.UI;
-using LamestWebserver.JScriptBuilder;
 using LamestWebserver.Core;
 using LamestWebserver.Serialization;
+using LamestWebserver.Synchronization;
 using System.IO;
+using System.Threading;
+using System.Text;
 
 public class AnalysisInfo
 {
@@ -23,48 +25,312 @@ public class AnalysisInfo
 public class ltsrv
 {
   public static Dictionary<string, Dictionary<uint64_t, Dictionary<uint64_t, AnalysisInfo>>> _Analysis;
+  public static UsableWriteLock _AnalysisLock = new UsableWriteLock();
+  public static Configuration _Configuration;
+  public static UsableWriteLock _ConfigurationLock = new UsableWriteLock();
+
+  public static void ReloadConfiguration()
+  {
+    const string configFile = "config.json";
+
+    if (File.Exists(configFile))
+    {
+      using (_ConfigurationLock.LockWrite())
+        _Configuration = Serializer.ReadJsonData<Configuration>(configFile);
+    }
+    else
+    {
+      Logger.LogWarning($"No configuration file found at '{configFile}'.");
+    }
+  }
 
   public static void ReloadData()
   {
-    _Analysis = new Dictionary<string, Dictionary<uint64_t, Dictionary<uint64_t, AnalysisInfo>>>();
-
-    foreach (var x in Directory.EnumerateFiles("data", "*.nlz.json"))
+    using (_AnalysisLock.LockWrite())
     {
-      try
+      _Analysis = new Dictionary<string, Dictionary<uint64_t, Dictionary<uint64_t, AnalysisInfo>>>();
+
+      foreach (var x in Directory.EnumerateFiles("data", "*.nlz.json"))
       {
-        var analysis = Serializer.ReadJsonData<Analysis>(x);
-        analysis.Sort();
+        try
+        {
+          var analysis = Serializer.ReadJsonData<Analysis>(x);
+          analysis.Sort();
 
-        Console.WriteLine($"Deserialized & Sorted Analysis '{analysis.productName}' ({analysis.majorVersion}.{analysis.minorVersion}).");
+          Console.WriteLine($"Deserialized & Sorted Analysis '{analysis.productName}' ({analysis.majorVersion}.{analysis.minorVersion}).");
 
-        _Analysis.Add(analysis.productName, new Dictionary<uint64_t, Dictionary<uint64_t, AnalysisInfo>> { { analysis.majorVersion, new Dictionary<uint64_t, AnalysisInfo>() { { analysis.minorVersion, new AnalysisInfo(analysis) } } } });
+          _Analysis.Add(analysis.productName, new Dictionary<uint64_t, Dictionary<uint64_t, AnalysisInfo>> { { analysis.majorVersion, new Dictionary<uint64_t, AnalysisInfo>() { { analysis.minorVersion, new AnalysisInfo(analysis) } } } });
+        }
+        catch (Exception e)
+        {
+          Console.WriteLine($"Failed to add analysis from {x} ({e.SafeMessage()})");
+        }
       }
-      catch (Exception e)
+
+      foreach (var x in Directory.EnumerateFiles("data", "*.nfo.json"))
       {
-        Console.WriteLine($"Failed to add analysis from {x} ({e.SafeMessage()})");
+        try
+        {
+          var info = Serializer.ReadJsonData<Info>(x);
+          var container = _Analysis[info.productName][info.majorVersion];
+
+          Console.WriteLine($"Deserialized Info '{info.productName}' ({info.majorVersion}.{info.minorVersion}).");
+
+          if (info.minorVersion.HasValue)
+            container[info.minorVersion.Value].info = info;
+          else
+            foreach (var c in container)
+              c.Value.info = info;
+        }
+        catch (Exception e)
+        {
+          Console.WriteLine($"Failed to add info from {x} ({e.SafeMessage()})");
+        }
+      }
+    }
+  }
+
+  private class UpdateEntryKey : IEquatable<UpdateEntryKey>
+  {
+    public string productName;
+    public uint64_t majorVersion;
+    public uint64_t minorVersion;
+
+    public bool Equals(UpdateEntryKey other) => other.productName == productName && other.majorVersion.Equals(majorVersion) && other.minorVersion.Equals(minorVersion);
+
+    public override bool Equals(object obj)
+    {
+      if (obj == null ^ this == null)
+        return false;
+
+      if (!(obj is UpdateEntryKey))
+        return false;
+
+      return Equals(obj as UpdateEntryKey);
+    }
+
+    public override int GetHashCode()
+    {
+      return productName.GetHashCode() ^ majorVersion.value.GetHashCode() ^ minorVersion.value.GetHashCode();
+    }
+  }
+
+  private class UpdateEntry : UpdateEntryKey
+  {
+    public string path;
+    public string successPath;
+
+    internal UpdateEntryKey ToKey()
+    {
+      return new UpdateEntryKey() { productName = productName, majorVersion = majorVersion, minorVersion = minorVersion };
+    }
+  }
+
+  public static string CallProcess(string processName, string args, out int exitCode)
+  {
+    StringBuilder outputBuilder;
+    System.Diagnostics.ProcessStartInfo processStartInfo;
+    System.Diagnostics.Process process;
+
+    outputBuilder = new StringBuilder();
+
+    processStartInfo = new System.Diagnostics.ProcessStartInfo();
+    processStartInfo.CreateNoWindow = true;
+    processStartInfo.RedirectStandardOutput = true;
+    processStartInfo.RedirectStandardInput = true;
+    processStartInfo.UseShellExecute = false;
+    processStartInfo.Arguments = args;
+    processStartInfo.FileName = processName;
+
+    process = new System.Diagnostics.Process();
+    process.StartInfo = processStartInfo;
+    process.EnableRaisingEvents = true;
+    process.OutputDataReceived += new System.Diagnostics.DataReceivedEventHandler
+    (
+      delegate (object sender, System.Diagnostics.DataReceivedEventArgs e)
+      {
+        outputBuilder.Append(e.Data);
+        outputBuilder.Append("\n");
+      }
+    );
+
+    process.Start();
+    process.BeginOutputReadLine();
+    process.WaitForExit();
+    process.CancelOutputRead();
+
+    exitCode = process.ExitCode;
+
+    return outputBuilder.ToString();
+  }
+
+  public static void Update()
+  {
+    bool anythingUpdated = false;
+    List<Tuple<int, string>> actionableItems = new List<Tuple<int, string>>();
+
+    using (_ConfigurationLock.LockRead())
+    {
+      if (_Configuration != null)
+      {
+        int index = -1;
+
+        foreach (var x in _Configuration.ProjectConfiguration)
+        {
+          ++index;
+
+          if (x.MinAutoReloadMinutes.HasValue && (DateTime.UtcNow - x.LastUpdateTimestamp).TotalMinutes > x.MinAutoReloadMinutes.Value)
+            actionableItems.Add(Tuple.Create(index, x.OriginDirectory));
+        }
       }
     }
 
-    foreach (var x in Directory.EnumerateFiles("data", "*.nfo.json"))
+    foreach (var x in actionableItems)
     {
+      List<UpdateEntry> updateEntries = new List<UpdateEntry>();
+
       try
       {
-        var info = Serializer.ReadJsonData<Info>(x);
-        var container = _Analysis[info.productName][info.majorVersion];
+        foreach (var y in Directory.EnumerateFiles(x.Item2))
+        {
+          try
+          {
+            using (var file = File.OpenRead(y))
+            {
+              byte[] bytes = new byte[1 + 4 + 8 + 1 + 255 + 8 + 8];
 
-        Console.WriteLine($"Deserialized Info '{info.productName}' ({info.majorVersion}.{info.minorVersion}).");
+              int bytesRead = file.Read(bytes, 0, bytes.Length);
 
-        if (info.minorVersion.HasValue)
-          container[info.minorVersion.Value].info = info;
+              if (bytesRead != bytes.Length)
+                throw new Exception($"Failed to read first {bytes} bytes.");
+
+              int offset = 0;
+
+              if (bytes[offset] != 0)
+                throw new Exception("The file is not valid.");
+
+              offset++;
+
+              if (BitConverter.ToUInt32(bytes, offset) > 0x10000001)
+                throw new Exception("The file version is not compatible.");
+
+              offset += 4;
+              offset += 8; // Skip Start Timestamp.
+
+              byte productNameCount = bytes[offset];
+              offset++;
+
+              string productName = Encoding.ASCII.GetString(bytes, offset, productNameCount).Replace(" ", "").Replace(".", "").Replace(":", "").Replace("/", "").Replace("\\", "").Replace("@", "");
+              offset += productNameCount;
+
+              uint64_t majorVersion = (uint64_t)BitConverter.ToUInt64(bytes, offset);
+              offset += 8;
+
+              uint64_t minorVersion = (uint64_t)BitConverter.ToUInt64(bytes, offset);
+              offset += 8;
+
+              Logger.LogInformation($"File {y}: '{productName}' {majorVersion}.{minorVersion}");
+
+              updateEntries.Add(new UpdateEntry() { path = y, productName = productName, majorVersion = majorVersion, minorVersion = minorVersion });
+            }
+          }
+          catch (Exception e)
+          {
+            Logger.LogError($"Failed to Read or Parse File '{y}' ({e.SafeMessage()})");
+          }
+        }
+      }
+      catch (Exception e)
+      {
+        Logger.LogError($"Failed to Update from Directory '{x.Item2}' ({e.SafeMessage()})");
+      }
+
+      using (_ConfigurationLock.LockRead())
+      {
+        for (int i = 0; i < updateEntries.Count; i++)
+        {
+          if (!string.IsNullOrWhiteSpace(_Configuration.ProjectConfiguration[x.Item1].ProcessedLogFileDirectory))
+            updateEntries[i].successPath = _Configuration.ProjectConfiguration[x.Item1].ProcessedLogFileDirectory + "/" + Path.GetFileName(updateEntries[i].path);
+
+          if (_Configuration.ProjectConfiguration[x.Item1].IgnoreMinorVersionDifferences ^ (_Configuration.ProjectConfiguration[x.Item1].IgnoreMinorVersionDifferenceMajorVersionOverride != null && _Configuration.ProjectConfiguration[x.Item1].IgnoreMinorVersionDifferenceMajorVersionOverride.Contains(updateEntries[i].majorVersion)))
+            updateEntries[i].minorVersion = (uint64_t)0;
+        }
+      }
+
+      var groups = updateEntries.GroupBy(a => a.ToKey());
+
+      foreach (var g in groups)
+      {
+        string analyzeName = $"data/{g.Key.productName}.{g.Key.majorVersion}.{g.Key.minorVersion}.nlz";
+        string pdbName = $"data/{g.Key.productName}.{g.Key.majorVersion}.{g.Key.minorVersion}.pdb";
+        string baseArgs = "";
+
+        if (File.Exists(analyzeName))
+          baseArgs += "-io ";
         else
-          foreach (var c in container)
-            c.Value.info = info;
-      }
-      catch (Exception e)
-      {
-        Console.WriteLine($"Failed to add info from {x} ({e.SafeMessage()})");
+          baseArgs += "-o ";
+
+        baseArgs += analyzeName;
+
+        if (File.Exists(pdbName))
+          baseArgs += $" --pdb {pdbName} --disasm";
+
+        baseArgs += $" --out data/{g.Key.productName}.{g.Key.majorVersion}.{g.Key.minorVersion}.nlz.json";
+
+        try
+        {
+          string args = baseArgs;
+
+          foreach (var n in g)
+            args += " " + n.path;
+
+          string output = CallProcess("ltanalyze.exe", args, out int exitCode);
+
+          if (exitCode != 0)
+            Logger.LogExcept($"ltanalyze failed with exit code {exitCode} (args: '{args}').\nOutput:\n\n{output}");
+
+          foreach (var n in g)
+            if (!string.IsNullOrWhiteSpace(n.successPath))
+              File.Move(n.path, n.successPath);
+
+          using (_ConfigurationLock.LockWrite())
+            _Configuration.ProjectConfiguration[x.Item1].LastUpdateTimestamp = DateTime.UtcNow;
+
+          anythingUpdated = true;
+        }
+        catch
+        {
+          foreach (var n in g)
+          {
+            try
+            {
+              string args = baseArgs + " " + n.path;
+              string output = CallProcess("ltanalyze.exe", args, out int exitCode);
+
+              if (exitCode != 0)
+                Logger.LogExcept($"ltanalyze failed with exit code {exitCode} (args: '{args}').\nOutput:\n\n{output}");
+
+              Thread.Sleep(100);
+
+              if (!string.IsNullOrWhiteSpace(n.successPath))
+                File.Move(n.path, n.successPath);
+
+              using (_ConfigurationLock.LockWrite())
+                _Configuration.ProjectConfiguration[x.Item1].LastUpdateTimestamp = DateTime.UtcNow;
+
+              anythingUpdated = true;
+            }
+            catch (Exception e)
+            {
+              Logger.LogError($"Failed to analyze file '{n.path}' ({e.SafeMessage()})");
+            }
+          }
+        }
       }
     }
+
+    if (anythingUpdated)
+      ReloadData();
   }
 
   [STAThread]
@@ -72,20 +338,61 @@ public class ltsrv
   {
     System.Globalization.CultureInfo.CurrentCulture = System.Globalization.CultureInfo.InvariantCulture;
 
+    ReloadConfiguration();
     ReloadData();
+
+    bool running = true;
 
     using (var ws = new WebServer(8080, "web"))
     {
       Master.DiscoverPages();
 
+      Thread update = new Thread(() => 
+      { 
+        while (running)
+        {
+          try
+          {
+            Update();
+          }
+          catch (Exception e)
+          {
+            Logger.LogError($"Update Thread Crashed. ({e.SafeMessage()})");
+          }
+          
+          Thread.Sleep(1000);
+        }
+      });
+
+      update.Start();
+
       while (Console.ReadLine() != "exit")
         Console.WriteLine("Enter 'exit' to quit.");
+
+      running = false;
+      update.Join();
     }
   }
+
   public static HElement GetPage(string title, IEnumerable<HElement> elements)
   {
     return new PageBuilder(title) { Elements = { new HContainer { Class = "main", Elements = { new HHeadline(title) { Class = "Page" }, new HContainer(elements) { Class = "inner" } } } }, StylesheetLinks = { "style.css" } };
   }
+}
+
+public class ProjectConfiguration
+{
+  internal DateTime LastUpdateTimestamp = DateTime.UtcNow - TimeSpan.FromDays(1);
+  public uint? MinAutoReloadMinutes;
+  public string ProcessedLogFileDirectory;
+  public string OriginDirectory;
+  public bool IgnoreMinorVersionDifferences;
+  public List<uint64_t> IgnoreMinorVersionDifferenceMajorVersionOverride;
+}
+
+public class Configuration
+{
+  public List<ProjectConfiguration> ProjectConfiguration; 
 }
 
 public class SubSystemInfo : ElementResponse
