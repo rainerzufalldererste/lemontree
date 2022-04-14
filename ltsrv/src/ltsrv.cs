@@ -220,7 +220,7 @@ public class ltsrv
               byte productNameCount = bytes[offset];
               offset++;
 
-              string productName = Encoding.ASCII.GetString(bytes, offset, productNameCount).Replace(" ", "").Replace(".", "").Replace(":", "").Replace("/", "").Replace("\\", "").Replace("@", "");
+              string productName = Encoding.ASCII.GetString(bytes, offset, productNameCount).Replace(" ", "").Replace(".", "").Replace(":", "").Replace("/", "").Replace("\\", "").Replace("@", "").Replace("\"", "");
               offset += productNameCount;
 
               uint64_t majorVersion = (uint64_t)BitConverter.ToUInt64(bytes, offset);
@@ -245,7 +245,7 @@ public class ltsrv
         Logger.LogError($"Failed to Update from Directory '{x.Item2}' ({e.SafeMessage()})");
       }
 
-      using (_ConfigurationLock.LockRead())
+      using (_ConfigurationLock.LockWrite())
       {
         for (int i = 0; i < updateEntries.Count; i++)
         {
@@ -254,6 +254,8 @@ public class ltsrv
 
           if (_Configuration.ProjectConfiguration[x.Item1].IgnoreMinorVersionDifferences ^ (_Configuration.ProjectConfiguration[x.Item1].IgnoreMinorVersionDifferenceMajorVersionOverride != null && _Configuration.ProjectConfiguration[x.Item1].IgnoreMinorVersionDifferenceMajorVersionOverride.Contains(updateEntries[i].majorVersion)))
             updateEntries[i].minorVersion = (uint64_t)0;
+
+          _Configuration.ProjectConfiguration[x.Item1].LastUpdateTimestamp = DateTime.UtcNow;
         }
       }
 
@@ -270,16 +272,16 @@ public class ltsrv
         else
           baseArgs += "-o ";
 
-        baseArgs += analyzeName;
+        baseArgs += analyzeName + " --ignore-minor-version-diff";
 
         if (File.Exists(pdbName))
           baseArgs += $" --pdb {pdbName} --disasm";
 
-        baseArgs += $" --out data/{g.Key.productName}.{g.Key.majorVersion}.{g.Key.minorVersion}.nlz.json";
+        string outPath = $" --out data/{g.Key.productName}.{g.Key.majorVersion}.{g.Key.minorVersion}.nlz.json";
 
         try
         {
-          string args = baseArgs;
+          string args = baseArgs + outPath;
 
           foreach (var n in g)
             args += " " + n.path;
@@ -300,6 +302,8 @@ public class ltsrv
         }
         catch
         {
+          bool anythingNewHere = false;
+
           foreach (var n in g)
           {
             try
@@ -308,21 +312,44 @@ public class ltsrv
               string output = CallProcess("ltanalyze.exe", args, out int exitCode);
 
               if (exitCode != 0)
-                Logger.LogExcept($"ltanalyze failed with exit code {exitCode} (args: '{args}').\nOutput:\n\n{output}");
+                throw new Exception($"ltanalyze failed with exit code {exitCode} (args: '{args}').\nOutput:\n\n{output}");
 
               Thread.Sleep(100);
 
               if (!string.IsNullOrWhiteSpace(n.successPath))
-                File.Move(n.path, n.successPath);
+              {
+                string directory = Path.GetDirectoryName(n.successPath);
 
-              using (_ConfigurationLock.LockWrite())
-                _Configuration.ProjectConfiguration[x.Item1].LastUpdateTimestamp = DateTime.UtcNow;
+                if (!Directory.Exists(directory))
+                  Directory.CreateDirectory(directory);
+
+                File.Move(n.path, n.successPath);
+              }
+
+              anythingNewHere = true;
+            }
+            catch (Exception e)
+            {
+              Logger.LogError($"Failed to analyze file '{n.path}' ({e.SafeMessage()})");
+            }
+
+          }
+
+          if (anythingNewHere)
+          {
+            try
+            {
+              string args = baseArgs + outPath;
+              string output = CallProcess("ltanalyze.exe", args, out int exitCode);
+
+              if (exitCode != 0)
+                throw new Exception($"ltanalyze failed with exit code {exitCode} (args: '{args}').\nOutput:\n\n{output}");
 
               anythingUpdated = true;
             }
             catch (Exception e)
             {
-              Logger.LogError($"Failed to analyze file '{n.path}' ({e.SafeMessage()})");
+              Logger.LogError($"Failed to write analysis ({e.SafeMessage()})");
             }
           }
         }
@@ -558,6 +585,16 @@ public class SubSystemInfo : ElementResponse
     yield return analysis.ToPieChart(s.noStateLogs.values, "Log Messages not attributed to a state", info, s.noStateLogs.count);
 
     yield return analysis.ToHistorgramChart((uint64_t)subSystem, s.profileData, "Performance", info);
+  }
+}
+
+public class Home : ElementResponse
+{
+  public Home() : base("/") { }
+
+  protected override HElement GetElement(SessionData sessionData)
+  {
+    return SubSystemInfo.GetMenu(sessionData);
   }
 }
 

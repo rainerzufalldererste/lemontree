@@ -39,6 +39,8 @@
     RETURN_ERROR_IF(__len__ >= sizeof(value), "The retrieved length for string '" #value "' is invalid (%" PRIu8 ").", __len__); \
     RETURN_ERROR_IF(!(pWriter)->read((value), __len__), "Failed to read string '" #value "'."); \
     (value)[__len__] = '\0'; \
+    for (size_t __i__ = 0; __i__ < __len__; __i__++) \
+      RETURN_ERROR_IF((value)[__i__] == '\0', "The deserialized contents of '" #value "' are not valid."); \
   } while (0)
 
 #define WRITE_STRING(pWriter, value) \
@@ -52,7 +54,7 @@
 
 enum
 {
-  lt_analyze_file_version = 7,
+  lt_analyze_file_version = 8,
 };
 
 inline bool deserialize(OUT uint8_t *pValue, IN ByteStream *pStream, const uint32_t /* version */)
@@ -82,14 +84,25 @@ inline bool deserialize(OUT std::vector<T> *pVector, IN ByteStream *pStream, con
   uint64_t count;
   READ(pStream, count);
 
+  RETURN_ERROR_IF(version < 8, "This version is no longer supported.");
+  uint64_t size;
+  READ(pStream, size);
+  RETURN_ERROR_IF(size < 8, "Invalid Parameter.");
+  size -= sizeof(size);
+
+  ByteStream bs(pStream->pData, size);
+  RETURN_ERROR_IF(!pStream->read<uint8_t>(nullptr, size), "ByteStream insufficient (%s).", typeid(T).name());
+
   for (size_t i = 0; i < count; i++)
   {
     T item;
 
-    RETURN_ERROR_IF(!deserialize(&item, pStream, version), "Failed to deserialize.");
+    RETURN_ERROR_IF(!deserialize(&item, &bs, version), "Failed to deserialize (%s).", typeid(T).name());
 
     pVector->push_back(std::move(item));
   }
+
+  RETURN_ERROR_IF(bs.sizeRemaining > 0, "Size Remaining after container (%s).", typeid(T).name());
 
   return true;
 }
@@ -100,8 +113,15 @@ inline bool serialize(IN const std::vector<T> *pVector, IN StreamWriter *pStream
   const uint64_t count = pVector->size();
   WRITE(pStream, count);
 
+  const uint64_t sizeOffset = pStream->size;
+  const uint64_t zero = 0;
+  WRITE(pStream, zero);
+
   for (const auto &_item : *pVector)
-    RETURN_ERROR_IF(!serialize(&_item, pStream), "Failed to serialize.");
+    RETURN_ERROR_IF(!serialize(&_item, pStream), "Failed to serialize (%s).", typeid(T).name());
+
+  // Write Size of this container.
+  *reinterpret_cast<uint64_t *>(pStream->pBytes + sizeOffset) = pStream->size - sizeOffset;
 
   return true;
 }
@@ -112,7 +132,7 @@ inline bool jsonify(IN const std::vector<T> *pVector, IN JsonWriter *pWriter)
   pWriter->begin_array();
 
   for (const auto &_item : *pVector)
-    RETURN_ERROR_IF(!jsonify(&_item, pWriter), "Failed to jsonify.");
+    RETURN_ERROR_IF(!jsonify(&_item, pWriter), "Failed to jsonify (%s).", typeid(T).name());
 
   pWriter->end();
 
@@ -125,16 +145,27 @@ inline bool deserialize(OUT SoaList<T, T2> *pList, IN ByteStream *pStream, const
   uint64_t count;
   READ(pStream, count);
 
+  RETURN_ERROR_IF(version < 8, "This version is no longer supported.");
+  uint64_t size;
+  READ(pStream, size);
+  RETURN_ERROR_IF(size < 8, "Invalid Parameter.");
+  size -= sizeof(size);
+
+  ByteStream bs(pStream->pData, size);
+  RETURN_ERROR_IF(!pStream->read<uint8_t>(nullptr, size), "ByteStream insufficient (%s / %s).", typeid(T).name(), typeid(T2).name());
+
   for (size_t i = 0; i < count; i++)
   {
     T index;
     T2 value;
 
-    RETURN_ERROR_IF(!deserialize(&index, pStream, version), "Failed to deserialize.");
-    RETURN_ERROR_IF(!deserialize(&value, pStream, version), "Failed to deserialize.");
+    RETURN_ERROR_IF(!deserialize(&index, &bs, version), "Failed to deserialize (%s).", typeid(T).name());
+    RETURN_ERROR_IF(!deserialize(&value, &bs, version), "Failed to deserialize (%s).", typeid(T2).name());
 
     pList->push_back(std::move(index), std::move(value));
   }
+
+  RETURN_ERROR_IF(bs.sizeRemaining > 0, "Size Remaining after container (%s / %s).", typeid(T).name(), typeid(T2).name());
 
   return true;
 }
@@ -145,11 +176,18 @@ inline bool serialize(IN const SoaList<T, T2> *pList, IN StreamWriter *pStream)
   const uint64_t count = pList->size();
   WRITE(pStream, count);
 
+  const uint64_t sizeOffset = pStream->size;
+  const uint64_t zero = 0;
+  WRITE(pStream, zero);
+
   for (size_t i = 0; i < pList->size(); i++)
   {
-    RETURN_ERROR_IF(!serialize(&pList->index[i], pStream), "Failed to serialize.");
-    RETURN_ERROR_IF(!serialize(&pList->value[i], pStream), "Failed to serialize.");
+    RETURN_ERROR_IF(!serialize(&pList->index[i], pStream), "Failed to serialize (%s).", typeid(T).name());
+    RETURN_ERROR_IF(!serialize(&pList->value[i], pStream), "Failed to serialize (%s).", typeid(T2).name());
   }
+
+  // Write Size of this container.
+  *reinterpret_cast<uint64_t *>(pStream->pBytes + sizeOffset) = pStream->size - sizeOffset;
 
   return true;
 }
@@ -164,10 +202,10 @@ inline bool jsonify(IN const SoaList<T, T2> *pList, IN JsonWriter *pWriter)
     pWriter->begin_body();
 
     pWriter->write_name("index");
-    RETURN_ERROR_IF(!jsonify(&pList->index[i], pWriter), "Failed to jsonify.");
+    RETURN_ERROR_IF(!jsonify(&pList->index[i], pWriter), "Failed to jsonify (%s).", typeid(T).name());
 
     pWriter->write_name("value");
-    RETURN_ERROR_IF(!jsonify(&pList->value[i], pWriter), "Failed to jsonify.");
+    RETURN_ERROR_IF(!jsonify(&pList->value[i], pWriter), "Failed to jsonify (%s).", typeid(T2).name());
 
     pWriter->end();
   }
@@ -446,10 +484,10 @@ inline bool deserialize(OUT lt_short_hw_info *pData, IN ByteStream *pStream, con
   READ(pStream, pData->cpuCores);
   READ(pStream, pData->freeRam);
   READ(pStream, pData->totalRam);
+  READ_STRING(pStream, pData->gpuName);
   READ(pStream, pData->freeVRam);
   READ(pStream, pData->dedicatedVRam);
   READ(pStream, pData->totalVRam);
-  READ_STRING(pStream, pData->gpuName);
   READ_STRING(pStream, pData->osName);
   READ(pStream, pData->monitorCount);
   READ(pStream, pData->monitorTotalWidth);

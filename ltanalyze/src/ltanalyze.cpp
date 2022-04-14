@@ -277,6 +277,8 @@ struct lt_analyze_options
 
 bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNewFile, IN const lt_analyze_options *pOptions, IN lt_pdb_context *pPdbContext)
 {
+  printf("Analyzing File '%ws'...\n", inputFileName);
+
   lt_analyze_state state;
 
   size_t fileSize = 0;
@@ -414,7 +416,7 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
       RETURN_ERROR_IF(majorVersion != pAnalyze->majorVersion, "Error! Incompatible Major Version. 0x%" PRIX64 " != 0x%" PRIX64 ".", majorVersion, pAnalyze->majorVersion);
 
       if (!pOptions->ignoreMinorVersionDiff)
-        RETURN_ERROR_IF(minorVersion != pAnalyze->minorVersion, "Error! Incompatible Major Version. 0x%" PRIX64 " != 0x%" PRIX64 ".", minorVersion, pAnalyze->minorVersion);
+        RETURN_ERROR_IF(minorVersion != pAnalyze->minorVersion, "Error! Incompatible Minor Version. 0x%" PRIX64 " != 0x%" PRIX64 ".", minorVersion, pAnalyze->minorVersion);
     }
     else
     {
@@ -1145,7 +1147,8 @@ int32_t main(void)
 
   const wchar_t *outputFileName = pArgv[2];
   bool isNewFile = true;
-  FILE *pOutFile = stdout;
+  bool anyFilesParsed = false;
+  FILE *pOutFile = nullptr;
 
   lt_analyze analyze;
   lt_analyze_options options;
@@ -1253,6 +1256,8 @@ int32_t main(void)
     }
     else
     {
+      anyFilesParsed = true;
+
       FATAL_IF(!analyze_file(pArgv[i], &analyze, isNewFile, &options, &pdbContext), "Failed to analyze file %ws", pArgv[i]);
 
       isNewFile = false;
@@ -1260,6 +1265,7 @@ int32_t main(void)
   }
 
   // Write analyze file.
+  if (anyFilesParsed)
   {
     StreamWriter writer;
 
@@ -1290,13 +1296,17 @@ int32_t main(void)
   }
 
   // Write analyze json file.
+  if (pOutFile != nullptr && !isNewFile)
   {
     JsonWriter writer(pOutFile);
 
     FATAL_IF(!jsonify(&analyze, &writer), "Failed to jsonify analyze data.");
   }
 
-  puts("Success!");
+  if (!isNewFile)
+    puts("Success!");
+  else
+    puts("No Action Performed.");
 
   return 0;
 }
