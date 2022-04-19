@@ -54,7 +54,7 @@
 
 enum
 {
-  lt_analyze_file_version = 8,
+  lt_analyze_file_version = 9,
 };
 
 inline bool deserialize(OUT uint8_t *pValue, IN ByteStream *pStream, const uint32_t /* version */)
@@ -1835,6 +1835,14 @@ inline bool deserialize(OUT lt_analyze *pAnalyze, IN ByteStream *pStream)
     RETURN_ERROR_IF(!deserialize(&pAnalyze->crashes, pStream, version), "Failed to deserialize.");
   }
 
+  if (version >= 9)
+  {
+    READ(pStream, pAnalyze->firstDayTimestamp);
+    RETURN_ERROR_IF(!deserialize(&pAnalyze->days, pStream, version), "Failed to deserialize.");
+
+    RETURN_ERROR_IF(pStream->read(pAnalyze->hourHistogram, ARRAYSIZE(pAnalyze->hourHistogram)), "Failed to read hour histogram.");
+  }
+
   return true;
 }
 
@@ -1857,6 +1865,11 @@ inline bool serialize(IN const lt_analyze *pAnalyze, OUT StreamWriter *pStream)
   RETURN_ERROR_IF(!serialize(&pAnalyze->observedRangeF64, pStream), "Failed to serialize.");
   RETURN_ERROR_IF(!serialize(&pAnalyze->perfMetrics, pStream), "Failed to serialize.");
   RETURN_ERROR_IF(!serialize(&pAnalyze->crashes, pStream), "Failed to serialize.");
+
+  WRITE(pStream, pAnalyze->firstDayTimestamp);
+  RETURN_ERROR_IF(!serialize(&pAnalyze->days, pStream), "Failed to serialize.");
+
+  RETURN_ERROR_IF(pStream->write(pAnalyze->hourHistogram, ARRAYSIZE(pAnalyze->hourHistogram)), "Failed to write hour histogram.");
 
   return true;
 }
@@ -1900,6 +1913,18 @@ inline bool jsonify(IN const lt_analyze *pAnalyze, OUT JsonWriter *pWriter)
 
   pWriter->write_name("crashes");
   RETURN_ERROR_IF(!jsonify(&pAnalyze->crashes.value, pWriter), "Failed to jsonify.");
+
+  pWriter->write("firstDayTimestamp", pAnalyze->firstDayTimestamp);
+
+  pWriter->write_name("days");
+  RETURN_ERROR_IF(!jsonify(&pAnalyze->days, pWriter), "Failed to jsonify.");
+
+  pWriter->begin_array("hours");
+
+  for (size_t i = 0; i < ARRAYSIZE(pAnalyze->hourHistogram); i++)
+    pWriter->write_value(pAnalyze->hourHistogram[i]);
+
+  pWriter->end();
 
   pWriter->end();
 

@@ -338,6 +338,60 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
     READ(&stream, ltVersion);
     READ(&stream, startTimestamp);
 
+    constexpr uint64_t windowsFileTimeHour = 10 * 1000 * 1000 * 60 * 60;
+    constexpr uint64_t windowsFileTimeDay = windowsFileTimeHour * 24;
+
+    const uint64_t startTimestampDays = (startTimestamp / windowsFileTimeDay) * windowsFileTimeDay;
+
+    if (pAnalyze->days.size() == 0)
+    {
+      pAnalyze->firstDayTimestamp = startTimestampDays;
+      pAnalyze->days.push_back(1);
+    }
+    else
+    {
+      if (startTimestampDays < pAnalyze->firstDayTimestamp)
+      {
+        if (startTimestampDays + 365 * windowsFileTimeDay >= pAnalyze->firstDayTimestamp)
+        {
+          while (startTimestampDays < pAnalyze->firstDayTimestamp)
+          {
+            pAnalyze->days.insert(pAnalyze->days.begin(), 0);
+            pAnalyze->firstDayTimestamp -= windowsFileTimeDay;
+          }
+
+          FATAL_IF(startTimestampDays < pAnalyze->firstDayTimestamp, "Invalid List Identifer.");
+          FATAL_IF((startTimestampDays - pAnalyze->firstDayTimestamp) / windowsFileTimeDay >= pAnalyze->days.size(), "Invalid List Identifer.");
+
+          pAnalyze->days[(startTimestampDays - pAnalyze->firstDayTimestamp) / windowsFileTimeDay]++;
+        }
+      }
+      else if (startTimestampDays > pAnalyze->firstDayTimestamp + windowsFileTimeDay * (pAnalyze->days.size() - 1))
+      {
+        const size_t index = (startTimestampDays - pAnalyze->firstDayTimestamp) / windowsFileTimeDay;
+
+        if (index < pAnalyze->days.size() + 356)
+        {
+          while (index >= pAnalyze->days.size())
+            pAnalyze->days.push_back(0);
+
+          FATAL_IF(startTimestampDays < pAnalyze->firstDayTimestamp, "Invalid List Identifer.");
+          FATAL_IF((startTimestampDays - pAnalyze->firstDayTimestamp) / windowsFileTimeDay >= pAnalyze->days.size(), "Invalid List Identifer.");
+
+          pAnalyze->days[(startTimestampDays - pAnalyze->firstDayTimestamp) / windowsFileTimeDay]++;
+        }
+      }
+      else
+      {
+        FATAL_IF(startTimestampDays < pAnalyze->firstDayTimestamp, "Invalid List Identifer.");
+        FATAL_IF((startTimestampDays - pAnalyze->firstDayTimestamp) / windowsFileTimeDay >= pAnalyze->days.size(), "Invalid List Identifer.");
+
+        pAnalyze->days[(startTimestampDays - pAnalyze->firstDayTimestamp) / windowsFileTimeDay]++;
+      }
+    }
+
+    pAnalyze->hourHistogram[(startTimestamp / windowsFileTimeHour) % 24]++;
+
     uint8_t productNameLength = 0;
     READ(&stream, productNameLength);
     RETURN_ERROR_IF(!stream.read(productName, productNameLength), "Insufficient Data");

@@ -542,6 +542,11 @@ struct lt_analyze
   SoaList<uint64_t, lt_perf_value_range<double>> perfMetrics;
   
   SoaList<uint64_t, lt_crash_data> crashes;
+
+  uint64_t firstDayTimestamp;
+  std::vector<uint64_t> days;
+
+  uint64_t hourHistogram[24] = {};
 };
 
 
