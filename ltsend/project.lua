@@ -2,7 +2,7 @@ ProjectName = "ltsend"
 project(ProjectName)
 
   --Settings
-  kind "WindowedApp"
+  kind "ConsoleApp"
   language "C++"
   staticruntime "On"
 
@@ -19,7 +19,7 @@ project(ProjectName)
   
   objdir "intermediate/obj"
 
-  files { "src/**.cpp", "src/**.c", "src/**.cc", "src/**.h", "src/**.hh", "src/**.hpp", "src/**.inl", "src/**rc" }
+  files { "src/**.cpp", "src/**.c", "src/**.cc", "src/**.h", "src/**.hh", "src/**.hpp", "src/**.inl", "src/**rc", "src/**.asm" }
   files { "project.lua" }
 
   filter { "configurations:Debug", "system:Windows" }
