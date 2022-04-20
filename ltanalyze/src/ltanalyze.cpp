@@ -338,8 +338,8 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
     READ(&stream, ltVersion);
     READ(&stream, startTimestamp);
 
-    constexpr uint64_t windowsFileTimeHour = 10 * 1000 * 1000 * 60 * 60;
-    constexpr uint64_t windowsFileTimeDay = windowsFileTimeHour * 24;
+    constexpr uint64_t windowsFileTimeHour = 10ULL * 1000ULL * 1000ULL * 60ULL * 60ULL;
+    constexpr uint64_t windowsFileTimeDay = windowsFileTimeHour * 24ULL;
 
     const uint64_t startTimestampDays = (startTimestamp / windowsFileTimeDay) * windowsFileTimeDay;
 
@@ -352,7 +352,7 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
     {
       if (startTimestampDays < pAnalyze->firstDayTimestamp)
       {
-        if (startTimestampDays + 365 * windowsFileTimeDay >= pAnalyze->firstDayTimestamp)
+        if (startTimestampDays + 365ULL * windowsFileTimeDay >= pAnalyze->firstDayTimestamp)
         {
           while (startTimestampDays < pAnalyze->firstDayTimestamp)
           {
@@ -370,7 +370,7 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
       {
         const size_t index = (startTimestampDays - pAnalyze->firstDayTimestamp) / windowsFileTimeDay;
 
-        if (index < pAnalyze->days.size() + 356)
+        if (index < pAnalyze->days.size() + 356ULL)
         {
           while (index >= pAnalyze->days.size())
             pAnalyze->days.push_back(0);
@@ -390,7 +390,7 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
       }
     }
 
-    pAnalyze->hourHistogram[(startTimestamp / windowsFileTimeHour) % 24]++;
+    pAnalyze->hourHistogram[(startTimestamp / windowsFileTimeHour) % 24ULL]++;
 
     uint8_t productNameLength = 0;
     READ(&stream, productNameLength);

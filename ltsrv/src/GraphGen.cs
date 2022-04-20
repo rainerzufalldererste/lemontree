@@ -401,6 +401,77 @@ public static class GraphGen
     return ret;
   }
 
+  internal static HElement ToHourHistorgramChart(List<uint64_t> data, string name)
+  {
+    if (data.Count == 0)
+      return new HContainer() { Class = "NoData", Elements = { new HText($"No '{name}' Data Available.") } };
+
+    var ret = new HContainer() { Class = "DataInfo", Elements = { new HHeadline(name) } };
+
+    HContainer histogram = new HContainer() { Class = "Histogram Large" };
+
+    uint64_t max = (uint64_t)0;
+
+    foreach (var y in data)
+      if (y > max)
+        max = y;
+
+    int i = 0;
+
+    foreach (var y in data)
+    {
+      double percentage = (double)y / max * 100.0;
+      histogram.AddElement(new HContainer() { Class = "HistogramElement Large", Title = $"{i}:00 ({y})", Style = $"--value:{percentage};" });
+      i++;
+    }
+
+    ret.AddElement(histogram);
+
+    return ret;
+  }
+
+  internal static HElement ToDayHistorgramChart(List<uint64_t> data, uint64_t firstDayTimestamp, string name)
+  {
+    if (data.Count == 0)
+      return new HContainer() { Class = "NoData", Elements = { new HText($"No '{name}' Data Available.") } };
+
+    var ret = new HContainer() { Class = "DataInfo", Elements = { new HHeadline(name) } };
+
+    DateTime start = DateTime.FromFileTimeUtc((long)firstDayTimestamp.value);
+    int preceedingDays = 0;
+
+    while (start.DayOfWeek != DayOfWeek.Sunday)
+    {
+      start -= TimeSpan.FromDays(1);
+      preceedingDays++;
+    }
+
+    List<List<HElement>> table = new List<List<HElement>>() { new List<HElement>(), new List<HElement>(), new List<HElement>(), new List<HElement>(), new List<HElement>(), new List<HElement>(), new List<HElement>() };
+
+    uint64_t max = (uint64_t)0;
+
+    foreach (var x in data)
+      if (x.value > max.value)
+        max = x;
+
+    for (int i = 0; i < data.Count; i++)
+    {
+      double percentage = ((double)data[i] / (double)max) * 100.0;
+
+      TimeSpan offset = TimeSpan.FromDays(i + preceedingDays);
+      DateTime day = start + offset;
+
+      while ((int)offset.TotalDays / 7 >= table[(int)day.DayOfWeek].Count)
+        table[(int)day.DayOfWeek].Add(new HMultipleElements());
+
+      table[(int)day.DayOfWeek][(int)offset.TotalDays / 7] = new HText() { Class = "DayHistElement", Style = $"--value:{percentage}", Title = day.ToString("ddd dd. MMMM yyyy") + $" ({data[i]})" };
+    }
+
+    ret.AddElement(new HTable(table) { Class = "DayHistogram" });
+
+    return ret;
+  }
+
   private static void AppendErrorData(HContainer container, ulong maxCount, Error e, TransitionData t)
   {
     double percentage = ((double)t.count.value / (double)maxCount) * 100.0;

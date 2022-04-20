@@ -1840,7 +1840,7 @@ inline bool deserialize(OUT lt_analyze *pAnalyze, IN ByteStream *pStream)
     READ(pStream, pAnalyze->firstDayTimestamp);
     RETURN_ERROR_IF(!deserialize(&pAnalyze->days, pStream, version), "Failed to deserialize.");
 
-    RETURN_ERROR_IF(pStream->read(pAnalyze->hourHistogram, ARRAYSIZE(pAnalyze->hourHistogram)), "Failed to read hour histogram.");
+    RETURN_ERROR_IF(!pStream->read(pAnalyze->hourHistogram, ARRAYSIZE(pAnalyze->hourHistogram)), "Failed to read hour histogram.");
   }
 
   return true;
@@ -1869,8 +1869,8 @@ inline bool serialize(IN const lt_analyze *pAnalyze, OUT StreamWriter *pStream)
   WRITE(pStream, pAnalyze->firstDayTimestamp);
   RETURN_ERROR_IF(!serialize(&pAnalyze->days, pStream), "Failed to serialize.");
 
-  RETURN_ERROR_IF(pStream->write(pAnalyze->hourHistogram, ARRAYSIZE(pAnalyze->hourHistogram)), "Failed to write hour histogram.");
-
+  RETURN_ERROR_IF(!pStream->write(pAnalyze->hourHistogram, ARRAYSIZE(pAnalyze->hourHistogram)), "Failed to write hour histogram.");
+  
   return true;
 }
 

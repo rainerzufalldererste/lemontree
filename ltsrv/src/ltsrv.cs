@@ -489,9 +489,9 @@ public class SubSystemInfo : ElementResponse
     if (productName == null)
       return ltsrv.GetPage("Products", ShowProjects(sessionData));
     else if (!ulong.TryParse(sessionData.HttpHeadVariables["V"], out majorVersion))
-      return ltsrv.GetPage("Sub Systems", ShowMajorVersions(sessionData, productName));
+      return ltsrv.GetPage("Major Versions", ShowMajorVersions(sessionData, productName));
     else if (!ulong.TryParse(sessionData.HttpHeadVariables["v"], out minorVersion))
-      return ltsrv.GetPage("Sub Systems", ShowMinorVersions(sessionData, productName, majorVersion));
+      return ltsrv.GetPage("Minor Versions", ShowMinorVersions(sessionData, productName, majorVersion));
     else if (!ulong.TryParse(sessionData.HttpHeadVariables["ss"], out subSystem))
       return ltsrv.GetPage("Sub Systems", ShowSubSystems(sessionData, productName, majorVersion, minorVersion));
     else
@@ -541,6 +541,10 @@ public class SubSystemInfo : ElementResponse
     var analysis = container.analysis;
 
     yield return new HHeadline($"'{productName}' (Version {majorVersion}.{minorVersion})");
+
+    yield return GraphGen.ToDayHistorgramChart(analysis.days, analysis.firstDayTimestamp, "Days (UTC)");
+
+    yield return GraphGen.ToHourHistorgramChart(analysis.hours, "Hours (UTC)");
 
     yield return new HHeadline($"SubSystems", 2);
 

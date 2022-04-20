@@ -367,3 +367,13 @@ p.ErrorCode {
   color: #ffffff;
   font-family: Consolas, monospace;
 }
+
+p.DayHistElement {
+  --var0: calc(1 - var(--value) / 100);
+  --var: calc(1 - var(--var0) * var(--var0) + 0.1);
+  display: block;
+  width: 12pt;
+  height: 12pt;
+  background: hsl(calc(240 - var(--var) * 170) 90% 70% / var(--var));
+  border-radius: 3pt;
+}
