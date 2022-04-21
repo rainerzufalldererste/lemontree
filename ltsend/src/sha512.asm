@@ -11,24 +11,24 @@ movq   xmm4, r14
 movq   xmm5, r15
 movq   xmm6, rbx
 sub    rsp, 80h
-mov    r8, QWORD PTR [rbx]
-mov    r9, QWORD PTR [rbx+8h]
-mov    r10, QWORD PTR [rbx+10h]
-mov    r11, QWORD PTR [rbx+18h]
-mov    r12, QWORD PTR [rbx+20h]
-mov    r13, QWORD PTR [rbx+28h]
-mov    r14, QWORD PTR [rbx+30h]
-mov    r15, QWORD PTR [rbx+38h]
+mov    r8, QWORD PTR [rdx]
+mov    r9, QWORD PTR [rdx+8h]
+mov    r10, QWORD PTR [rdx+10h]
+mov    r11, QWORD PTR [rdx+18h]
+mov    r12, QWORD PTR [rdx+20h]
+mov    r13, QWORD PTR [rdx+28h]
+mov    r14, QWORD PTR [rdx+30h]
+mov    r15, QWORD PTR [rdx+38h]
 mov    rbx, QWORD PTR [rcx]
 bswap  rbx
 mov    QWORD PTR [rsp], rbx
 mov    rdi, r12
-mov    rdx, r12
+mov    rsi, r12
 mov    rax, r12
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r15, rbx
 mov    rdi, r14
@@ -42,12 +42,12 @@ add    r15, rdi
 add    r15, rax
 add    r11, r15
 mov    rdi, r8
-mov    rdx, r8
+mov    rsi, r8
 mov    rax, r8
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r10
 add    r15, rax
@@ -61,12 +61,12 @@ mov    rbx, QWORD PTR [rcx+8h]
 bswap  rbx
 mov    QWORD PTR [rsp+8h], rbx
 mov    rdi, r11
-mov    rdx, r11
+mov    rsi, r11
 mov    rax, r11
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r14, rbx
 mov    rdi, r13
@@ -80,12 +80,12 @@ add    r14, rdi
 add    r14, rax
 add    r10, r14
 mov    rdi, r15
-mov    rdx, r15
+mov    rsi, r15
 mov    rax, r15
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r9
 add    r14, rax
@@ -99,12 +99,12 @@ mov    rbx, QWORD PTR [rcx+10h]
 bswap  rbx
 mov    QWORD PTR [rsp+10h], rbx
 mov    rdi, r10
-mov    rdx, r10
+mov    rsi, r10
 mov    rax, r10
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r13, rbx
 mov    rdi, r12
@@ -118,12 +118,12 @@ add    r13, rdi
 add    r13, rax
 add    r9, r13
 mov    rdi, r14
-mov    rdx, r14
+mov    rsi, r14
 mov    rax, r14
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r8
 add    r13, rax
@@ -137,12 +137,12 @@ mov    rbx, QWORD PTR [rcx+18h]
 bswap  rbx
 mov    QWORD PTR [rsp+18h], rbx
 mov    rdi, r9
-mov    rdx, r9
+mov    rsi, r9
 mov    rax, r9
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r12, rbx
 mov    rdi, r11
@@ -156,12 +156,12 @@ add    r12, rdi
 add    r12, rax
 add    r8, r12
 mov    rdi, r13
-mov    rdx, r13
+mov    rsi, r13
 mov    rax, r13
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r15
 add    r12, rax
@@ -175,12 +175,12 @@ mov    rbx, QWORD PTR [rcx+20h]
 bswap  rbx
 mov    QWORD PTR [rsp+20h], rbx
 mov    rdi, r8
-mov    rdx, r8
+mov    rsi, r8
 mov    rax, r8
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r11, rbx
 mov    rdi, r10
@@ -194,12 +194,12 @@ add    r11, rdi
 add    r11, rax
 add    r15, r11
 mov    rdi, r12
-mov    rdx, r12
+mov    rsi, r12
 mov    rax, r12
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r14
 add    r11, rax
@@ -213,12 +213,12 @@ mov    rbx, QWORD PTR [rcx+28h]
 bswap  rbx
 mov    QWORD PTR [rsp+28h], rbx
 mov    rdi, r15
-mov    rdx, r15
+mov    rsi, r15
 mov    rax, r15
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r10, rbx
 mov    rdi, r9
@@ -232,12 +232,12 @@ add    r10, rdi
 add    r10, rax
 add    r14, r10
 mov    rdi, r11
-mov    rdx, r11
+mov    rsi, r11
 mov    rax, r11
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r13
 add    r10, rax
@@ -251,12 +251,12 @@ mov    rbx, QWORD PTR [rcx+30h]
 bswap  rbx
 mov    QWORD PTR [rsp+30h], rbx
 mov    rdi, r14
-mov    rdx, r14
+mov    rsi, r14
 mov    rax, r14
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r9, rbx
 mov    rdi, r8
@@ -270,12 +270,12 @@ add    r9, rdi
 add    r9, rax
 add    r13, r9
 mov    rdi, r10
-mov    rdx, r10
+mov    rsi, r10
 mov    rax, r10
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r12
 add    r9, rax
@@ -289,12 +289,12 @@ mov    rbx, QWORD PTR [rcx+38h]
 bswap  rbx
 mov    QWORD PTR [rsp+38h], rbx
 mov    rdi, r13
-mov    rdx, r13
+mov    rsi, r13
 mov    rax, r13
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r8, rbx
 mov    rdi, r15
@@ -308,12 +308,12 @@ add    r8, rdi
 add    r8, rax
 add    r12, r8
 mov    rdi, r9
-mov    rdx, r9
+mov    rsi, r9
 mov    rax, r9
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r11
 add    r8, rax
@@ -327,12 +327,12 @@ mov    rbx, QWORD PTR [rcx+40h]
 bswap  rbx
 mov    QWORD PTR [rsp+40h], rbx
 mov    rdi, r12
-mov    rdx, r12
+mov    rsi, r12
 mov    rax, r12
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r15, rbx
 mov    rdi, r14
@@ -346,12 +346,12 @@ add    r15, rdi
 add    r15, rax
 add    r11, r15
 mov    rdi, r8
-mov    rdx, r8
+mov    rsi, r8
 mov    rax, r8
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r10
 add    r15, rax
@@ -365,12 +365,12 @@ mov    rbx, QWORD PTR [rcx+48h]
 bswap  rbx
 mov    QWORD PTR [rsp+48h], rbx
 mov    rdi, r11
-mov    rdx, r11
+mov    rsi, r11
 mov    rax, r11
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r14, rbx
 mov    rdi, r13
@@ -384,12 +384,12 @@ add    r14, rdi
 add    r14, rax
 add    r10, r14
 mov    rdi, r15
-mov    rdx, r15
+mov    rsi, r15
 mov    rax, r15
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r9
 add    r14, rax
@@ -403,12 +403,12 @@ mov    rbx, QWORD PTR [rcx+50h]
 bswap  rbx
 mov    QWORD PTR [rsp+50h], rbx
 mov    rdi, r10
-mov    rdx, r10
+mov    rsi, r10
 mov    rax, r10
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r13, rbx
 mov    rdi, r12
@@ -422,12 +422,12 @@ add    r13, rdi
 add    r13, rax
 add    r9, r13
 mov    rdi, r14
-mov    rdx, r14
+mov    rsi, r14
 mov    rax, r14
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r8
 add    r13, rax
@@ -441,12 +441,12 @@ mov    rbx, QWORD PTR [rcx+58h]
 bswap  rbx
 mov    QWORD PTR [rsp+58h], rbx
 mov    rdi, r9
-mov    rdx, r9
+mov    rsi, r9
 mov    rax, r9
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r12, rbx
 mov    rdi, r11
@@ -460,12 +460,12 @@ add    r12, rdi
 add    r12, rax
 add    r8, r12
 mov    rdi, r13
-mov    rdx, r13
+mov    rsi, r13
 mov    rax, r13
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r15
 add    r12, rax
@@ -479,12 +479,12 @@ mov    rbx, QWORD PTR [rcx+60h]
 bswap  rbx
 mov    QWORD PTR [rsp+60h], rbx
 mov    rdi, r8
-mov    rdx, r8
+mov    rsi, r8
 mov    rax, r8
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r11, rbx
 mov    rdi, r10
@@ -498,12 +498,12 @@ add    r11, rdi
 add    r11, rax
 add    r15, r11
 mov    rdi, r12
-mov    rdx, r12
+mov    rsi, r12
 mov    rax, r12
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r14
 add    r11, rax
@@ -517,12 +517,12 @@ mov    rbx, QWORD PTR [rcx+68h]
 bswap  rbx
 mov    QWORD PTR [rsp+68h], rbx
 mov    rdi, r15
-mov    rdx, r15
+mov    rsi, r15
 mov    rax, r15
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r10, rbx
 mov    rdi, r9
@@ -536,12 +536,12 @@ add    r10, rdi
 add    r10, rax
 add    r14, r10
 mov    rdi, r11
-mov    rdx, r11
+mov    rsi, r11
 mov    rax, r11
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r13
 add    r10, rax
@@ -555,12 +555,12 @@ mov    rbx, QWORD PTR [rcx+70h]
 bswap  rbx
 mov    QWORD PTR [rsp+70h], rbx
 mov    rdi, r14
-mov    rdx, r14
+mov    rsi, r14
 mov    rax, r14
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r9, rbx
 mov    rdi, r8
@@ -574,12 +574,12 @@ add    r9, rdi
 add    r9, rax
 add    r13, r9
 mov    rdi, r10
-mov    rdx, r10
+mov    rsi, r10
 mov    rax, r10
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r12
 add    r9, rax
@@ -593,12 +593,12 @@ mov    rbx, QWORD PTR [rcx+78h]
 bswap  rbx
 mov    QWORD PTR [rsp+78h], rbx
 mov    rdi, r13
-mov    rdx, r13
+mov    rsi, r13
 mov    rax, r13
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r8, rbx
 mov    rdi, r15
@@ -612,12 +612,12 @@ add    r8, rdi
 add    r8, rax
 add    r12, r8
 mov    rdi, r9
-mov    rdx, r9
+mov    rsi, r9
 mov    rax, r9
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r11
 add    r8, rax
@@ -631,30 +631,30 @@ mov    rax, QWORD PTR [rsp+8h]
 mov    rbx, QWORD PTR [rsp]
 add    rbx, QWORD PTR [rsp+48h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+70h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp], rbx
 mov    rdi, r12
-mov    rdx, r12
+mov    rsi, r12
 mov    rax, r12
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r15, rbx
 mov    rdi, r14
@@ -668,12 +668,12 @@ add    r15, rdi
 add    r15, rax
 add    r11, r15
 mov    rdi, r8
-mov    rdx, r8
+mov    rsi, r8
 mov    rax, r8
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r10
 add    r15, rax
@@ -687,30 +687,30 @@ mov    rax, QWORD PTR [rsp+10h]
 mov    rbx, QWORD PTR [rsp+8h]
 add    rbx, QWORD PTR [rsp+50h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+78h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+8h], rbx
 mov    rdi, r11
-mov    rdx, r11
+mov    rsi, r11
 mov    rax, r11
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r14, rbx
 mov    rdi, r13
@@ -724,12 +724,12 @@ add    r14, rdi
 add    r14, rax
 add    r10, r14
 mov    rdi, r15
-mov    rdx, r15
+mov    rsi, r15
 mov    rax, r15
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r9
 add    r14, rax
@@ -743,30 +743,30 @@ mov    rax, QWORD PTR [rsp+18h]
 mov    rbx, QWORD PTR [rsp+10h]
 add    rbx, QWORD PTR [rsp+58h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+10h], rbx
 mov    rdi, r10
-mov    rdx, r10
+mov    rsi, r10
 mov    rax, r10
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r13, rbx
 mov    rdi, r12
@@ -780,12 +780,12 @@ add    r13, rdi
 add    r13, rax
 add    r9, r13
 mov    rdi, r14
-mov    rdx, r14
+mov    rsi, r14
 mov    rax, r14
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r8
 add    r13, rax
@@ -799,30 +799,30 @@ mov    rax, QWORD PTR [rsp+20h]
 mov    rbx, QWORD PTR [rsp+18h]
 add    rbx, QWORD PTR [rsp+60h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+8h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+18h], rbx
 mov    rdi, r9
-mov    rdx, r9
+mov    rsi, r9
 mov    rax, r9
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r12, rbx
 mov    rdi, r11
@@ -836,12 +836,12 @@ add    r12, rdi
 add    r12, rax
 add    r8, r12
 mov    rdi, r13
-mov    rdx, r13
+mov    rsi, r13
 mov    rax, r13
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r15
 add    r12, rax
@@ -855,30 +855,30 @@ mov    rax, QWORD PTR [rsp+28h]
 mov    rbx, QWORD PTR [rsp+20h]
 add    rbx, QWORD PTR [rsp+68h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+10h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+20h], rbx
 mov    rdi, r8
-mov    rdx, r8
+mov    rsi, r8
 mov    rax, r8
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r11, rbx
 mov    rdi, r10
@@ -892,12 +892,12 @@ add    r11, rdi
 add    r11, rax
 add    r15, r11
 mov    rdi, r12
-mov    rdx, r12
+mov    rsi, r12
 mov    rax, r12
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r14
 add    r11, rax
@@ -911,30 +911,30 @@ mov    rax, QWORD PTR [rsp+30h]
 mov    rbx, QWORD PTR [rsp+28h]
 add    rbx, QWORD PTR [rsp+70h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+18h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+28h], rbx
 mov    rdi, r15
-mov    rdx, r15
+mov    rsi, r15
 mov    rax, r15
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r10, rbx
 mov    rdi, r9
@@ -948,12 +948,12 @@ add    r10, rdi
 add    r10, rax
 add    r14, r10
 mov    rdi, r11
-mov    rdx, r11
+mov    rsi, r11
 mov    rax, r11
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r13
 add    r10, rax
@@ -967,30 +967,30 @@ mov    rax, QWORD PTR [rsp+38h]
 mov    rbx, QWORD PTR [rsp+30h]
 add    rbx, QWORD PTR [rsp+78h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+20h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+30h], rbx
 mov    rdi, r14
-mov    rdx, r14
+mov    rsi, r14
 mov    rax, r14
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r9, rbx
 mov    rdi, r8
@@ -1004,12 +1004,12 @@ add    r9, rdi
 add    r9, rax
 add    r13, r9
 mov    rdi, r10
-mov    rdx, r10
+mov    rsi, r10
 mov    rax, r10
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r12
 add    r9, rax
@@ -1023,30 +1023,30 @@ mov    rax, QWORD PTR [rsp+40h]
 mov    rbx, QWORD PTR [rsp+38h]
 add    rbx, QWORD PTR [rsp]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+28h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+38h], rbx
 mov    rdi, r13
-mov    rdx, r13
+mov    rsi, r13
 mov    rax, r13
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r8, rbx
 mov    rdi, r15
@@ -1060,12 +1060,12 @@ add    r8, rdi
 add    r8, rax
 add    r12, r8
 mov    rdi, r9
-mov    rdx, r9
+mov    rsi, r9
 mov    rax, r9
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r11
 add    r8, rax
@@ -1079,30 +1079,30 @@ mov    rax, QWORD PTR [rsp+48h]
 mov    rbx, QWORD PTR [rsp+40h]
 add    rbx, QWORD PTR [rsp+8h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+30h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+40h], rbx
 mov    rdi, r12
-mov    rdx, r12
+mov    rsi, r12
 mov    rax, r12
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r15, rbx
 mov    rdi, r14
@@ -1116,12 +1116,12 @@ add    r15, rdi
 add    r15, rax
 add    r11, r15
 mov    rdi, r8
-mov    rdx, r8
+mov    rsi, r8
 mov    rax, r8
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r10
 add    r15, rax
@@ -1135,30 +1135,30 @@ mov    rax, QWORD PTR [rsp+50h]
 mov    rbx, QWORD PTR [rsp+48h]
 add    rbx, QWORD PTR [rsp+10h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+38h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+48h], rbx
 mov    rdi, r11
-mov    rdx, r11
+mov    rsi, r11
 mov    rax, r11
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r14, rbx
 mov    rdi, r13
@@ -1172,12 +1172,12 @@ add    r14, rdi
 add    r14, rax
 add    r10, r14
 mov    rdi, r15
-mov    rdx, r15
+mov    rsi, r15
 mov    rax, r15
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r9
 add    r14, rax
@@ -1191,30 +1191,30 @@ mov    rax, QWORD PTR [rsp+58h]
 mov    rbx, QWORD PTR [rsp+50h]
 add    rbx, QWORD PTR [rsp+18h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+40h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+50h], rbx
 mov    rdi, r10
-mov    rdx, r10
+mov    rsi, r10
 mov    rax, r10
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r13, rbx
 mov    rdi, r12
@@ -1228,12 +1228,12 @@ add    r13, rdi
 add    r13, rax
 add    r9, r13
 mov    rdi, r14
-mov    rdx, r14
+mov    rsi, r14
 mov    rax, r14
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r8
 add    r13, rax
@@ -1247,30 +1247,30 @@ mov    rax, QWORD PTR [rsp+60h]
 mov    rbx, QWORD PTR [rsp+58h]
 add    rbx, QWORD PTR [rsp+20h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+48h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+58h], rbx
 mov    rdi, r9
-mov    rdx, r9
+mov    rsi, r9
 mov    rax, r9
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r12, rbx
 mov    rdi, r11
@@ -1284,12 +1284,12 @@ add    r12, rdi
 add    r12, rax
 add    r8, r12
 mov    rdi, r13
-mov    rdx, r13
+mov    rsi, r13
 mov    rax, r13
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r15
 add    r12, rax
@@ -1303,30 +1303,30 @@ mov    rax, QWORD PTR [rsp+68h]
 mov    rbx, QWORD PTR [rsp+60h]
 add    rbx, QWORD PTR [rsp+28h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+50h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+60h], rbx
 mov    rdi, r8
-mov    rdx, r8
+mov    rsi, r8
 mov    rax, r8
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r11, rbx
 mov    rdi, r10
@@ -1340,12 +1340,12 @@ add    r11, rdi
 add    r11, rax
 add    r15, r11
 mov    rdi, r12
-mov    rdx, r12
+mov    rsi, r12
 mov    rax, r12
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r14
 add    r11, rax
@@ -1359,30 +1359,30 @@ mov    rax, QWORD PTR [rsp+70h]
 mov    rbx, QWORD PTR [rsp+68h]
 add    rbx, QWORD PTR [rsp+30h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+58h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+68h], rbx
 mov    rdi, r15
-mov    rdx, r15
+mov    rsi, r15
 mov    rax, r15
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r10, rbx
 mov    rdi, r9
@@ -1396,12 +1396,12 @@ add    r10, rdi
 add    r10, rax
 add    r14, r10
 mov    rdi, r11
-mov    rdx, r11
+mov    rsi, r11
 mov    rax, r11
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r13
 add    r10, rax
@@ -1415,30 +1415,30 @@ mov    rax, QWORD PTR [rsp+78h]
 mov    rbx, QWORD PTR [rsp+70h]
 add    rbx, QWORD PTR [rsp+38h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+60h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+70h], rbx
 mov    rdi, r14
-mov    rdx, r14
+mov    rsi, r14
 mov    rax, r14
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r9, rbx
 mov    rdi, r8
@@ -1452,12 +1452,12 @@ add    r9, rdi
 add    r9, rax
 add    r13, r9
 mov    rdi, r10
-mov    rdx, r10
+mov    rsi, r10
 mov    rax, r10
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r12
 add    r9, rax
@@ -1471,30 +1471,30 @@ mov    rax, QWORD PTR [rsp]
 mov    rbx, QWORD PTR [rsp+78h]
 add    rbx, QWORD PTR [rsp+40h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+68h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+78h], rbx
 mov    rdi, r13
-mov    rdx, r13
+mov    rsi, r13
 mov    rax, r13
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r8, rbx
 mov    rdi, r15
@@ -1508,12 +1508,12 @@ add    r8, rdi
 add    r8, rax
 add    r12, r8
 mov    rdi, r9
-mov    rdx, r9
+mov    rsi, r9
 mov    rax, r9
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r11
 add    r8, rax
@@ -1527,30 +1527,30 @@ mov    rax, QWORD PTR [rsp+8h]
 mov    rbx, QWORD PTR [rsp]
 add    rbx, QWORD PTR [rsp+48h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+70h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp], rbx
 mov    rdi, r12
-mov    rdx, r12
+mov    rsi, r12
 mov    rax, r12
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r15, rbx
 mov    rdi, r14
@@ -1564,12 +1564,12 @@ add    r15, rdi
 add    r15, rax
 add    r11, r15
 mov    rdi, r8
-mov    rdx, r8
+mov    rsi, r8
 mov    rax, r8
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r10
 add    r15, rax
@@ -1583,30 +1583,30 @@ mov    rax, QWORD PTR [rsp+10h]
 mov    rbx, QWORD PTR [rsp+8h]
 add    rbx, QWORD PTR [rsp+50h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+78h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+8h], rbx
 mov    rdi, r11
-mov    rdx, r11
+mov    rsi, r11
 mov    rax, r11
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r14, rbx
 mov    rdi, r13
@@ -1620,12 +1620,12 @@ add    r14, rdi
 add    r14, rax
 add    r10, r14
 mov    rdi, r15
-mov    rdx, r15
+mov    rsi, r15
 mov    rax, r15
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r9
 add    r14, rax
@@ -1639,30 +1639,30 @@ mov    rax, QWORD PTR [rsp+18h]
 mov    rbx, QWORD PTR [rsp+10h]
 add    rbx, QWORD PTR [rsp+58h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+10h], rbx
 mov    rdi, r10
-mov    rdx, r10
+mov    rsi, r10
 mov    rax, r10
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r13, rbx
 mov    rdi, r12
@@ -1676,12 +1676,12 @@ add    r13, rdi
 add    r13, rax
 add    r9, r13
 mov    rdi, r14
-mov    rdx, r14
+mov    rsi, r14
 mov    rax, r14
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r8
 add    r13, rax
@@ -1695,30 +1695,30 @@ mov    rax, QWORD PTR [rsp+20h]
 mov    rbx, QWORD PTR [rsp+18h]
 add    rbx, QWORD PTR [rsp+60h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+8h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+18h], rbx
 mov    rdi, r9
-mov    rdx, r9
+mov    rsi, r9
 mov    rax, r9
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r12, rbx
 mov    rdi, r11
@@ -1732,12 +1732,12 @@ add    r12, rdi
 add    r12, rax
 add    r8, r12
 mov    rdi, r13
-mov    rdx, r13
+mov    rsi, r13
 mov    rax, r13
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r15
 add    r12, rax
@@ -1751,30 +1751,30 @@ mov    rax, QWORD PTR [rsp+28h]
 mov    rbx, QWORD PTR [rsp+20h]
 add    rbx, QWORD PTR [rsp+68h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+10h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+20h], rbx
 mov    rdi, r8
-mov    rdx, r8
+mov    rsi, r8
 mov    rax, r8
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r11, rbx
 mov    rdi, r10
@@ -1788,12 +1788,12 @@ add    r11, rdi
 add    r11, rax
 add    r15, r11
 mov    rdi, r12
-mov    rdx, r12
+mov    rsi, r12
 mov    rax, r12
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r14
 add    r11, rax
@@ -1807,30 +1807,30 @@ mov    rax, QWORD PTR [rsp+30h]
 mov    rbx, QWORD PTR [rsp+28h]
 add    rbx, QWORD PTR [rsp+70h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+18h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+28h], rbx
 mov    rdi, r15
-mov    rdx, r15
+mov    rsi, r15
 mov    rax, r15
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r10, rbx
 mov    rdi, r9
@@ -1844,12 +1844,12 @@ add    r10, rdi
 add    r10, rax
 add    r14, r10
 mov    rdi, r11
-mov    rdx, r11
+mov    rsi, r11
 mov    rax, r11
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r13
 add    r10, rax
@@ -1863,30 +1863,30 @@ mov    rax, QWORD PTR [rsp+38h]
 mov    rbx, QWORD PTR [rsp+30h]
 add    rbx, QWORD PTR [rsp+78h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+20h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+30h], rbx
 mov    rdi, r14
-mov    rdx, r14
+mov    rsi, r14
 mov    rax, r14
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r9, rbx
 mov    rdi, r8
@@ -1900,12 +1900,12 @@ add    r9, rdi
 add    r9, rax
 add    r13, r9
 mov    rdi, r10
-mov    rdx, r10
+mov    rsi, r10
 mov    rax, r10
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r12
 add    r9, rax
@@ -1919,30 +1919,30 @@ mov    rax, QWORD PTR [rsp+40h]
 mov    rbx, QWORD PTR [rsp+38h]
 add    rbx, QWORD PTR [rsp]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+28h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+38h], rbx
 mov    rdi, r13
-mov    rdx, r13
+mov    rsi, r13
 mov    rax, r13
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r8, rbx
 mov    rdi, r15
@@ -1956,12 +1956,12 @@ add    r8, rdi
 add    r8, rax
 add    r12, r8
 mov    rdi, r9
-mov    rdx, r9
+mov    rsi, r9
 mov    rax, r9
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r11
 add    r8, rax
@@ -1975,30 +1975,30 @@ mov    rax, QWORD PTR [rsp+48h]
 mov    rbx, QWORD PTR [rsp+40h]
 add    rbx, QWORD PTR [rsp+8h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+30h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+40h], rbx
 mov    rdi, r12
-mov    rdx, r12
+mov    rsi, r12
 mov    rax, r12
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r15, rbx
 mov    rdi, r14
@@ -2012,12 +2012,12 @@ add    r15, rdi
 add    r15, rax
 add    r11, r15
 mov    rdi, r8
-mov    rdx, r8
+mov    rsi, r8
 mov    rax, r8
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r10
 add    r15, rax
@@ -2031,30 +2031,30 @@ mov    rax, QWORD PTR [rsp+50h]
 mov    rbx, QWORD PTR [rsp+48h]
 add    rbx, QWORD PTR [rsp+10h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+38h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+48h], rbx
 mov    rdi, r11
-mov    rdx, r11
+mov    rsi, r11
 mov    rax, r11
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r14, rbx
 mov    rdi, r13
@@ -2068,12 +2068,12 @@ add    r14, rdi
 add    r14, rax
 add    r10, r14
 mov    rdi, r15
-mov    rdx, r15
+mov    rsi, r15
 mov    rax, r15
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r9
 add    r14, rax
@@ -2087,30 +2087,30 @@ mov    rax, QWORD PTR [rsp+58h]
 mov    rbx, QWORD PTR [rsp+50h]
 add    rbx, QWORD PTR [rsp+18h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+40h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+50h], rbx
 mov    rdi, r10
-mov    rdx, r10
+mov    rsi, r10
 mov    rax, r10
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r13, rbx
 mov    rdi, r12
@@ -2124,12 +2124,12 @@ add    r13, rdi
 add    r13, rax
 add    r9, r13
 mov    rdi, r14
-mov    rdx, r14
+mov    rsi, r14
 mov    rax, r14
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r8
 add    r13, rax
@@ -2143,30 +2143,30 @@ mov    rax, QWORD PTR [rsp+60h]
 mov    rbx, QWORD PTR [rsp+58h]
 add    rbx, QWORD PTR [rsp+20h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+48h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+58h], rbx
 mov    rdi, r9
-mov    rdx, r9
+mov    rsi, r9
 mov    rax, r9
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r12, rbx
 mov    rdi, r11
@@ -2180,12 +2180,12 @@ add    r12, rdi
 add    r12, rax
 add    r8, r12
 mov    rdi, r13
-mov    rdx, r13
+mov    rsi, r13
 mov    rax, r13
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r15
 add    r12, rax
@@ -2199,30 +2199,30 @@ mov    rax, QWORD PTR [rsp+68h]
 mov    rbx, QWORD PTR [rsp+60h]
 add    rbx, QWORD PTR [rsp+28h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+50h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+60h], rbx
 mov    rdi, r8
-mov    rdx, r8
+mov    rsi, r8
 mov    rax, r8
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r11, rbx
 mov    rdi, r10
@@ -2236,12 +2236,12 @@ add    r11, rdi
 add    r11, rax
 add    r15, r11
 mov    rdi, r12
-mov    rdx, r12
+mov    rsi, r12
 mov    rax, r12
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r14
 add    r11, rax
@@ -2255,30 +2255,30 @@ mov    rax, QWORD PTR [rsp+70h]
 mov    rbx, QWORD PTR [rsp+68h]
 add    rbx, QWORD PTR [rsp+30h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+58h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+68h], rbx
 mov    rdi, r15
-mov    rdx, r15
+mov    rsi, r15
 mov    rax, r15
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r10, rbx
 mov    rdi, r9
@@ -2292,12 +2292,12 @@ add    r10, rdi
 add    r10, rax
 add    r14, r10
 mov    rdi, r11
-mov    rdx, r11
+mov    rsi, r11
 mov    rax, r11
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r13
 add    r10, rax
@@ -2311,30 +2311,30 @@ mov    rax, QWORD PTR [rsp+78h]
 mov    rbx, QWORD PTR [rsp+70h]
 add    rbx, QWORD PTR [rsp+38h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+60h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+70h], rbx
 mov    rdi, r14
-mov    rdx, r14
+mov    rsi, r14
 mov    rax, r14
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r9, rbx
 mov    rdi, r8
@@ -2348,12 +2348,12 @@ add    r9, rdi
 add    r9, rax
 add    r13, r9
 mov    rdi, r10
-mov    rdx, r10
+mov    rsi, r10
 mov    rax, r10
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r12
 add    r9, rax
@@ -2367,30 +2367,30 @@ mov    rax, QWORD PTR [rsp]
 mov    rbx, QWORD PTR [rsp+78h]
 add    rbx, QWORD PTR [rsp+40h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+68h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+78h], rbx
 mov    rdi, r13
-mov    rdx, r13
+mov    rsi, r13
 mov    rax, r13
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r8, rbx
 mov    rdi, r15
@@ -2404,12 +2404,12 @@ add    r8, rdi
 add    r8, rax
 add    r12, r8
 mov    rdi, r9
-mov    rdx, r9
+mov    rsi, r9
 mov    rax, r9
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r11
 add    r8, rax
@@ -2423,30 +2423,30 @@ mov    rax, QWORD PTR [rsp+8h]
 mov    rbx, QWORD PTR [rsp]
 add    rbx, QWORD PTR [rsp+48h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+70h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp], rbx
 mov    rdi, r12
-mov    rdx, r12
+mov    rsi, r12
 mov    rax, r12
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r15, rbx
 mov    rdi, r14
@@ -2460,12 +2460,12 @@ add    r15, rdi
 add    r15, rax
 add    r11, r15
 mov    rdi, r8
-mov    rdx, r8
+mov    rsi, r8
 mov    rax, r8
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r10
 add    r15, rax
@@ -2479,30 +2479,30 @@ mov    rax, QWORD PTR [rsp+10h]
 mov    rbx, QWORD PTR [rsp+8h]
 add    rbx, QWORD PTR [rsp+50h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+78h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+8h], rbx
 mov    rdi, r11
-mov    rdx, r11
+mov    rsi, r11
 mov    rax, r11
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r14, rbx
 mov    rdi, r13
@@ -2516,12 +2516,12 @@ add    r14, rdi
 add    r14, rax
 add    r10, r14
 mov    rdi, r15
-mov    rdx, r15
+mov    rsi, r15
 mov    rax, r15
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r9
 add    r14, rax
@@ -2535,30 +2535,30 @@ mov    rax, QWORD PTR [rsp+18h]
 mov    rbx, QWORD PTR [rsp+10h]
 add    rbx, QWORD PTR [rsp+58h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+10h], rbx
 mov    rdi, r10
-mov    rdx, r10
+mov    rsi, r10
 mov    rax, r10
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r13, rbx
 mov    rdi, r12
@@ -2572,12 +2572,12 @@ add    r13, rdi
 add    r13, rax
 add    r9, r13
 mov    rdi, r14
-mov    rdx, r14
+mov    rsi, r14
 mov    rax, r14
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r8
 add    r13, rax
@@ -2591,30 +2591,30 @@ mov    rax, QWORD PTR [rsp+20h]
 mov    rbx, QWORD PTR [rsp+18h]
 add    rbx, QWORD PTR [rsp+60h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+8h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+18h], rbx
 mov    rdi, r9
-mov    rdx, r9
+mov    rsi, r9
 mov    rax, r9
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r12, rbx
 mov    rdi, r11
@@ -2628,12 +2628,12 @@ add    r12, rdi
 add    r12, rax
 add    r8, r12
 mov    rdi, r13
-mov    rdx, r13
+mov    rsi, r13
 mov    rax, r13
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r15
 add    r12, rax
@@ -2647,30 +2647,30 @@ mov    rax, QWORD PTR [rsp+28h]
 mov    rbx, QWORD PTR [rsp+20h]
 add    rbx, QWORD PTR [rsp+68h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+10h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+20h], rbx
 mov    rdi, r8
-mov    rdx, r8
+mov    rsi, r8
 mov    rax, r8
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r11, rbx
 mov    rdi, r10
@@ -2684,12 +2684,12 @@ add    r11, rdi
 add    r11, rax
 add    r15, r11
 mov    rdi, r12
-mov    rdx, r12
+mov    rsi, r12
 mov    rax, r12
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r14
 add    r11, rax
@@ -2703,30 +2703,30 @@ mov    rax, QWORD PTR [rsp+30h]
 mov    rbx, QWORD PTR [rsp+28h]
 add    rbx, QWORD PTR [rsp+70h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+18h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+28h], rbx
 mov    rdi, r15
-mov    rdx, r15
+mov    rsi, r15
 mov    rax, r15
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r10, rbx
 mov    rdi, r9
@@ -2740,12 +2740,12 @@ add    r10, rdi
 add    r10, rax
 add    r14, r10
 mov    rdi, r11
-mov    rdx, r11
+mov    rsi, r11
 mov    rax, r11
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r13
 add    r10, rax
@@ -2759,30 +2759,30 @@ mov    rax, QWORD PTR [rsp+38h]
 mov    rbx, QWORD PTR [rsp+30h]
 add    rbx, QWORD PTR [rsp+78h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+20h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+30h], rbx
 mov    rdi, r14
-mov    rdx, r14
+mov    rsi, r14
 mov    rax, r14
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r9, rbx
 mov    rdi, r8
@@ -2796,12 +2796,12 @@ add    r9, rdi
 add    r9, rax
 add    r13, r9
 mov    rdi, r10
-mov    rdx, r10
+mov    rsi, r10
 mov    rax, r10
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r12
 add    r9, rax
@@ -2815,30 +2815,30 @@ mov    rax, QWORD PTR [rsp+40h]
 mov    rbx, QWORD PTR [rsp+38h]
 add    rbx, QWORD PTR [rsp]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+28h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+38h], rbx
 mov    rdi, r13
-mov    rdx, r13
+mov    rsi, r13
 mov    rax, r13
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r8, rbx
 mov    rdi, r15
@@ -2852,12 +2852,12 @@ add    r8, rdi
 add    r8, rax
 add    r12, r8
 mov    rdi, r9
-mov    rdx, r9
+mov    rsi, r9
 mov    rax, r9
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r11
 add    r8, rax
@@ -2871,30 +2871,30 @@ mov    rax, QWORD PTR [rsp+48h]
 mov    rbx, QWORD PTR [rsp+40h]
 add    rbx, QWORD PTR [rsp+8h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+30h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+40h], rbx
 mov    rdi, r12
-mov    rdx, r12
+mov    rsi, r12
 mov    rax, r12
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r15, rbx
 mov    rdi, r14
@@ -2908,12 +2908,12 @@ add    r15, rdi
 add    r15, rax
 add    r11, r15
 mov    rdi, r8
-mov    rdx, r8
+mov    rsi, r8
 mov    rax, r8
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r10
 add    r15, rax
@@ -2927,30 +2927,30 @@ mov    rax, QWORD PTR [rsp+50h]
 mov    rbx, QWORD PTR [rsp+48h]
 add    rbx, QWORD PTR [rsp+10h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+38h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+48h], rbx
 mov    rdi, r11
-mov    rdx, r11
+mov    rsi, r11
 mov    rax, r11
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r14, rbx
 mov    rdi, r13
@@ -2964,12 +2964,12 @@ add    r14, rdi
 add    r14, rax
 add    r10, r14
 mov    rdi, r15
-mov    rdx, r15
+mov    rsi, r15
 mov    rax, r15
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r9
 add    r14, rax
@@ -2983,30 +2983,30 @@ mov    rax, QWORD PTR [rsp+58h]
 mov    rbx, QWORD PTR [rsp+50h]
 add    rbx, QWORD PTR [rsp+18h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+40h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+50h], rbx
 mov    rdi, r10
-mov    rdx, r10
+mov    rsi, r10
 mov    rax, r10
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r13, rbx
 mov    rdi, r12
@@ -3020,12 +3020,12 @@ add    r13, rdi
 add    r13, rax
 add    r9, r13
 mov    rdi, r14
-mov    rdx, r14
+mov    rsi, r14
 mov    rax, r14
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r8
 add    r13, rax
@@ -3039,30 +3039,30 @@ mov    rax, QWORD PTR [rsp+60h]
 mov    rbx, QWORD PTR [rsp+58h]
 add    rbx, QWORD PTR [rsp+20h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+48h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+58h], rbx
 mov    rdi, r9
-mov    rdx, r9
+mov    rsi, r9
 mov    rax, r9
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r12, rbx
 mov    rdi, r11
@@ -3076,12 +3076,12 @@ add    r12, rdi
 add    r12, rax
 add    r8, r12
 mov    rdi, r13
-mov    rdx, r13
+mov    rsi, r13
 mov    rax, r13
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r15
 add    r12, rax
@@ -3095,30 +3095,30 @@ mov    rax, QWORD PTR [rsp+68h]
 mov    rbx, QWORD PTR [rsp+60h]
 add    rbx, QWORD PTR [rsp+28h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+50h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+60h], rbx
 mov    rdi, r8
-mov    rdx, r8
+mov    rsi, r8
 mov    rax, r8
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r11, rbx
 mov    rdi, r10
@@ -3132,12 +3132,12 @@ add    r11, rdi
 add    r11, rax
 add    r15, r11
 mov    rdi, r12
-mov    rdx, r12
+mov    rsi, r12
 mov    rax, r12
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r14
 add    r11, rax
@@ -3151,30 +3151,30 @@ mov    rax, QWORD PTR [rsp+70h]
 mov    rbx, QWORD PTR [rsp+68h]
 add    rbx, QWORD PTR [rsp+30h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+58h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+68h], rbx
 mov    rdi, r15
-mov    rdx, r15
+mov    rsi, r15
 mov    rax, r15
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r10, rbx
 mov    rdi, r9
@@ -3188,12 +3188,12 @@ add    r10, rdi
 add    r10, rax
 add    r14, r10
 mov    rdi, r11
-mov    rdx, r11
+mov    rsi, r11
 mov    rax, r11
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r13
 add    r10, rax
@@ -3207,30 +3207,30 @@ mov    rax, QWORD PTR [rsp+78h]
 mov    rbx, QWORD PTR [rsp+70h]
 add    rbx, QWORD PTR [rsp+38h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+60h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+70h], rbx
 mov    rdi, r14
-mov    rdx, r14
+mov    rsi, r14
 mov    rax, r14
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r9, rbx
 mov    rdi, r8
@@ -3244,12 +3244,12 @@ add    r9, rdi
 add    r9, rax
 add    r13, r9
 mov    rdi, r10
-mov    rdx, r10
+mov    rsi, r10
 mov    rax, r10
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r12
 add    r9, rax
@@ -3263,30 +3263,30 @@ mov    rax, QWORD PTR [rsp]
 mov    rbx, QWORD PTR [rsp+78h]
 add    rbx, QWORD PTR [rsp+40h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+68h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+78h], rbx
 mov    rdi, r13
-mov    rdx, r13
+mov    rsi, r13
 mov    rax, r13
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r8, rbx
 mov    rdi, r15
@@ -3300,12 +3300,12 @@ add    r8, rdi
 add    r8, rax
 add    r12, r8
 mov    rdi, r9
-mov    rdx, r9
+mov    rsi, r9
 mov    rax, r9
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r11
 add    r8, rax
@@ -3319,30 +3319,30 @@ mov    rax, QWORD PTR [rsp+8h]
 mov    rbx, QWORD PTR [rsp]
 add    rbx, QWORD PTR [rsp+48h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+70h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp], rbx
 mov    rdi, r12
-mov    rdx, r12
+mov    rsi, r12
 mov    rax, r12
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r15, rbx
 mov    rdi, r14
@@ -3356,12 +3356,12 @@ add    r15, rdi
 add    r15, rax
 add    r11, r15
 mov    rdi, r8
-mov    rdx, r8
+mov    rsi, r8
 mov    rax, r8
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r10
 add    r15, rax
@@ -3375,30 +3375,30 @@ mov    rax, QWORD PTR [rsp+10h]
 mov    rbx, QWORD PTR [rsp+8h]
 add    rbx, QWORD PTR [rsp+50h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+78h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+8h], rbx
 mov    rdi, r11
-mov    rdx, r11
+mov    rsi, r11
 mov    rax, r11
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r14, rbx
 mov    rdi, r13
@@ -3412,12 +3412,12 @@ add    r14, rdi
 add    r14, rax
 add    r10, r14
 mov    rdi, r15
-mov    rdx, r15
+mov    rsi, r15
 mov    rax, r15
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r9
 add    r14, rax
@@ -3431,30 +3431,30 @@ mov    rax, QWORD PTR [rsp+18h]
 mov    rbx, QWORD PTR [rsp+10h]
 add    rbx, QWORD PTR [rsp+58h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+10h], rbx
 mov    rdi, r10
-mov    rdx, r10
+mov    rsi, r10
 mov    rax, r10
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r13, rbx
 mov    rdi, r12
@@ -3468,12 +3468,12 @@ add    r13, rdi
 add    r13, rax
 add    r9, r13
 mov    rdi, r14
-mov    rdx, r14
+mov    rsi, r14
 mov    rax, r14
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r8
 add    r13, rax
@@ -3487,30 +3487,30 @@ mov    rax, QWORD PTR [rsp+20h]
 mov    rbx, QWORD PTR [rsp+18h]
 add    rbx, QWORD PTR [rsp+60h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+8h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+18h], rbx
 mov    rdi, r9
-mov    rdx, r9
+mov    rsi, r9
 mov    rax, r9
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r12, rbx
 mov    rdi, r11
@@ -3524,12 +3524,12 @@ add    r12, rdi
 add    r12, rax
 add    r8, r12
 mov    rdi, r13
-mov    rdx, r13
+mov    rsi, r13
 mov    rax, r13
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r15
 add    r12, rax
@@ -3543,30 +3543,30 @@ mov    rax, QWORD PTR [rsp+28h]
 mov    rbx, QWORD PTR [rsp+20h]
 add    rbx, QWORD PTR [rsp+68h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+10h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+20h], rbx
 mov    rdi, r8
-mov    rdx, r8
+mov    rsi, r8
 mov    rax, r8
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r11, rbx
 mov    rdi, r10
@@ -3580,12 +3580,12 @@ add    r11, rdi
 add    r11, rax
 add    r15, r11
 mov    rdi, r12
-mov    rdx, r12
+mov    rsi, r12
 mov    rax, r12
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r14
 add    r11, rax
@@ -3599,30 +3599,30 @@ mov    rax, QWORD PTR [rsp+30h]
 mov    rbx, QWORD PTR [rsp+28h]
 add    rbx, QWORD PTR [rsp+70h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+18h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+28h], rbx
 mov    rdi, r15
-mov    rdx, r15
+mov    rsi, r15
 mov    rax, r15
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r10, rbx
 mov    rdi, r9
@@ -3636,12 +3636,12 @@ add    r10, rdi
 add    r10, rax
 add    r14, r10
 mov    rdi, r11
-mov    rdx, r11
+mov    rsi, r11
 mov    rax, r11
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r13
 add    r10, rax
@@ -3655,30 +3655,30 @@ mov    rax, QWORD PTR [rsp+38h]
 mov    rbx, QWORD PTR [rsp+30h]
 add    rbx, QWORD PTR [rsp+78h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+20h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+30h], rbx
 mov    rdi, r14
-mov    rdx, r14
+mov    rsi, r14
 mov    rax, r14
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r9, rbx
 mov    rdi, r8
@@ -3692,12 +3692,12 @@ add    r9, rdi
 add    r9, rax
 add    r13, r9
 mov    rdi, r10
-mov    rdx, r10
+mov    rsi, r10
 mov    rax, r10
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r12
 add    r9, rax
@@ -3711,30 +3711,30 @@ mov    rax, QWORD PTR [rsp+40h]
 mov    rbx, QWORD PTR [rsp+38h]
 add    rbx, QWORD PTR [rsp]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+28h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+38h], rbx
 mov    rdi, r13
-mov    rdx, r13
+mov    rsi, r13
 mov    rax, r13
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r8, rbx
 mov    rdi, r15
@@ -3748,12 +3748,12 @@ add    r8, rdi
 add    r8, rax
 add    r12, r8
 mov    rdi, r9
-mov    rdx, r9
+mov    rsi, r9
 mov    rax, r9
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r11
 add    r8, rax
@@ -3767,30 +3767,30 @@ mov    rax, QWORD PTR [rsp+48h]
 mov    rbx, QWORD PTR [rsp+40h]
 add    rbx, QWORD PTR [rsp+8h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+30h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+40h], rbx
 mov    rdi, r12
-mov    rdx, r12
+mov    rsi, r12
 mov    rax, r12
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r15, rbx
 mov    rdi, r14
@@ -3804,12 +3804,12 @@ add    r15, rdi
 add    r15, rax
 add    r11, r15
 mov    rdi, r8
-mov    rdx, r8
+mov    rsi, r8
 mov    rax, r8
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r10
 add    r15, rax
@@ -3823,30 +3823,30 @@ mov    rax, QWORD PTR [rsp+50h]
 mov    rbx, QWORD PTR [rsp+48h]
 add    rbx, QWORD PTR [rsp+10h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+38h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+48h], rbx
 mov    rdi, r11
-mov    rdx, r11
+mov    rsi, r11
 mov    rax, r11
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r14, rbx
 mov    rdi, r13
@@ -3860,12 +3860,12 @@ add    r14, rdi
 add    r14, rax
 add    r10, r14
 mov    rdi, r15
-mov    rdx, r15
+mov    rsi, r15
 mov    rax, r15
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r9
 add    r14, rax
@@ -3879,30 +3879,30 @@ mov    rax, QWORD PTR [rsp+58h]
 mov    rbx, QWORD PTR [rsp+50h]
 add    rbx, QWORD PTR [rsp+18h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+40h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+50h], rbx
 mov    rdi, r10
-mov    rdx, r10
+mov    rsi, r10
 mov    rax, r10
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r13, rbx
 mov    rdi, r12
@@ -3916,12 +3916,12 @@ add    r13, rdi
 add    r13, rax
 add    r9, r13
 mov    rdi, r14
-mov    rdx, r14
+mov    rsi, r14
 mov    rax, r14
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r8
 add    r13, rax
@@ -3935,30 +3935,30 @@ mov    rax, QWORD PTR [rsp+60h]
 mov    rbx, QWORD PTR [rsp+58h]
 add    rbx, QWORD PTR [rsp+20h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+48h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+58h], rbx
 mov    rdi, r9
-mov    rdx, r9
+mov    rsi, r9
 mov    rax, r9
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r12, rbx
 mov    rdi, r11
@@ -3972,12 +3972,12 @@ add    r12, rdi
 add    r12, rax
 add    r8, r12
 mov    rdi, r13
-mov    rdx, r13
+mov    rsi, r13
 mov    rax, r13
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r15
 add    r12, rax
@@ -3991,30 +3991,30 @@ mov    rax, QWORD PTR [rsp+68h]
 mov    rbx, QWORD PTR [rsp+60h]
 add    rbx, QWORD PTR [rsp+28h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+50h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+60h], rbx
 mov    rdi, r8
-mov    rdx, r8
+mov    rsi, r8
 mov    rax, r8
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r11, rbx
 mov    rdi, r10
@@ -4028,12 +4028,12 @@ add    r11, rdi
 add    r11, rax
 add    r15, r11
 mov    rdi, r12
-mov    rdx, r12
+mov    rsi, r12
 mov    rax, r12
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r14
 add    r11, rax
@@ -4047,30 +4047,30 @@ mov    rax, QWORD PTR [rsp+70h]
 mov    rbx, QWORD PTR [rsp+68h]
 add    rbx, QWORD PTR [rsp+30h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+58h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+68h], rbx
 mov    rdi, r15
-mov    rdx, r15
+mov    rsi, r15
 mov    rax, r15
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r10, rbx
 mov    rdi, r9
@@ -4084,12 +4084,12 @@ add    r10, rdi
 add    r10, rax
 add    r14, r10
 mov    rdi, r11
-mov    rdx, r11
+mov    rsi, r11
 mov    rax, r11
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r13
 add    r10, rax
@@ -4103,30 +4103,30 @@ mov    rax, QWORD PTR [rsp+78h]
 mov    rbx, QWORD PTR [rsp+70h]
 add    rbx, QWORD PTR [rsp+38h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+60h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+70h], rbx
 mov    rdi, r14
-mov    rdx, r14
+mov    rsi, r14
 mov    rax, r14
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r9, rbx
 mov    rdi, r8
@@ -4140,12 +4140,12 @@ add    r9, rdi
 add    r9, rax
 add    r13, r9
 mov    rdi, r10
-mov    rdx, r10
+mov    rsi, r10
 mov    rax, r10
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r12
 add    r9, rax
@@ -4159,30 +4159,30 @@ mov    rax, QWORD PTR [rsp]
 mov    rbx, QWORD PTR [rsp+78h]
 add    rbx, QWORD PTR [rsp+40h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 8h
-shr    rdx, 7h
+shr    rsi, 7h
 ror    rax, 1
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    rax, QWORD PTR [rsp+68h]
 mov    rdi, rax
-mov    rdx, rax
+mov    rsi, rax
 ror    rdi, 3dh
-shr    rdx, 6h
+shr    rsi, 6h
 ror    rax, 13h
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    rbx, rax
 mov    QWORD PTR [rsp+78h], rbx
 mov    rdi, r13
-mov    rdx, r13
+mov    rsi, r13
 mov    rax, r13
 ror    rdi, 12h
-ror    rdx, 29h
+ror    rsi, 29h
 ror    rax, 0eh
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 add    r8, rbx
 mov    rdi, r15
@@ -4196,12 +4196,12 @@ add    r8, rdi
 add    r8, rax
 add    r12, r8
 mov    rdi, r9
-mov    rdx, r9
+mov    rsi, r9
 mov    rax, r9
 ror    rdi, 27h
-ror    rdx, 22h
+ror    rsi, 22h
 ror    rax, 1ch
-xor    rdi, rdx
+xor    rdi, rsi
 xor    rax, rdi
 mov    rdi, r11
 add    r8, rax
@@ -4211,14 +4211,14 @@ and    rdi, r10
 and    rax, r9
 or     rax, rdi
 add    r8, rax
-add    QWORD PTR [rbx], r8
-add    QWORD PTR [rbx+8h], r9
-add    QWORD PTR [rbx+10h], r10
-add    QWORD PTR [rbx+18h], r11
-add    QWORD PTR [rbx+20h], r12
-add    QWORD PTR [rbx+28h], r13
-add    QWORD PTR [rbx+30h], r14
-add    QWORD PTR [rbx+38h], r15
+add    QWORD PTR [rdx], r8
+add    QWORD PTR [rdx+8h], r9
+add    QWORD PTR [rdx+10h], r10
+add    QWORD PTR [rdx+18h], r11
+add    QWORD PTR [rdx+20h], r12
+add    QWORD PTR [rdx+28h], r13
+add    QWORD PTR [rdx+30h], r14
+add    QWORD PTR [rdx+38h], r15
 movq   r10, xmm0
 movq   r11, xmm1
 movq   r12, xmm2

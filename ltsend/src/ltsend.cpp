@@ -6,47 +6,6 @@
 
 #include <time.h>
 
-void _BuildInitialSample(uint8_t *pBytes, const size_t count);
-void _Increment(uint8_t *pBytes, const size_t count);
-void _SHA512(const uint8_t *pData, size_t count, uint64_t hash[8]);
-
-int main(void)
-{
-  uint8_t sample[1024];
-  _BuildInitialSample(sample, sizeof(sample));
-
-  uint64_t hash[8];
-  size_t tries = 0;
-
-  const clock_t before = clock();
-
-  while (true)
-  {
-    tries++;
-
-    _SHA512(sample, sizeof(sample), hash);
-
-    if (hash[0] == 0x123456789ABCDEF)
-      break;
-
-    _Increment(sample, sizeof(sample));
-  }
-
-  const clock_t after = clock();
-
-  printf("Cracked in %f s (%" PRIu64 " tries).\n\n", (double)(after - before) / (double)(CLOCKS_PER_SEC), tries);
-
-  for (size_t i = 0; i < sizeof(sample); i += 16)
-  {
-    for (size_t j = 0; j < 16; j++)
-      printf("%02" PRIX8 " ", sample[i + j]);
-
-    puts("");
-  }
-
-  return 0;
-}
-
 void _BuildInitialSample(uint8_t *pBytes, const size_t count)
 {
   HCRYPTPROV cryptoProvider = 0;
@@ -61,7 +20,7 @@ void _BuildInitialSample(uint8_t *pBytes, const size_t count)
     CryptReleaseContext(cryptoProvider, 0);
 }
 
-void _Increment(uint8_t *pBytes, const size_t count)
+inline void _Increment(uint8_t *pBytes, const size_t count)
 {
   size_t i = count;
 
@@ -75,7 +34,7 @@ void _Increment(uint8_t *pBytes, const size_t count)
 
 extern "C" void sha512_compress(const uint8_t block[128], uint64_t state[8]);
 
-void _SHA512(const uint8_t *pData, size_t count, uint64_t hash[8])
+__declspec(noinline) void _SHA512(const uint8_t *pData, size_t count, uint64_t hash[8])
 {
   hash[0] = UINT64_C(0x6A09E667F3BCC908);
   hash[1] = UINT64_C(0xBB67AE8584CAA73B);
@@ -113,4 +72,46 @@ void _SHA512(const uint8_t *pData, size_t count, uint64_t hash[8])
     block[128 - 1 - j] = (uint8_t)(count & 0xFFU);
 
   sha512_compress(block, hash);
+}
+
+static size_t _Tries = 0;
+
+int main(void)
+{
+  uint8_t sample[1024];
+  _BuildInitialSample(sample, sizeof(sample));
+
+  uint64_t hash[8];
+
+  const clock_t before = clock();
+
+  while (true)
+  {
+    _Tries++;
+    _SHA512(sample, sizeof(sample), hash);
+
+    if ((hash[0] & 0xFFFFF) == 0x12345)
+      break;
+
+    _Increment(sample, sizeof(sample));
+  }
+
+  const clock_t after = clock();
+
+  printf("Cracked in %f s (%" PRIu64 " tries -> %f MB/s | %f tries / bit).\n\n", (double)(after - before) / (double)(CLOCKS_PER_SEC), _Tries, (((double)_Tries * sizeof(sample)) / (1024.0 * 1024.0)) / ((double)(after - before) / (double)(CLOCKS_PER_SEC)), _Tries / (double)0xFFFFF);
+
+  for (size_t i = 0; i < sizeof(sample); i += 32)
+  {
+    for (size_t j = 0; j < 32; j++)
+      printf("%02" PRIX8 " ", sample[i + j]);
+
+    puts("");
+  }
+
+  puts("\nHashes to:");
+
+  for (size_t i = 0; i < sizeof(hash) / sizeof(hash[0]); i++)
+    printf("%08" PRIx64 "", hash[i]);
+
+  return 0;
 }
