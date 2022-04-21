@@ -29,7 +29,7 @@ inline void _Increment(uint8_t *pBytes, const size_t count)
     i--;
     pBytes[i]++;
 
-  } while (i != 0 && pBytes[i] == 0);
+  } while (i > 8 && pBytes[i] == 0);
 }
 
 extern "C" void sha512_compress(const uint8_t block[128], uint64_t state[8]);
@@ -81,6 +81,8 @@ int main(void)
   uint8_t sample[1024];
   _BuildInitialSample(sample, sizeof(sample));
 
+  *reinterpret_cast<uint64_t *>(sample) = 0x0123456789ABCDEFULL;
+
   uint64_t hash[8];
 
   const clock_t before = clock();
@@ -90,7 +92,7 @@ int main(void)
     _Tries++;
     _SHA512(sample, sizeof(sample), hash);
 
-    if ((hash[0] & 0xFFFFF) == 0x12345)
+    if ((hash[0] & 0xFFFFF) == 0x12345LLU)
       break;
 
     _Increment(sample, sizeof(sample));
