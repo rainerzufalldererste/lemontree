@@ -48,13 +48,13 @@ __declspec(noinline) void _SHA512(const uint8_t *pData, size_t count, uint64_t h
   size_t i = 0;
 
   for (i = 0; count - i >= 128; i += 128)
-    sha512_compress(&pData[i], hash);
+    sha512_compress(pData + i, hash);
 
   uint8_t block[128] = { 0 };
   size_t remaining = count - i;
 
   if (remaining > 0)
-    memcpy(block, &pData[i], remaining);
+    memcpy(block, pData + i, remaining);
 
   block[remaining] = 0x80;
   remaining++;
@@ -92,7 +92,7 @@ int main(void)
     _Tries++;
     _SHA512(sample, sizeof(sample), hash);
 
-    if ((hash[0] & 0xFFFFF) == 0x12345LLU)
+    if ((hash[1] & 0xFFFFFF) == 0x123456LLU)
       break;
 
     _Increment(sample, sizeof(sample));
@@ -100,7 +100,7 @@ int main(void)
 
   const clock_t after = clock();
 
-  printf("Cracked in %f s (%" PRIu64 " tries -> %f MB/s | %f tries / bit).\n\n", (double)(after - before) / (double)(CLOCKS_PER_SEC), _Tries, (((double)_Tries * sizeof(sample)) / (1024.0 * 1024.0)) / ((double)(after - before) / (double)(CLOCKS_PER_SEC)), _Tries / (double)0xFFFFF);
+  printf("Cracked in %f s (%" PRIu64 " tries -> %f MB/s | %f tries / bit).\n", (double)(after - before) / (double)(CLOCKS_PER_SEC), _Tries, (((double)_Tries * sizeof(sample)) / (1024.0 * 1024.0)) / ((double)(after - before) / (double)(CLOCKS_PER_SEC)), _Tries / (double)0xFFFFF);
 
   for (size_t i = 0; i < sizeof(sample); i += 32)
   {

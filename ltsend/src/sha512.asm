@@ -3,6 +3,10 @@ public sha512_compress
 .code
 sha512_compress:
 
+; these registers will be modified, but are considered non-volatile on windows.
+push rsi
+push rdi
+
 movq   xmm0, r10
 movq   xmm1, r11
 movq   xmm2, r12
@@ -20,6 +24,7 @@ mov    r13, QWORD PTR [rdx+28h]
 mov    r14, QWORD PTR [rdx+30h]
 mov    r15, QWORD PTR [rdx+38h]
 mov    rbx, QWORD PTR [rcx]
+
 bswap  rbx
 mov    QWORD PTR [rsp], rbx
 mov    rdi, r12
@@ -58,6 +63,7 @@ and    rax, r8
 or     rax, rdi
 add    r15, rax
 mov    rbx, QWORD PTR [rcx+8h]
+
 bswap  rbx
 mov    QWORD PTR [rsp+8h], rbx
 mov    rdi, r11
@@ -96,6 +102,7 @@ and    rax, r15
 or     rax, rdi
 add    r14, rax
 mov    rbx, QWORD PTR [rcx+10h]
+
 bswap  rbx
 mov    QWORD PTR [rsp+10h], rbx
 mov    rdi, r10
@@ -134,6 +141,7 @@ and    rax, r14
 or     rax, rdi
 add    r13, rax
 mov    rbx, QWORD PTR [rcx+18h]
+
 bswap  rbx
 mov    QWORD PTR [rsp+18h], rbx
 mov    rdi, r9
@@ -172,6 +180,7 @@ and    rax, r13
 or     rax, rdi
 add    r12, rax
 mov    rbx, QWORD PTR [rcx+20h]
+
 bswap  rbx
 mov    QWORD PTR [rsp+20h], rbx
 mov    rdi, r8
@@ -210,6 +219,7 @@ and    rax, r12
 or     rax, rdi
 add    r11, rax
 mov    rbx, QWORD PTR [rcx+28h]
+
 bswap  rbx
 mov    QWORD PTR [rsp+28h], rbx
 mov    rdi, r15
@@ -248,6 +258,7 @@ and    rax, r11
 or     rax, rdi
 add    r10, rax
 mov    rbx, QWORD PTR [rcx+30h]
+
 bswap  rbx
 mov    QWORD PTR [rsp+30h], rbx
 mov    rdi, r14
@@ -286,6 +297,7 @@ and    rax, r10
 or     rax, rdi
 add    r9, rax
 mov    rbx, QWORD PTR [rcx+38h]
+
 bswap  rbx
 mov    QWORD PTR [rsp+38h], rbx
 mov    rdi, r13
@@ -324,6 +336,7 @@ and    rax, r9
 or     rax, rdi
 add    r8, rax
 mov    rbx, QWORD PTR [rcx+40h]
+
 bswap  rbx
 mov    QWORD PTR [rsp+40h], rbx
 mov    rdi, r12
@@ -362,6 +375,7 @@ and    rax, r8
 or     rax, rdi
 add    r15, rax
 mov    rbx, QWORD PTR [rcx+48h]
+
 bswap  rbx
 mov    QWORD PTR [rsp+48h], rbx
 mov    rdi, r11
@@ -400,6 +414,7 @@ and    rax, r15
 or     rax, rdi
 add    r14, rax
 mov    rbx, QWORD PTR [rcx+50h]
+
 bswap  rbx
 mov    QWORD PTR [rsp+50h], rbx
 mov    rdi, r10
@@ -438,6 +453,7 @@ and    rax, r14
 or     rax, rdi
 add    r13, rax
 mov    rbx, QWORD PTR [rcx+58h]
+
 bswap  rbx
 mov    QWORD PTR [rsp+58h], rbx
 mov    rdi, r9
@@ -476,6 +492,7 @@ and    rax, r13
 or     rax, rdi
 add    r12, rax
 mov    rbx, QWORD PTR [rcx+60h]
+
 bswap  rbx
 mov    QWORD PTR [rsp+60h], rbx
 mov    rdi, r8
@@ -514,6 +531,7 @@ and    rax, r12
 or     rax, rdi
 add    r11, rax
 mov    rbx, QWORD PTR [rcx+68h]
+
 bswap  rbx
 mov    QWORD PTR [rsp+68h], rbx
 mov    rdi, r15
@@ -552,6 +570,7 @@ and    rax, r11
 or     rax, rdi
 add    r10, rax
 mov    rbx, QWORD PTR [rcx+70h]
+
 bswap  rbx
 mov    QWORD PTR [rsp+70h], rbx
 mov    rdi, r14
@@ -590,6 +609,7 @@ and    rax, r10
 or     rax, rdi
 add    r9, rax
 mov    rbx, QWORD PTR [rcx+78h]
+
 bswap  rbx
 mov    QWORD PTR [rsp+78h], rbx
 mov    rdi, r13
@@ -4227,6 +4247,11 @@ movq   r14, xmm4
 movq   r15, xmm5
 movq   rbx, xmm6
 add    rsp, 80h
+
+; restore non-volatile registers.
+pop rdi
+pop rsi
+
 ret
 
 END
