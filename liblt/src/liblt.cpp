@@ -606,7 +606,7 @@ static bool lt_init()
     char *end = nullptr;
     memset(folder, 0, sizeof(folder));
 
-    end = strchr(path, L'\\');
+    end = strchr(path, '\\');
 
     while (end != nullptr)
     {
@@ -621,7 +621,7 @@ static bool lt_init()
       }
 
       end++;
-      end = strchr(end, L'\\');
+      end = strchr(end, '\\');
     }
   }
 

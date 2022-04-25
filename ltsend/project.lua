@@ -2,7 +2,7 @@ ProjectName = "ltsend"
 project(ProjectName)
 
   --Settings
-  kind "ConsoleApp"
+  kind "WindowedApp"
   language "C++"
   staticruntime "On"
 
@@ -11,6 +11,7 @@ project(ProjectName)
     buildoptions { '/MP' }
 
     ignoredefaultlibraries { "msvcrt" }
+    ignoredefaultlibraries { "libcmt" }
   filter { "system:linux" }
     cppdialect "C++11"
   filter { }
@@ -21,10 +22,6 @@ project(ProjectName)
 
   files { "src/**.cpp", "src/**.c", "src/**.cc", "src/**.h", "src/**.hh", "src/**.hpp", "src/**.inl", "src/**rc", "src/**.asm" }
   files { "project.lua" }
-
-  filter { "configurations:Debug", "system:Windows" }
-    ignoredefaultlibraries { "libcmt" }
-  filter { }
   
   targetname(ProjectName)
   targetdir "../builds/bin/client"
@@ -35,6 +32,24 @@ configuration {}
 
 warnings "Extra"
 targetname "%{prj.name}"
+
+-- Strings
+if os.getenv("CI_BUILD_REF_NAME") then
+  defines { "GIT_BRANCH=\"" .. os.getenv("CI_BUILD_REF_NAME") .. "\"" }
+end
+if os.getenv("CI_COMMIT_SHA") then
+  defines { "GIT_REF=\"" .. os.getenv("CI_COMMIT_SHA") .. "\"" }
+end
+
+-- Numbers
+if os.getenv("CI_PIPELINE_IID") then
+  defines { "GIT_BUILD=" .. os.getenv("CI_PIPELINE_IID") }
+else
+  defines { "DEV_BUILD" }
+end
+if os.getenv("UNIXTIME") then
+  defines { "BUILD_TIME=" .. os.getenv("UNIXTIME") }
+end
 
 filter {}
 configuration {}

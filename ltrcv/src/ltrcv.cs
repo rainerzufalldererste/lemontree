@@ -12,9 +12,9 @@ namespace ltrcv
   public class ltrcv
   {
     static ushort port = 0x2E11;
-    static int readTimeout = 15000;
-    static int maxThreads = 128;
-
+    static int readTimeout = 20000;
+    static int maxThreads = 256;
+    
     static int threadCount = 0;
     static Mutex threadCountMutex = new Mutex();
 
@@ -103,7 +103,7 @@ namespace ltrcv
         if (!csprngMutex.WaitOne())
           return;
 
-        byte[] bytes = new byte[512 / 8];
+        byte[] bytes = new byte[6 + 8];
 
         try
         {
