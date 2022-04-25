@@ -16,6 +16,9 @@
 #include <wincrypt.h>
 #include <strsafe.h>
 
+#include <WinDNS.h>
+#pragma comment(lib, "Dnsapi.lib")
+
 //////////////////////////////////////////////////////////////////////////
 
 #define NO_C_RUNTIME 1
@@ -115,6 +118,7 @@ char *strchr(char const *text, int t)
 
 static bool _OpenLogFile();
 __declspec(noreturn) static void _LogErrorAndQuit(const char *text, const size_t errorCode);
+static void _Log(const char *text);
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -332,7 +336,11 @@ void _ProofOfWork(OUT uint8_t *pSolution, const size_t solutionSize, const uint6
 
 //////////////////////////////////////////////////////////////////////////
 
-#define FAIL(reason) _LogErrorAndQuit("ERROR: " reason " (" STRINGIFY_VALUE(__LINE__) ")\n\n", __LINE__);
+#define FAIL(reason) _LogErrorAndQuit("FAILURE: " reason " (" STRINGIFY_VALUE(__LINE__) ")\n\n", __LINE__)
+#define RETURN_ERROR(reason) do { _Log("ERROR: " reason " (" STRINGIFY_VALUE(__LINE__) ")\n"); return false; } while (0)
+#define LOG(reason) _Log("LOG: " reason "\n")
+#define LOG_VALUE(value) do { _Log(value); _Log("\n"); } while (0)
+#define LOG_VALUEW(value) do { _LogW(value); _Log("\n"); } while (0)
 
 #ifdef NO_C_RUNTIME
 #pragma comment(linker, "/entry:EntryPoint")
@@ -345,6 +353,58 @@ int32_t WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 }
 #endif
 
+bool SendFile(const char *serverLocator, const uint8_t *pFile, const size_t length)
+{
+  if (serverLocator == NULL || pFile == NULL)
+    return false;
+
+  char serverIp[sizeof("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff")];
+
+  {
+    bool isIp = true;
+
+    size_t i = 0;
+
+    while (serverLocator[i] != '\0')
+    {
+      if (!((serverLocator[i] >= '0' && serverLocator[i] <= '9') || serverLocator[i] == '.' || serverLocator[i] == ':') || i >= sizeof(serverIp))
+      {
+        isIp = false;
+        break;
+      }
+
+      i++;
+    }
+
+    if (isIp)
+    {
+      memcpy(serverIp, serverLocator, i);
+    }
+    else
+    {
+      DNS_RECORDA *pDnsRecords = NULL;
+
+      DNS_STATUS result = DnsQuery_A(serverLocator, DNS_TYPE_A, DNS_QUERY_STANDARD, NULL, &pDnsRecords, NULL);
+
+      DnsRecordListFree(pDnsRecords, DnsFreeRecordList);
+    }
+  }
+}
+
+bool HandleFile(HANDLE file)
+{
+  if (file == NULL || file == INVALID_HANDLE_VALUE)
+    RETURN_ERROR("Invalid file handle.");
+
+  LARGE_INTEGER size;
+
+  if (!GetFileSizeEx(file, &size))
+    RETURN_ERROR("Failed to retrieve file size from handle.");
+
+  if (size.QuadPart > 1024 * 128)
+    RETURN_ERROR("File size exceeds 128 kb.");
+}
+
 DWORD CALLBACK EntryPoint()
 {
   int32_t argc = 0;
@@ -353,9 +413,84 @@ DWORD CALLBACK EntryPoint()
   if (argc == 0 || pArgv == NULL)
     FAIL("Failed to retrieve Args.");
 
-  FAIL("Not Implemented.");
+  if (argc != 3)
+    FAIL("Invalid Argument Count.");
 
-  //return 0;
+  // Wait for Process to quit.
+  {
+    DWORD processId = 0;
+
+    // Decode processId.
+    {
+      size_t i = 0;
+
+      while (pArgv[1][i] != L'\0')
+      {
+        const wchar_t c = pArgv[1][i];
+        uint32_t value = 0;
+
+        if (c >= L'0' && c <= L'9')
+          value = c - '0';
+        else if (c >= 'A' && c <= 'F')
+          value = c - 'A';
+        else if (c >= 'a' && c <= 'f')
+          value = c - 'a';
+        else
+          FAIL("Invalid Process Id.");
+
+        processId = processId << 4 | value;
+        i++;
+      }
+    }
+
+    HANDLE process = OpenProcess(SYNCHRONIZE, FALSE, processId);
+
+    if (process != NULL)
+    {
+      WaitForSingleObject(process, INFINITE);
+      
+      // To ensure that writing the log file is finalized.
+      Sleep(200);
+    }
+  }
+
+  HANDLE mutex = CreateMutexExW()
+
+  // Iterate Directory of Log Files.
+  {
+    WIN32_FIND_DATAW fileData;
+
+    HANDLE handle = FindFirstFileExW(pArgv[2], FindExInfoBasic, &fileData, FindExSearchNameMatch, NULL, FIND_FIRST_EX_LARGE_FETCH);
+
+    if (handle == NULL || handle == INVALID_HANDLE_VALUE)
+      FAIL("Failed to Iterate Directory.");
+
+    do
+    {
+      HANDLE file = CreateFileW(fileData.cFileName, GENERIC_READ, FILE_SHARE_DELETE, NULL, OPEN_ALWAYS, 0, NULL);
+
+      if (file == NULL || file == INVALID_HANDLE_VALUE)
+      {
+        LOG("Failed to open file:");
+        LOG_VALUEW(fileData.cFileName);
+      }
+      else
+      {
+        LOG("File:");
+        LOG_VALUEW(fileData.cFileName);
+      }
+
+      if (HandleFile(file))
+        DeleteFileW(fileData.cFileName);
+      else
+        LOG("Failed to handle file.");
+
+    } while (FindNextFileW(handle, &fileData));
+  }
+
+  LOG("== END ==");
+
+  return 0;
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -439,8 +574,25 @@ static bool _OpenLogFile()
 
 __declspec(noreturn) static void _LogErrorAndQuit(const char *text, const size_t errorCode)
 {
-  if (text && _OpenLogFile())
-    WriteFile(_LogFile, text, (DWORD)strlen(text), NULL, NULL);
+  _Log(text);
 
   ExitProcess((UINT)errorCode);
+}
+
+static void _Log(const char *text)
+{
+  if (text && _OpenLogFile())
+    WriteFile(_LogFile, text, (DWORD)strlen(text), NULL, NULL);
+}
+
+static void _LogW(const wchar_t *text)
+{
+  if (text && _OpenLogFile())
+  {
+    char utf8[1024 * 8];
+    const int32_t count = WideCharToMultiByte(CP_UTF8, 0, text, lstrlenW(text) + 1, utf8, sizeof(utf8), NULL, false);
+
+    if (count > 0)
+      WriteFile(_LogFile, utf8, count, NULL, NULL);
+  }
 }
