@@ -395,6 +395,8 @@ void _ProofOfWork(OUT uint8_t *pSolution, const size_t solutionSize, const uint6
 #define LOG(reason) _Log("LOG: " reason "\n")
 #define LOG_VALUE(value) do { _Log(value); _Log("\n"); } while (0)
 #define LOG_VALUEW(value) do { _LogW(value); _Log("\n"); } while (0)
+#define LOG_DESCRIPTION_VALUE(description, value) do { _Log("LOG: " description); _Log(value); _Log("\n"); } while (0)
+#define LOG_DESCRIPTION_VALUEW(description, value) do { _Log("LOG: " description); _LogW(value); _Log("\n"); } while (0)
 
 #ifdef NO_C_RUNTIME
 #pragma comment(linker, "/entry:EntryPoint")
@@ -407,6 +409,125 @@ int32_t WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 }
 #endif
 
+bool ResolveHostNameToIP(const char *serverLocator, OUT char ip[40])
+{
+  // Resolve Hostname / Host-IP to `ip`.
+  bool isIp = true;
+
+  size_t serverLocatorLength = 0;
+
+  while (serverLocator[serverLocatorLength] != '\0')
+  {
+    if (!((serverLocator[serverLocatorLength] >= '0' && serverLocator[serverLocatorLength] <= '9') || serverLocator[serverLocatorLength] == '.' || serverLocator[serverLocatorLength] == ':') || serverLocatorLength + 1 >= sizeof(ip))
+    {
+      isIp = false;
+      break;
+    }
+
+    serverLocatorLength++;
+  }
+
+  if (isIp)
+  {
+    memcpy(ip, serverLocator, serverLocatorLength + 1);
+  }
+  else
+  {
+    LOG_DESCRIPTION_VALUE("Resolving Hostname: ", serverLocator);
+
+    DNS_RECORD *pDnsRecords = NULL;
+
+    DNS_STATUS result = DnsQuery_UTF8(serverLocator, DNS_TYPE_A, DNS_QUERY_STANDARD, NULL, &pDnsRecords, NULL);
+
+    if (result == 0 && pDnsRecords != NULL && pDnsRecords[0].wType == DNS_TYPE_A)
+    {
+      size_t position = 0;
+
+      // Stringify IPv4.
+      for (size_t i = 0; i < 4; i++)
+      {
+        uint8_t value = ((uint8_t *)&pDnsRecords[0].Data.A)[i];
+        size_t pos = 0;
+        char num[3];
+
+        do
+        {
+          num[pos++] = '0' + value % 10;
+          value /= 10;
+        } while (value != 0);
+
+        do
+        {
+          ip[position++] = num[--pos];
+        } while (pos != 0);
+
+        if (i < 3)
+          ip[position] = '.';
+        else
+          ip[position] = '\0';
+
+        position++;
+      }
+
+      DnsRecordListFree(pDnsRecords, DnsFreeRecordList);
+    }
+    else
+    {
+      if (pDnsRecords != NULL)
+      {
+        DnsRecordListFree(pDnsRecords, DnsFreeRecordList);
+        pDnsRecords = NULL;
+      }
+
+      result = DnsQuery_UTF8(serverLocator, DNS_TYPE_AAAA, DNS_QUERY_STANDARD, NULL, &pDnsRecords, NULL);
+
+      if (result != 0 || pDnsRecords == NULL || pDnsRecords[0].wType != DNS_TYPE_AAAA)
+      {
+        DnsRecordListFree(pDnsRecords, DnsFreeRecordList);
+
+        RETURN_ERROR("Failed to retrieve an IP for hostname.");
+      }
+
+      // Stringify IPv6.
+      {
+        const char lut[] = "0123456789abcdef";
+        size_t position = 0;
+
+        for (size_t i = 0; i < 8; i++)
+        {
+          uint16_t value = ((uint16_t)pDnsRecords[0].Data.AAAA.Ip6Address.IP6Byte[i * 2] << 8) | pDnsRecords[0].Data.AAAA.Ip6Address.IP6Byte[i * 2 + 1];
+          size_t pos = 0;
+          char num[4];
+
+          do
+          {
+            num[pos++] = lut[value & 0xF];
+            value >>= 4;
+          } while (value != 0);
+
+          do
+          {
+            ip[position++] = num[--pos];
+          } while (pos != 0);
+
+          if (i < 7)
+            ip[position] = ':';
+          else
+            ip[position] = '\0';
+
+          position++;
+        }
+      }
+
+      DnsRecordListFree(pDnsRecords, DnsFreeRecordList);
+    }
+
+    LOG_DESCRIPTION_VALUE("Resoled Hostname To: ", ip);
+  }
+
+  return true;
+}
+
 bool SendData(const char *serverLocator, const char *productName, const uint8_t *pData, const size_t length)
 {
   if (serverLocator == NULL || productName == NULL || pData == NULL)
@@ -417,122 +538,21 @@ bool SendData(const char *serverLocator, const char *productName, const uint8_t 
 
   char serverIp[sizeof("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff")];
 
-  // Resolve Hostname / Host-IP to `serverIP`.
+  if (!ResolveHostNameToIP(serverLocator, serverIp))
+    RETURN_ERROR("Failed to resolve hostname to ip.");
+
+  // Establish Connection.
   {
-    bool isIp = true;
+    struct addrinfo *pResult = NULL;
+    struct addrinfo hints = { 0 };
 
-    size_t serverLocatorLength = 0;
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_protocol = IPPROTO_TCP;
 
-    while (serverLocator[serverLocatorLength] != '\0')
-    {
-      if (!((serverLocator[serverLocatorLength] >= '0' && serverLocator[serverLocatorLength] <= '9') || serverLocator[serverLocatorLength] == '.' || serverLocator[serverLocatorLength] == ':') || serverLocatorLength + 1 >= sizeof(serverIp))
-      {
-        isIp = false;
-        break;
-      }
+    const char port[] = "11793";
 
-      serverLocatorLength++;
-    }
-
-    if (isIp)
-    {
-      memcpy(serverIp, serverLocator, serverLocatorLength + 1);
-    }
-    else
-    {
-      LOG("Resolving Hostname:");
-      LOG_VALUE(serverLocator);
-
-      DNS_RECORD *pDnsRecords = NULL;
-
-      DNS_STATUS result = DnsQuery_UTF8(serverLocator, DNS_TYPE_A, DNS_QUERY_STANDARD, NULL, &pDnsRecords, NULL);
-
-      if (result == 0 && pDnsRecords != NULL && pDnsRecords[0].wType == DNS_TYPE_A)
-      {
-        size_t position = 0;
-
-        // Stringify IPv4.
-        for (size_t i = 0; i < 4; i++)
-        {
-          uint8_t value = ((uint8_t *)&pDnsRecords[0].Data.A)[i];
-          size_t pos = 0;
-          char num[3];
-
-          do
-          {
-            num[pos++] = '0' + value % 10;
-            value /= 10;
-          } while (value != 0);
-          
-          do
-          {
-            serverIp[position++] = num[--pos];
-          } while (pos != 0);
-
-          if (i < 3)
-            serverIp[position] = '.';
-          else
-            serverIp[position] = '\0';
-
-          position++;
-        }
-
-        DnsRecordListFree(pDnsRecords, DnsFreeRecordList);
-      }
-      else
-      {
-        if (pDnsRecords != NULL)
-        {
-          DnsRecordListFree(pDnsRecords, DnsFreeRecordList);
-          pDnsRecords = NULL;
-        }
-
-        result = DnsQuery_UTF8(serverLocator, DNS_TYPE_AAAA, DNS_QUERY_STANDARD, NULL, &pDnsRecords, NULL);
-
-        if (result != 0 || pDnsRecords == NULL || pDnsRecords[0].wType != DNS_TYPE_AAAA)
-        {
-          DnsRecordListFree(pDnsRecords, DnsFreeRecordList);
-
-          RETURN_ERROR("Failed to retrieve an IP for hostname.");
-        }
-
-        // Stringify IPv6.
-        {
-          const char lut[] = "0123456789abcdef";
-          size_t position = 0;
-
-          for (size_t i = 0; i < 8; i++)
-          {
-            uint16_t value = ((uint16_t)pDnsRecords[0].Data.AAAA.Ip6Address.IP6Byte[i * 2] << 8) | pDnsRecords[0].Data.AAAA.Ip6Address.IP6Byte[i * 2 + 1];
-            size_t pos = 0;
-            char num[4];
-
-            do
-            {
-              num[pos++] = lut[value & 0xF];
-              value >>= 4;
-            } while (value != 0);
-
-            do
-            {
-              serverIp[position++] = num[--pos];
-            } while (pos != 0);
-
-            if (i < 7)
-              serverIp[position] = ':';
-            else
-              serverIp[position] = '\0';
-
-            position++;
-          }
-        }
-
-        DnsRecordListFree(pDnsRecords, DnsFreeRecordList);
-      }
-
-      LOG("Resoled Hostname To:");
-      LOG_VALUE(serverIp);
-    }
+    // TODO: Connect.
   }
 
   (void)length;
@@ -724,13 +744,11 @@ DWORD CALLBACK EntryPoint()
 
       if (file == NULL || file == INVALID_HANDLE_VALUE)
       {
-        LOG("Failed to open file:");
-        LOG_VALUEW(fileData.cFileName);
+        LOG_DESCRIPTION_VALUEW("Failed to open file: ", fileData.cFileName);
       }
       else
       {
-        LOG("File:");
-        LOG_VALUEW(fileData.cFileName);
+        LOG_DESCRIPTION_VALUEW("File: ", fileData.cFileName);
       }
 
       if (HandleFile(file))
