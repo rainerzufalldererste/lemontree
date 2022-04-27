@@ -19,11 +19,19 @@
 #include <WinDNS.h>
 #pragma comment(lib, "Dnsapi.lib")
 
+#pragma optimize("", off)
+
 //////////////////////////////////////////////////////////////////////////
 
 #define NO_C_RUNTIME 1
 
 #ifdef NO_C_RUNTIME
+// This is stupid, but sadly msvc seems to sometimes generate calls to `__chkstk` even without the c runtime.
+void __chkstk()
+{
+
+}
+
 #pragma function(memset)
 extern void *memset(void *pDst, int data, size_t size)
 {
@@ -109,6 +117,51 @@ char *strchr(char const *text, int t)
     i++;
   }
 }
+
+HANDLE _GetHeap()
+{
+  static HANDLE heap = NULL;
+
+  if (heap == NULL)
+  {
+    heap = GetProcessHeap();
+
+    if (heap == NULL)
+      heap = HeapCreate(0, 0, 0);
+  }
+
+  return heap;
+}
+
+void *malloc(const size_t size)
+{
+  HANDLE heap = _GetHeap();
+
+  if (heap == NULL)
+    return NULL;
+
+  return HeapAlloc(heap, 0, size);
+}
+
+void *realloc(void *pData, const size_t size)
+{
+  HANDLE heap = _GetHeap();
+
+  if (heap == NULL)
+    return NULL;
+
+  return HeapReAlloc(heap, 0, pData, size);
+}
+
+void free(void *pData)
+{
+  HANDLE heap = _GetHeap();
+
+  if (heap == NULL)
+    return;
+
+  HeapFree(heap, 0, pData);
+}
 #endif
 
 //////////////////////////////////////////////////////////////////////////
@@ -119,6 +172,7 @@ char *strchr(char const *text, int t)
 static bool _OpenLogFile();
 __declspec(noreturn) static void _LogErrorAndQuit(const char *text, const size_t errorCode);
 static void _Log(const char *text);
+static void _LogW(const wchar_t *text);
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -353,42 +407,186 @@ int32_t WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 }
 #endif
 
-bool SendFile(const char *serverLocator, const uint8_t *pFile, const size_t length)
+bool SendData(const char *serverLocator, const char *productName, const uint8_t *pData, const size_t length)
 {
-  if (serverLocator == NULL || pFile == NULL)
-    return false;
+  if (serverLocator == NULL || productName == NULL || pData == NULL)
+    RETURN_ERROR("Argument Null.");
+
+  if (serverLocator[0] == '\0')
+    RETURN_ERROR("Invalid Server Locator.");
 
   char serverIp[sizeof("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff")];
 
+  // Resolve Hostname / Host-IP to `serverIP`.
   {
     bool isIp = true;
 
-    size_t i = 0;
+    size_t serverLocatorLength = 0;
 
-    while (serverLocator[i] != '\0')
+    while (serverLocator[serverLocatorLength] != '\0')
     {
-      if (!((serverLocator[i] >= '0' && serverLocator[i] <= '9') || serverLocator[i] == '.' || serverLocator[i] == ':') || i >= sizeof(serverIp))
+      if (!((serverLocator[serverLocatorLength] >= '0' && serverLocator[serverLocatorLength] <= '9') || serverLocator[serverLocatorLength] == '.' || serverLocator[serverLocatorLength] == ':') || serverLocatorLength + 1 >= sizeof(serverIp))
       {
         isIp = false;
         break;
       }
 
-      i++;
+      serverLocatorLength++;
     }
 
     if (isIp)
     {
-      memcpy(serverIp, serverLocator, i);
+      memcpy(serverIp, serverLocator, serverLocatorLength + 1);
     }
     else
     {
-      DNS_RECORDA *pDnsRecords = NULL;
+      LOG("Resolving Hostname:");
+      LOG_VALUE(serverLocator);
 
-      DNS_STATUS result = DnsQuery_A(serverLocator, DNS_TYPE_A, DNS_QUERY_STANDARD, NULL, &pDnsRecords, NULL);
+      DNS_RECORD *pDnsRecords = NULL;
 
-      DnsRecordListFree(pDnsRecords, DnsFreeRecordList);
+      DNS_STATUS result = DnsQuery_UTF8(serverLocator, DNS_TYPE_A, DNS_QUERY_STANDARD, NULL, &pDnsRecords, NULL);
+
+      if (result == 0 && pDnsRecords != NULL && pDnsRecords[0].wType == DNS_TYPE_A)
+      {
+        size_t position = 0;
+
+        // Stringify IPv4.
+        for (size_t i = 0; i < 4; i++)
+        {
+          uint8_t value = ((uint8_t *)&pDnsRecords[0].Data.A)[i];
+          size_t pos = 0;
+          char num[3];
+
+          do
+          {
+            num[pos++] = '0' + value % 10;
+            value /= 10;
+          } while (value != 0);
+          
+          do
+          {
+            serverIp[position++] = num[--pos];
+          } while (pos != 0);
+
+          if (i < 3)
+            serverIp[position] = '.';
+          else
+            serverIp[position] = '\0';
+
+          position++;
+        }
+
+        DnsRecordListFree(pDnsRecords, DnsFreeRecordList);
+      }
+      else
+      {
+        if (pDnsRecords != NULL)
+        {
+          DnsRecordListFree(pDnsRecords, DnsFreeRecordList);
+          pDnsRecords = NULL;
+        }
+
+        result = DnsQuery_UTF8(serverLocator, DNS_TYPE_AAAA, DNS_QUERY_STANDARD, NULL, &pDnsRecords, NULL);
+
+        if (result != 0 || pDnsRecords == NULL || pDnsRecords[0].wType != DNS_TYPE_AAAA)
+        {
+          DnsRecordListFree(pDnsRecords, DnsFreeRecordList);
+
+          RETURN_ERROR("Failed to retrieve an IP for hostname.");
+        }
+
+        // Stringify IPv6.
+        {
+          const char lut[] = "0123456789abcdef";
+          size_t position = 0;
+
+          for (size_t i = 0; i < 8; i++)
+          {
+            uint16_t value = ((uint16_t)pDnsRecords[0].Data.AAAA.Ip6Address.IP6Byte[i * 2] << 8) | pDnsRecords[0].Data.AAAA.Ip6Address.IP6Byte[i * 2 + 1];
+            size_t pos = 0;
+            char num[4];
+
+            do
+            {
+              num[pos++] = lut[value & 0xF];
+              value >>= 4;
+            } while (value != 0);
+
+            do
+            {
+              serverIp[position++] = num[--pos];
+            } while (pos != 0);
+
+            if (i < 7)
+              serverIp[position] = ':';
+            else
+              serverIp[position] = '\0';
+
+            position++;
+          }
+        }
+
+        DnsRecordListFree(pDnsRecords, DnsFreeRecordList);
+      }
+
+      LOG("Resoled Hostname To:");
+      LOG_VALUE(serverIp);
     }
   }
+
+  (void)length;
+
+  return true;
+}
+
+bool ParseFileInfo(const uint8_t *pContents, const size_t bytesRead, OUT char productName[0x100], OUT char hostname[0x100])
+{
+  uint32_t position = 0;
+
+  if (bytesRead < position + sizeof(uint8_t) || pContents[position] != 0) // `lt_t_start`
+    RETURN_ERROR("Invalid file type.");
+
+  position += sizeof(uint8_t);
+
+  if (bytesRead < position + sizeof(uint32_t) || *(uint32_t *)(pContents + position) > 0x10000001) // `lt_version`.
+    RETURN_ERROR("Incompatible file version.");
+
+  position += sizeof(uint32_t);
+  position += sizeof(uint64_t); // timestamp.
+
+  if (bytesRead < position + sizeof(uint8_t))
+    RETURN_ERROR("Insufficient file contents");
+
+  const uint8_t productNameLength = pContents[position];
+
+  position += sizeof(uint8_t); // productNameLength.
+
+  if (bytesRead < position + productNameLength)
+    RETURN_ERROR("Insufficient file contents");
+
+  memcpy(productName, pContents + position, productNameLength);
+  productName[productNameLength] = '\0';
+
+  position += productNameLength; // productName.
+  position += sizeof(uint64_t) * 2 + sizeof(uint8_t); // majorVersion, minorVersion, isDebugBuild.
+
+  if (bytesRead < position + sizeof(uint8_t))
+    RETURN_ERROR("Insufficient file contents");
+
+  const uint8_t remoteHostLength = pContents[position];
+
+  position += sizeof(uint8_t); // remoteHostLength.
+
+  if (bytesRead < position + remoteHostLength)
+    RETURN_ERROR("Insufficient file contents");
+
+  memcpy(hostname, pContents + position, remoteHostLength);
+  productName[remoteHostLength] = '\0';
+
+  position += remoteHostLength; // remoteHost.
+
+  return true;
 }
 
 bool HandleFile(HANDLE file)
@@ -401,8 +599,46 @@ bool HandleFile(HANDLE file)
   if (!GetFileSizeEx(file, &size))
     RETURN_ERROR("Failed to retrieve file size from handle.");
 
-  if (size.QuadPart > 1024 * 128)
+  if ((size_t)size.QuadPart > 1024 * 128)
     RETURN_ERROR("File size exceeds 128 kb.");
+
+  uint8_t *pContents = malloc(size.QuadPart);
+
+  if (pContents == NULL)
+    RETURN_ERROR("Failed to allocate memory.");
+
+  DWORD bytesRead = 0;
+
+  if (TRUE != ReadFile(file, pContents, size.LowPart /* Should be sufficient, because we're reading 1024 * 128  bytes max */, &bytesRead, NULL))
+  {
+    free(pContents);
+    RETURN_ERROR("Failed to read file contents.");
+  }
+
+  if (bytesRead != size.QuadPart)
+  {
+    free(pContents);
+    RETURN_ERROR("File could only be read partially.");
+  }
+
+  char productName[0x100];
+  char hostname[0x100];
+
+  if (!ParseFileInfo(pContents, size.QuadPart, productName, hostname))
+  {
+    free(pContents);
+    RETURN_ERROR("Failed to parse file contents.");
+  }
+
+  if (!SendData(hostname, productName, pContents, bytesRead))
+  {
+    free(pContents);
+    RETURN_ERROR("Failed to send file contents.");
+  }
+
+  free(pContents);
+
+  return true;
 }
 
 DWORD CALLBACK EntryPoint()
@@ -454,19 +690,36 @@ DWORD CALLBACK EntryPoint()
     }
   }
 
-  HANDLE mutex = CreateMutexExW()
+  if (!SetCurrentDirectoryW(pArgv[2]))
+    FAIL("Failed to set working directory.");
+
+  HANDLE mutex = CreateMutexW(NULL, TRUE, TEXT("Global_lemontree_ltsend"));
+
+  if (mutex == NULL || mutex == INVALID_HANDLE_VALUE)
+    FAIL("Failed to create global mutex.");
+
+  if (GetLastError() == ERROR_ALREADY_EXISTS)
+    if (WAIT_OBJECT_0 != WaitForSingleObject(mutex, INFINITE))
+      FAIL("Failed to obtain global mutex.");
 
   // Iterate Directory of Log Files.
   {
     WIN32_FIND_DATAW fileData;
 
-    HANDLE handle = FindFirstFileExW(pArgv[2], FindExInfoBasic, &fileData, FindExSearchNameMatch, NULL, FIND_FIRST_EX_LARGE_FETCH);
+    HANDLE handle = FindFirstFileExW(TEXT("*"), FindExInfoBasic, &fileData, FindExSearchNameMatch, NULL, FIND_FIRST_EX_LARGE_FETCH);
 
     if (handle == NULL || handle == INVALID_HANDLE_VALUE)
+    {
+      ReleaseMutex(mutex);
+
       FAIL("Failed to Iterate Directory.");
+    }
 
     do
     {
+      if ((fileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0)
+        continue;
+
       HANDLE file = CreateFileW(fileData.cFileName, GENERIC_READ, FILE_SHARE_DELETE, NULL, OPEN_ALWAYS, 0, NULL);
 
       if (file == NULL || file == INVALID_HANDLE_VALUE)
@@ -485,10 +738,14 @@ DWORD CALLBACK EntryPoint()
       else
         LOG("Failed to handle file.");
 
+      CloseHandle(file);
+
     } while (FindNextFileW(handle, &fileData));
   }
 
-  LOG("== END ==");
+  ReleaseMutex(mutex);
+
+  LOG_VALUE("\n== END ==");
 
   return 0;
 }
