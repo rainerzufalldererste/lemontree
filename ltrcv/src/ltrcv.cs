@@ -12,7 +12,7 @@ namespace ltrcv
   public class ltrcv
   {
     static ushort port = 0x2E11;
-    static int readTimeout = 20000;
+    static int readTimeout = 180000;
     static int maxThreads = 256;
     
     static int threadCount = 0;
@@ -25,19 +25,42 @@ namespace ltrcv
     static bool keepRunning = true;
     static TcpListener tcpListener;
 
+    static string[] recognizedProductNames;
+
     [STAThread]
     public static void Main(string[] args)
     {
+      const string recognizedProductNamesFile = "productNames.txt";
+      Console.WriteLine($"Attempting to read {nameof(recognizedProductNames)} from '{recognizedProductNamesFile}'...");
+      recognizedProductNames = (from x in File.ReadAllLines(recognizedProductNamesFile) where !string.IsNullOrWhiteSpace(x) select x.Replace("\r", "").Replace("\n", "")).ToArray();
+
+      Console.WriteLine("\nProduct Names:\n");
+      
+      foreach (var x in recognizedProductNames)
+        Console.WriteLine(x);
+
+      Console.WriteLine();
+
       tcpListener = new TcpListener(port);
 
       serverThread = new Thread(() => { RcvThread(); });
       serverThread.Start();
+
+      do
+      {
+        Console.WriteLine("Enter 'exit' to quit.");
+      } while (Console.ReadLine() != "exit");
+
+      keepRunning = false;
     }
 
     static private TcpClient AcceptClient()
     {
       var receiveTask = tcpListener.AcceptTcpClientAsync();
-      receiveTask.Wait();
+      
+      while (!receiveTask.Wait(100))
+        if (!keepRunning)
+          return null;
 
       TcpClient tcpClient = receiveTask.Result;
       tcpClient.ReceiveTimeout = readTimeout;
@@ -73,9 +96,14 @@ namespace ltrcv
         {
           try
           {
-            var client = AcceptClient();
+            TcpClient client = AcceptClient();
+
+            if (client == null)
+              continue;
 
             Console.WriteLine($"TCP Client connected. ({client.Client.RemoteEndPoint})");
+
+            new Thread(() => { ClientThread(client); }).Start();
           }
           catch (Exception e)
           {
@@ -100,26 +128,86 @@ namespace ltrcv
 
       try
       {
-        if (!csprngMutex.WaitOne())
-          return;
+        var stream = client.GetStream();
 
-        byte[] bytes = new byte[6 + 8];
+        string productName;
 
-        try
+        // Handshake Step 1: Receive & Validate Product Name.
+        if (keepRunning)
         {
-          csprng.GetBytes(bytes);
-        }
-        catch (Exception e)
-        {
-          Console.WriteLine($"Failed to generate random bytes. ({e.Message})");
-          return;
-        }
-        finally
-        {
-          csprngMutex.ReleaseMutex();
+          byte[] bytes = new byte[255];
+
+          int bytesRead = stream.Read(bytes, 0, bytes.Length);
+
+          productName = Encoding.UTF8.GetString(bytes, 0, bytesRead);
+
+          if (!recognizedProductNames.Contains(productName))
+          {
+            stream.Close();
+            client.Close();
+            return;
+          }
         }
 
-        // ...
+        byte[] challengeBytes = new byte[8 + 3];
+
+        // Handshake Step 2: Send Challenge Data.
+        if (keepRunning)
+        {
+          if (!csprngMutex.WaitOne())
+            return;
+
+          try
+          {
+            csprng.GetBytes(challengeBytes);
+          }
+          catch (Exception e)
+          {
+            Console.WriteLine($"Failed to generate random bytes. ({e.Message})");
+            return;
+          }
+          finally
+          {
+            csprngMutex.ReleaseMutex();
+          }
+
+          stream.Write(challengeBytes, 0, challengeBytes.Length);
+        }
+
+        byte[] proposedSolution = new byte[1024];
+
+        // Handshake Step 3: Retrieve Solution.
+        {
+          for (int i = 0; i < 8; i++)
+            proposedSolution[i] = challengeBytes[i];
+
+          int bytesRead = stream.Read(proposedSolution, 8, proposedSolution.Length - 8);
+
+          if (bytesRead != proposedSolution.Length - 8)
+          {
+            stream.Close();
+            client.Close();
+            return;
+          }
+        }
+
+        // Validate Solution..
+        if (keepRunning)
+        {
+          var sha512 = SHA512.Create();
+
+          byte[] hash = sha512.ComputeHash(proposedSolution);
+
+          for (int i = 0; i < 3; i++)
+          {
+            if (hash[8 + i] != challengeBytes[13 + i])
+            {
+              stream.Close();
+              client.Close();
+              return;
+            }
+          }
+        }
       }
       catch (Exception e)
       {

@@ -80,6 +80,24 @@ extern size_t strlen(const char *text)
   return length;
 }
 
+extern size_t strnlen(const char *text, const size_t maxCapacity)
+{
+  if (text == NULL || maxCapacity == 0)
+    return 0;
+
+  size_t length = 0;
+
+  while (text[length] != '\0')
+  {
+    length++;
+
+    if (length >= maxCapacity)
+      return 0;
+  }
+
+  return length;
+}
+
 wchar_t *wstrchr(wchar_t *text, const wchar_t t)
 {
   if (text == NULL)
@@ -368,7 +386,7 @@ inline void _SHA512(const uint8_t *pData, size_t count, uint64_t hash[8])
   sha512_compress(block, hash);
 }
 
-void _ProofOfWork(OUT uint8_t *pSolution, const size_t solutionSize, const uint64_t startPattern, const uint32_t hashPattern)
+void SolveChallenge(OUT uint8_t *pSolution, const size_t solutionSize, const uint64_t startPattern, const uint32_t hashPattern)
 {
   _BuildInitialSample(pSolution, solutionSize);
 
@@ -528,7 +546,139 @@ bool ResolveHostNameToIP(const char *serverLocator, OUT char ip[40])
   return true;
 }
 
-bool SendData(const char *serverLocator, const char *productName, const uint8_t *pData, const size_t length)
+static size_t _WinSock_References = 0;
+static WSADATA _WinSock_Info;
+
+bool WinSock_AddReference()
+{
+  if (_WinSock_References > 0)
+    return true;
+
+  const int32_t result = WSAStartup(MAKEWORD(2, 2), &_WinSock_Info);
+
+  if (result != 0)
+    RETURN_ERROR("Failed to initialize WinSock.");
+
+  _WinSock_References++;
+
+  return true;
+}
+
+void WinSock_RemoveReference()
+{
+  if (_WinSock_References == 0)
+    return;
+
+  _WinSock_References--;
+
+  if (_WinSock_References == 0)
+    WSACleanup(); // yes, this can theoretically fail in multithreaded scenarios yada yada.
+}
+
+void DestroySocket(SOCKET *pSocket)
+{
+  if (*pSocket != INVALID_SOCKET)
+  {
+    shutdown(*pSocket, SD_SEND);
+    closesocket(*pSocket);
+
+    *pSocket = INVALID_SOCKET;
+  }
+}
+
+bool Connect(const char *serverIp, OUT SOCKET *pSocket)
+{
+  if (!WinSock_AddReference())
+    RETURN_ERROR("Failed to initialize WinSock.");
+
+  struct addrinfo *pResult = NULL;
+  struct addrinfo hints = { 0 };
+
+  hints.ai_family = AF_UNSPEC;
+  hints.ai_socktype = SOCK_STREAM;
+  hints.ai_protocol = IPPROTO_TCP;
+
+  const char port[] = "11793";
+
+  int32_t error = getaddrinfo(serverIp, port, &hints, &pResult);
+
+  if (error != 0)
+    RETURN_ERROR("Failed to get address info for server ip.");
+
+  SOCKET socketHandle = socket(pResult->ai_family, pResult->ai_socktype, pResult->ai_protocol);
+
+  if (socketHandle == INVALID_SOCKET)
+  {
+    error = WSAGetLastError();
+    freeaddrinfo(pResult);
+    RETURN_ERROR("Failed to create socket.");
+  }
+
+  error = connect(socketHandle, pResult->ai_addr, (int32_t)pResult->ai_addrlen);
+
+  if (error == SOCKET_ERROR)
+  {
+    error = WSAGetLastError();
+    freeaddrinfo(pResult);
+    DestroySocket(&socketHandle);
+    RETURN_ERROR("Failed to connect to endpoint.");
+  }
+
+  *pSocket = socketHandle;
+
+  return true;
+}
+
+bool Send(IN SOCKET *pSocket, const uint8_t *pData, const size_t length)
+{
+  if (pSocket == NULL || *pSocket == INVALID_SOCKET || pData == NULL)
+    RETURN_ERROR("Invalid Argument.");
+
+  if (length > INT32_MAX)
+    RETURN_ERROR("Invalid Size.");
+
+  const int32_t bytesSent = send(*pSocket, (const char *)pData, (int32_t)length, 0);
+
+  if (bytesSent == SOCKET_ERROR || bytesSent < 0)
+  {
+    const int32_t error = WSAGetLastError();
+    (void)error;
+
+    RETURN_ERROR("Failed to send data.");
+  }
+
+  if ((size_t)bytesSent != length)
+    RETURN_ERROR("Failed to transmit all bytes.");
+
+  return true;
+}
+
+bool Receive(IN SOCKET *pSocket, OUT uint8_t *pData, const size_t capacity, OUT size_t *pBytesReceived)
+{
+  if (pSocket == NULL || *pSocket == INVALID_SOCKET || pData == NULL || pBytesReceived == NULL)
+    RETURN_ERROR("Invalid Argument.");
+
+  const int32_t bytesReceived = recv(*pSocket, (char *)pData, (int32_t)min((size_t)INT32_MAX, capacity), 0);
+
+  if (bytesReceived < 0 || bytesReceived == SOCKET_ERROR)
+  {
+    const int32_t error = WSAGetLastError();
+    (void)error;
+
+    *pBytesReceived = 0;
+    RETURN_ERROR("Failed to receive data.");
+  }
+  else
+  {
+    *pBytesReceived = (size_t)bytesReceived; // if 0 that's the end of the stream.
+  }
+
+  return true;
+}
+
+//////////////////////////////////////////////////////////////////////////
+
+bool TransferToServer(const char *serverLocator, const char productName[0x100], const uint8_t *pData, const size_t length)
 {
   if (serverLocator == NULL || productName == NULL || pData == NULL)
     RETURN_ERROR("Argument Null.");
@@ -541,21 +691,71 @@ bool SendData(const char *serverLocator, const char *productName, const uint8_t 
   if (!ResolveHostNameToIP(serverLocator, serverIp))
     RETURN_ERROR("Failed to resolve hostname to ip.");
 
-  // Establish Connection.
+  SOCKET socketHandle = INVALID_SOCKET;
+
+  if (!Connect(serverIp, &socketHandle))
+    RETURN_ERROR("Failed to establish connection.");
+
+  // Handshake Step 1: Send Product Name.
+  if (!Send(&socketHandle, (const uint8_t *)productName, strnlen(productName, 0x100)))
   {
-    struct addrinfo *pResult = NULL;
-    struct addrinfo hints = { 0 };
-
-    hints.ai_family = AF_UNSPEC;
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_protocol = IPPROTO_TCP;
-
-    const char port[] = "11793";
-
-    // TODO: Connect.
+    DestroySocket(&socketHandle);
+    RETURN_ERROR("Failed to establish handshake.");
   }
 
-  (void)length;
+  uint8_t challenge[8 + 3];
+
+  // Handshake Step 2: Get Challenge.
+  {
+    size_t bytesReceived = 0;
+  
+    if (!Receive(&socketHandle, challenge, sizeof(challenge), &bytesReceived) || bytesReceived != sizeof(challenge))
+    {
+      DestroySocket(&socketHandle);
+      RETURN_ERROR("Failed to receive challenge data.");
+    }
+  }
+
+  uint8_t solution[1024];
+
+  // Solve the Challenge.
+  {
+    SolveChallenge(solution, sizeof(solution), *(uint64_t *)challenge, ((uint32_t)challenge[8] << 16) | ((uint32_t)challenge[9] << 8) | challenge[10]);
+  }
+
+  // Handshake Step 3: Send the Solution.
+  if (!Send(&socketHandle, solution + 8, sizeof(solution) - 8)) // first 8 bytes should be the challenge part 1 anyways.
+  {
+    DestroySocket(&socketHandle);
+    RETURN_ERROR("Failed to send solution.");
+  }
+
+  // Handshake Step 4: Receive & Validate Signature.
+  {
+    uint8_t signature[2048];
+    size_t bytesReceived = 0;
+
+    if (!Receive(&socketHandle, signature, sizeof(signature), &bytesReceived) || bytesReceived != sizeof(signature))
+    {
+      DestroySocket(&socketHandle);
+      RETURN_ERROR("Failed to receive signature.");
+    }
+
+    // TODO: Validate Signature.
+    {
+      if (true)
+        return false;
+    }
+  }
+
+  // Send the actual file contents.
+  if (!Send(&socketHandle, pData, length))
+  {
+    DestroySocket(&socketHandle);
+    RETURN_ERROR("Failed to transmit telemetry data.");
+  }
+
+  DestroySocket(&socketHandle);
 
   return true;
 }
@@ -650,7 +850,7 @@ bool HandleFile(HANDLE file)
     RETURN_ERROR("Failed to parse file contents.");
   }
 
-  if (!SendData(hostname, productName, pContents, bytesRead))
+  if (!TransferToServer(hostname, productName, pContents, bytesRead))
   {
     free(pContents);
     RETURN_ERROR("Failed to send file contents.");
@@ -663,6 +863,8 @@ bool HandleFile(HANDLE file)
 
 DWORD CALLBACK EntryPoint()
 {
+  SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_LOWEST);
+
   int32_t argc = 0;
   wchar_t **pArgv = CommandLineToArgvW(GetCommandLineW(), &argc);
 
