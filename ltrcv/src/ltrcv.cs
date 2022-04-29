@@ -150,6 +150,7 @@ namespace ltrcv
         }
 
         byte[] challengeBytes = new byte[8 + 3];
+        byte[] sharedSecret = new byte[32];
 
         // Handshake Step 2: Send Challenge Data.
         if (keepRunning)
@@ -160,6 +161,7 @@ namespace ltrcv
           try
           {
             csprng.GetBytes(challengeBytes);
+            csprng.GetBytes(sharedSecret);
           }
           catch (Exception e)
           {
@@ -191,7 +193,7 @@ namespace ltrcv
           }
         }
 
-        // Validate Solution..
+        // Validate Solution.
         if (keepRunning)
         {
           var sha512 = SHA512.Create();

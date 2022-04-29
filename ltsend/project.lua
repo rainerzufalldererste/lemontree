@@ -22,6 +22,8 @@ project(ProjectName)
 
   files { "src/**.cpp", "src/**.c", "src/**.cc", "src/**.h", "src/**.hh", "src/**.hpp", "src/**.inl", "src/**rc", "src/**.asm" }
   files { "project.lua" }
+
+  includedirs { "3rdParty/monocypher" }
   
   targetname(ProjectName)
   targetdir "../builds/bin/client"

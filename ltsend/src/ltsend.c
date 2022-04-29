@@ -19,6 +19,9 @@
 #include <WinDNS.h>
 #pragma comment(lib, "Dnsapi.lib")
 
+#include "monocypher.h"
+#include "monocypher.c"
+
 #pragma optimize("", off)
 
 //////////////////////////////////////////////////////////////////////////
@@ -313,7 +316,7 @@ inline uint64_t _ReadRand()
   }
 }
 
-inline void _BuildInitialSample(uint8_t *pBytes, const size_t count)
+void ReadRandomBytes(uint8_t *pBytes, const size_t count)
 {
   HCRYPTPROV cryptoProvider = 0;
 
@@ -388,7 +391,7 @@ inline void _SHA512(const uint8_t *pData, size_t count, uint64_t hash[8])
 
 void SolveChallenge(OUT uint8_t *pSolution, const size_t solutionSize, const uint64_t startPattern, const uint32_t hashPattern)
 {
-  _BuildInitialSample(pSolution, solutionSize);
+  ReadRandomBytes(pSolution, solutionSize);
 
   *(uint64_t *)(pSolution) = startPattern;
 
@@ -678,7 +681,7 @@ bool Receive(IN SOCKET *pSocket, OUT uint8_t *pData, const size_t capacity, OUT 
 
 //////////////////////////////////////////////////////////////////////////
 
-bool TransferToServer(const char *serverLocator, const char productName[0x100], const uint8_t *pData, const size_t length)
+bool TransferToServer(const char *serverLocator, const char productName[0x100], uint8_t *pData, const size_t dataSize)
 {
   if (serverLocator == NULL || productName == NULL || pData == NULL)
     RETURN_ERROR("Argument Null.");
@@ -730,26 +733,63 @@ bool TransferToServer(const char *serverLocator, const char productName[0x100], 
     RETURN_ERROR("Failed to send solution.");
   }
 
-  // Handshake Step 4: Receive & Validate Signature.
+  // Handshake Step 4, 5: Send Client Public Key (and Encrypt Data), then: Send MAC.
   {
-    uint8_t signature[2048];
-    size_t bytesReceived = 0;
-
-    if (!Receive(&socketHandle, signature, sizeof(signature), &bytesReceived) || bytesReceived != sizeof(signature))
+    uint8_t sharedSecret[32];
+    uint8_t serverPublicKey[32] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31 };
+    uint8_t privateKey[32];
+    uint8_t publicKey[32];
+    
+    // Generate Public Key & Shared Secret.
     {
-      DestroySocket(&socketHandle);
-      RETURN_ERROR("Failed to receive signature.");
+      ReadRandomBytes(privateKey, sizeof(privateKey));
+
+      crypto_x25519_public_key(publicKey, privateKey); // generate public key.
+      crypto_x25519(sharedSecret, privateKey, serverPublicKey); // generate shared secret.
+
+      ZeroMemory(privateKey, sizeof(privateKey)); // we no longer need this.
+      MemoryBarrier();
+
+      if (!Send(&socketHandle, publicKey, sizeof(publicKey)))
+      {
+        ZeroMemory(sharedSecret, sizeof(sharedSecret));
+        DestroySocket(&socketHandle);
+        RETURN_ERROR("Failed to negotiate secure connection.");
+      }
     }
 
-    // TODO: Validate Signature.
+    uint8_t sessionKeys[64];
+    
+    // Hash keys & shared secret to `sessionKeys`.
     {
-      if (true)
-        return false;
+      crypto_blake2b_ctx ctx;
+
+      crypto_blake2b_init(&ctx);
+      crypto_blake2b_update(&ctx, sharedSecret, 32);
+      crypto_blake2b_update(&ctx, publicKey, 32);
+      crypto_blake2b_update(&ctx, serverPublicKey, 32);
+      crypto_blake2b_final(&ctx, sessionKeys);
+
+      ZeroMemory(sharedSecret, sizeof(sharedSecret));
+      MemoryBarrier();
+    }
+
+    uint8_t mac[16];
+
+    crypto_lock(mac, pData, sessionKeys, sessionKeys + 32, pData, dataSize); // yes, we're inplace encrypting `pData`. that is perfectly fine.
+
+    ZeroMemory(sessionKeys, sizeof(sessionKeys));
+    MemoryBarrier();
+
+    if (!Send(&socketHandle, mac, sizeof(mac)))
+    {
+      DestroySocket(&socketHandle);
+      RETURN_ERROR("Failed to send file authentication.");
     }
   }
 
-  // Send the actual file contents.
-  if (!Send(&socketHandle, pData, length))
+  // Send the (now encrypted) actual file contents.
+  if (!Send(&socketHandle, pData, dataSize))
   {
     DestroySocket(&socketHandle);
     RETURN_ERROR("Failed to transmit telemetry data.");
