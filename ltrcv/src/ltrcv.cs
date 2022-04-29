@@ -134,9 +134,11 @@ namespace ltrcv
 
       threadCountMutex.ReleaseMutex();
 
+      NetworkStream stream = null;
+
       try
       {
-        var stream = client.GetStream();
+        stream = client.GetStream();
 
         string productName;
 
@@ -151,8 +153,6 @@ namespace ltrcv
 
           if (!recognizedProductNames.Contains(productName))
           {
-            stream.Close();
-            client.Close();
             return;
           }
         }
@@ -193,8 +193,6 @@ namespace ltrcv
 
           if (bytesRead != proposedSolution.Length - 8)
           {
-            stream.Close();
-            client.Close();
             return;
           }
         }
@@ -210,8 +208,6 @@ namespace ltrcv
           {
             if (hash[8 + i] != challengeBytes[13 + i])
             {
-              stream.Close();
-              client.Close();
               return;
             }
           }
@@ -225,17 +221,15 @@ namespace ltrcv
 
           if (bytesRead != clientPublicKey.Length)
           {
-            stream.Close();
-            client.Close();
             return;
           }
 
-          byte[] serverPublicKey = new byte[32];
-          byte[] sharedSecret = new byte[32];
-          
+          Span<byte> serverPublicKey = new byte[32];
+          Span<byte> sharedSecret = new byte[32];
+
           crypto_x25519(sharedSecret, serverPrivateKey, clientPublicKey); // generate shared secret.
 
-          byte[] sessionKeys = new byte[64];
+          Span<byte> sessionKeys = new byte[64];
 
           // Hash keys & shared secret to `sessionKeys`.
           {
@@ -254,8 +248,6 @@ namespace ltrcv
 
           if (bytesRead != mac.Length)
           {
-            stream.Close();
-            client.Close();
             return;
           }
 
@@ -265,12 +257,17 @@ namespace ltrcv
 
           if (bytesRead == 0)
           {
-            stream.Close();
-            client.Close();
             return;
           }
 
-          // TODO: Decrypt Data.
+          Span<byte> actualData = ((Span<byte>)data).Slice(0, bytesRead);
+
+          if (0 != crypto_unlock(actualData, sessionKeys.Slice(0, 32), sessionKeys.Slice(32, 24), mac, actualData)) // yes, we're inplace decrypting. according to the monocypher documentation this is fully supported. I don't see how a c# binding would change that.
+          {
+            return; // Content is invalid.
+          }
+
+          // TODO: Parse (to see if the project name is valid), then save in the appropriate folder.
         }
       }
       catch (Exception e)
@@ -279,6 +276,15 @@ namespace ltrcv
       }
       finally
       {
+        try
+        {
+          if (stream != null)
+            stream.Close();
+          
+          client.Close();
+        }
+        catch { }
+
         if (threadCountMutex.WaitOne())
         {
           threadCount--;

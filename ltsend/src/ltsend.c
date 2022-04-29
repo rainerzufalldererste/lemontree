@@ -22,6 +22,14 @@
 #include "monocypher.h"
 #include "monocypher.c"
 
+//////////////////////////////////////////////////////////////////////////
+
+enum
+{
+  lt_version = 0x10000001,
+  lt_t_start = 0,
+};
+
 #pragma optimize("", off)
 
 //////////////////////////////////////////////////////////////////////////
@@ -810,12 +818,12 @@ bool ParseFileInfo(const uint8_t *pContents, const size_t bytesRead, OUT char pr
 {
   uint32_t position = 0;
 
-  if (bytesRead < position + sizeof(uint8_t) || pContents[position] != 0) // `lt_t_start`
+  if (bytesRead < position + sizeof(uint8_t) || pContents[position] != lt_t_start) // `lt_t_start`
     RETURN_ERROR("Invalid file type.");
 
   position += sizeof(uint8_t);
 
-  if (bytesRead < position + sizeof(uint32_t) || *(uint32_t *)(pContents + position) > 0x10000001) // `lt_version`.
+  if (bytesRead < position + sizeof(uint32_t) || *(uint32_t *)(pContents + position) > lt_version) // `lt_version`.
     RETURN_ERROR("Incompatible file version.");
 
   position += sizeof(uint32_t);
