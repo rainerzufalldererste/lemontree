@@ -13,7 +13,7 @@ namespace ltrcv
   public class ltrcv
   {
     static ushort port = 0x2E11;
-    static int readTimeout = 180000;
+    static int readTimeout = 5 * 60 * 1000;
     static int maxThreads = 256;
     
     static int threadCount = 0;
@@ -47,7 +47,13 @@ namespace ltrcv
       Console.WriteLine("Attempting to load private key...");
 
       serverPrivateKey = File.ReadAllBytes("C:\\Windows\\cert\\ltrcv.bin");
+      serverPublicKey = new byte[32];
       crypto_x25519_public_key(serverPublicKey, serverPrivateKey); // generate public key.
+
+      if (false) // Optionally check here if your public key matches the expected public key.
+      {
+        throw new Exception("Invalid Private Key. Public Key Does Not Match.");
+      }
 
       tcpListener = new TcpListener(port);
 
@@ -140,7 +146,7 @@ namespace ltrcv
       {
         stream = client.GetStream();
 
-        string productName;
+        string claimedProductName = null;
 
         // Handshake Step 1: Receive & Validate Product Name.
         if (keepRunning)
@@ -149,12 +155,10 @@ namespace ltrcv
 
           int bytesRead = stream.Read(bytes, 0, bytes.Length);
 
-          productName = Encoding.UTF8.GetString(bytes, 0, bytesRead);
+          claimedProductName = Encoding.UTF8.GetString(bytes, 0, bytesRead);
 
-          if (!recognizedProductNames.Contains(productName))
-          {
+          if (!recognizedProductNames.Contains(claimedProductName))
             return;
-          }
         }
 
         byte[] challengeBytes = new byte[8 + 3];
@@ -192,9 +196,7 @@ namespace ltrcv
           int bytesRead = stream.Read(proposedSolution, 8, proposedSolution.Length - 8);
 
           if (bytesRead != proposedSolution.Length - 8)
-          {
             return;
-          }
         }
 
         // Validate Solution.
@@ -206,25 +208,21 @@ namespace ltrcv
 
           for (int i = 0; i < 3; i++)
           {
-            if (hash[8 + i] != challengeBytes[13 + i])
-            {
+            if (hash[13 + i] != challengeBytes[8 + i])
               return;
-            }
           }
         }
 
         // Handshake Step 4, 5: Receive Client Public Key. Receive MAC. Then: Receive Data, Decrypt Data, Validate, Save.
+        if (keepRunning)
         {
           byte[] clientPublicKey = new byte[32];
 
           int bytesRead = stream.Read(clientPublicKey, 0, clientPublicKey.Length);
 
           if (bytesRead != clientPublicKey.Length)
-          {
             return;
-          }
 
-          Span<byte> serverPublicKey = new byte[32];
           Span<byte> sharedSecret = new byte[32];
 
           crypto_x25519(sharedSecret, serverPrivateKey, clientPublicKey); // generate shared secret.
@@ -247,27 +245,64 @@ namespace ltrcv
           bytesRead = stream.Read(mac, 0, mac.Length);
 
           if (bytesRead != mac.Length)
-          {
             return;
-          }
 
           byte[] data = new byte[1024 * 128];
 
           bytesRead = stream.Read(data, 0, data.Length);
 
           if (bytesRead == 0)
-          {
             return;
-          }
 
           Span<byte> actualData = ((Span<byte>)data).Slice(0, bytesRead);
 
-          if (0 != crypto_unlock(actualData, sessionKeys.Slice(0, 32), sessionKeys.Slice(32, 24), mac, actualData)) // yes, we're inplace decrypting. according to the monocypher documentation this is fully supported. I don't see how a c# binding would change that.
-          {
+          // yes, we're inplace decrypting. according to the monocypher documentation this is fully supported. I don't see how a c# binding would change that.
+          if (0 != crypto_unlock(actualData, sessionKeys.Slice(0, 32), sessionKeys.Slice(32, 24), mac, actualData))
             return; // Content is invalid.
+
+          // Parse data (to see if the project name is valid), Save.
+          {
+            int offset = 0;
+
+            if (actualData[offset] != 0)
+              throw new Exception("The file is not valid.");
+
+            offset++;
+
+            if (BitConverter.ToUInt32(actualData.ToArray(), offset) > 0x10000001)
+              throw new Exception("The file version is not compatible.");
+
+            offset += 4;
+            offset += 8; // Skip Start Timestamp.
+
+            byte productNameCount = actualData[offset];
+            offset++;
+
+            string actualProductName = Encoding.ASCII.GetString(actualData.ToArray(), offset, productNameCount);
+
+            // Valudate Product Name.
+            if (actualProductName != claimedProductName)
+              return;
+
+            string fileProductName = actualProductName.Replace(" ", "").Replace(".", "").Replace(":", "").Replace("/", "").Replace("\\", "").Replace("@", "").Replace("\"", "");
+            string directoryName = $"received\\{fileProductName}";
+
+            if (!Directory.Exists(directoryName))
+              Directory.CreateDirectory(directoryName);
+
+            string filename = $"{directoryName}\\{DateTime.Now.Ticks}";
+            
+            File.WriteAllBytes(filename, actualData.ToArray());
+
+            Console.WriteLine($"['{actualProductName}']: New file '{filename}' ({actualData.Length} bytes).");
           }
 
-          // TODO: Parse (to see if the project name is valid), then save in the appropriate folder.
+          // Send OK.
+          {
+            byte[] bytes = new byte[] { (byte)'O', (byte)'K' };
+
+            stream.Write(bytes, 0, bytes.Length);
+          }
         }
       }
       catch (Exception e)

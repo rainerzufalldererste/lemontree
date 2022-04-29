@@ -30,7 +30,7 @@ enum
   lt_t_start = 0,
 };
 
-#pragma optimize("", off)
+//#pragma optimize("", off)
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -628,8 +628,8 @@ bool Connect(const char *serverIp, OUT SOCKET *pSocket)
   const DWORD timeout = 1000 * 15;
 
   // It's not too horrible if these fail.
-  error = setsockopt(socketHandle, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
-  error = setsockopt(socketHandle, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
+  error = setsockopt(socketHandle, SOL_SOCKET, SO_RCVTIMEO, (const char *)&timeout, sizeof(timeout));
+  error = setsockopt(socketHandle, SOL_SOCKET, SO_SNDTIMEO, (const char *)&timeout, sizeof(timeout));
 
   error = connect(socketHandle, pResult->ai_addr, (int32_t)pResult->ai_addrlen);
 
@@ -749,10 +749,15 @@ bool TransferToServer(const char *serverLocator, const char productName[0x100], 
 
   // Handshake Step 4, 5: Send Client Public Key (and Encrypt Data), then: Send MAC.
   {
+    const uint8_t serverPublicKey[32] =
+    {
+      0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, // your server public key goes here.
+      0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
+    };
+
     uint8_t sharedSecret[32];
     uint8_t privateKey[32];
     uint8_t publicKey[32];
-    uint8_t serverPublicKey[32] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31 };
     
     // Generate Public Key & Shared Secret.
     {
@@ -807,6 +812,24 @@ bool TransferToServer(const char *serverLocator, const char productName[0x100], 
   {
     DestroySocket(&socketHandle);
     RETURN_ERROR("Failed to transmit telemetry data.");
+  }
+
+  // Wait for Server OK (before we're potentially deleting the file already and the server didn't actually receive it correctly).
+  {
+    uint8_t ok[2];
+    size_t bytesReceived = 0;
+
+    if (!Receive(&socketHandle, ok, sizeof(ok), &bytesReceived) || bytesReceived != sizeof(ok))
+    {
+      DestroySocket(&socketHandle);
+      RETURN_ERROR("Failed to receive server acknowledgement.");
+    }
+
+    if (ok[0] != 'O' || ok[1] != 'K')
+    {
+      DestroySocket(&socketHandle);
+      RETURN_ERROR("Receive invalid server acknowledgement.");
+    }
   }
 
   DestroySocket(&socketHandle);
@@ -1124,6 +1147,6 @@ static void _LogW(const wchar_t *text)
     const int32_t count = WideCharToMultiByte(CP_UTF8, 0, text, lstrlenW(text) + 1, utf8, sizeof(utf8), NULL, false);
 
     if (count > 0)
-      WriteFile(_LogFile, utf8, count, NULL, NULL);
+      WriteFile(_LogFile, utf8, count - 1, NULL, NULL);
   }
 }
