@@ -617,6 +617,12 @@ bool Connect(const char *serverIp, OUT SOCKET *pSocket)
     RETURN_ERROR("Failed to create socket.");
   }
 
+  const DWORD timeout = 1000 * 15;
+
+  // It's not too horrible if these fail.
+  error = setsockopt(socketHandle, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+  error = setsockopt(socketHandle, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
+
   error = connect(socketHandle, pResult->ai_addr, (int32_t)pResult->ai_addrlen);
 
   if (error == SOCKET_ERROR)
@@ -736,9 +742,9 @@ bool TransferToServer(const char *serverLocator, const char productName[0x100], 
   // Handshake Step 4, 5: Send Client Public Key (and Encrypt Data), then: Send MAC.
   {
     uint8_t sharedSecret[32];
-    uint8_t serverPublicKey[32] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31 };
     uint8_t privateKey[32];
     uint8_t publicKey[32];
+    uint8_t serverPublicKey[32] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31 };
     
     // Generate Public Key & Shared Secret.
     {

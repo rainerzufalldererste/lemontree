@@ -24,6 +24,11 @@ configuration {}
 
 links { "System" }
 links { "System.Data" }
+links { "3rdParty/monocypher/monocypher.dll" }
+links { "3rdParty/monocypher/System.Buffers.dll" }
+links { "3rdParty/monocypher/System.Memory.dll" }
+links { "3rdParty/monocypher/System.Numerics.Vectors.dll" }
+links { "3rdParty/monocypher/System.Runtime.CompilerServices.Unsafe.dll" }
 
 filter { "configurations:Debug*" }
   defines { "_DEBUG", "DEBUG" }

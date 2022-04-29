@@ -6,6 +6,7 @@ using System.Net.Sockets;
 using System.IO;
 using System.Threading;
 using System.Text;
+using static Monocypher.Monocypher;
 
 namespace ltrcv
 {
@@ -26,6 +27,8 @@ namespace ltrcv
     static TcpListener tcpListener;
 
     static string[] recognizedProductNames;
+    static byte[] serverPrivateKey;
+    static byte[] serverPublicKey;
 
     [STAThread]
     public static void Main(string[] args)
@@ -40,6 +43,11 @@ namespace ltrcv
         Console.WriteLine(x);
 
       Console.WriteLine();
+
+      Console.WriteLine("Attempting to load private key...");
+
+      serverPrivateKey = File.ReadAllBytes("C:\\Windows\\cert\\ltrcv.bin");
+      crypto_x25519_public_key(serverPublicKey, serverPrivateKey); // generate public key.
 
       tcpListener = new TcpListener(port);
 
@@ -150,7 +158,6 @@ namespace ltrcv
         }
 
         byte[] challengeBytes = new byte[8 + 3];
-        byte[] sharedSecret = new byte[32];
 
         // Handshake Step 2: Send Challenge Data.
         if (keepRunning)
@@ -161,7 +168,6 @@ namespace ltrcv
           try
           {
             csprng.GetBytes(challengeBytes);
-            csprng.GetBytes(sharedSecret);
           }
           catch (Exception e)
           {
@@ -209,6 +215,62 @@ namespace ltrcv
               return;
             }
           }
+        }
+
+        // Handshake Step 4, 5: Receive Client Public Key. Receive MAC. Then: Receive Data, Decrypt Data, Validate, Save.
+        {
+          byte[] clientPublicKey = new byte[32];
+
+          int bytesRead = stream.Read(clientPublicKey, 0, clientPublicKey.Length);
+
+          if (bytesRead != clientPublicKey.Length)
+          {
+            stream.Close();
+            client.Close();
+            return;
+          }
+
+          byte[] serverPublicKey = new byte[32];
+          byte[] sharedSecret = new byte[32];
+          
+          crypto_x25519(sharedSecret, serverPrivateKey, clientPublicKey); // generate shared secret.
+
+          byte[] sessionKeys = new byte[64];
+
+          // Hash keys & shared secret to `sessionKeys`.
+          {
+            crypto_blake2b_ctx ctx = new crypto_blake2b_ctx();
+
+            crypto_blake2b_init(ref ctx);
+            crypto_blake2b_update(ref ctx, sharedSecret);
+            crypto_blake2b_update(ref ctx, clientPublicKey);
+            crypto_blake2b_update(ref ctx, serverPublicKey);
+            crypto_blake2b_final(ref ctx, sessionKeys);
+          }
+
+          byte[] mac = new byte[16];
+
+          bytesRead = stream.Read(mac, 0, mac.Length);
+
+          if (bytesRead != mac.Length)
+          {
+            stream.Close();
+            client.Close();
+            return;
+          }
+
+          byte[] data = new byte[1024 * 128];
+
+          bytesRead = stream.Read(data, 0, data.Length);
+
+          if (bytesRead == 0)
+          {
+            stream.Close();
+            client.Close();
+            return;
+          }
+
+          // TODO: Decrypt Data.
         }
       }
       catch (Exception e)
