@@ -6,6 +6,8 @@ project(ProjectName)
   language "C++"
   staticruntime "On"
 
+  dependson { "ltsend" }
+
   filter { "system:windows" }
     buildoptions { '/Gm-' }
     buildoptions { '/MP' }

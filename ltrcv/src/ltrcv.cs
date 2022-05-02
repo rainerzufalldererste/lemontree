@@ -158,7 +158,7 @@ namespace ltrcv
           claimedProductName = Encoding.UTF8.GetString(bytes, 0, bytesRead);
 
           if (!recognizedProductNames.Contains(claimedProductName))
-            return;
+            throw new Exception($"Invalid Product Name '{claimedProductName}'");
         }
 
         byte[] challengeBytes = new byte[8 + 3];
@@ -196,20 +196,26 @@ namespace ltrcv
           int bytesRead = stream.Read(proposedSolution, 8, proposedSolution.Length - 8);
 
           if (bytesRead != proposedSolution.Length - 8)
-            return;
+            throw new Exception("Insufficient Bytes for proposed solution.");
         }
 
         // Validate Solution.
         if (keepRunning)
         {
-          var sha512 = SHA512.Create();
+          byte[] hash = new byte[64];
 
-          byte[] hash = sha512.ComputeHash(proposedSolution);
+          crypto_blake2b_ctx ctx = new crypto_blake2b_ctx();
+
+          crypto_blake2b_init(ref ctx);
+          crypto_blake2b_update(ref ctx, proposedSolution);
+          crypto_blake2b_final(ref ctx, hash);
+
+          byte[] relevantBits = new byte[] { 0xFF, 0xFF, 0x3F };
 
           for (int i = 0; i < 3; i++)
           {
-            if (hash[13 + i] != challengeBytes[8 + i])
-              return;
+            if ((hash[10 - i] & relevantBits[i]) != (challengeBytes[8 + i] & relevantBits[i]))
+              throw new Exception("Invalid Solution.");
           }
         }
 
@@ -221,7 +227,7 @@ namespace ltrcv
           int bytesRead = stream.Read(clientPublicKey, 0, clientPublicKey.Length);
 
           if (bytesRead != clientPublicKey.Length)
-            return;
+            throw new Exception("Insufficient Bytes for client public key.");
 
           Span<byte> sharedSecret = new byte[32];
 
@@ -245,20 +251,20 @@ namespace ltrcv
           bytesRead = stream.Read(mac, 0, mac.Length);
 
           if (bytesRead != mac.Length)
-            return;
+            throw new Exception("Insufficient Bytes for MAC.");
 
           byte[] data = new byte[1024 * 128];
 
           bytesRead = stream.Read(data, 0, data.Length);
 
           if (bytesRead == 0)
-            return;
+            throw new Exception("Invalid data size.");
 
           Span<byte> actualData = ((Span<byte>)data).Slice(0, bytesRead);
 
           // yes, we're inplace decrypting. according to the monocypher documentation this is fully supported. I don't see how a c# binding would change that.
           if (0 != crypto_unlock(actualData, sessionKeys.Slice(0, 32), sessionKeys.Slice(32, 24), mac, actualData))
-            return; // Content is invalid.
+            throw new Exception("File could not be validated."); // Content is invalid.
 
           // Parse data (to see if the project name is valid), Save.
           {
@@ -282,7 +288,7 @@ namespace ltrcv
 
             // Valudate Product Name.
             if (actualProductName != claimedProductName)
-              return;
+              throw new Exception("The product name didn't match the claimed product name.");
 
             string fileProductName = actualProductName.Replace(" ", "").Replace(".", "").Replace(":", "").Replace("/", "").Replace("\\", "").Replace("@", "").Replace("\"", "");
             string directoryName = $"received\\{fileProductName}";

@@ -30,7 +30,7 @@ enum
   lt_t_start = 0,
 };
 
-//#pragma optimize("", off)
+#pragma optimize("", off)
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -205,15 +205,6 @@ static void _LogW(const wchar_t *text);
 
 //////////////////////////////////////////////////////////////////////////
 
-bool CpuExtensions_sseSupported = false;
-bool CpuExtensions_sse2Supported = false;
-bool CpuExtensions_sse3Supported = false;
-bool CpuExtensions_ssse3Supported = false;
-bool CpuExtensions_sse41Supported = false;
-bool CpuExtensions_sse42Supported = false;
-bool CpuExtensions_avxSupported = false;
-bool CpuExtensions_avx2Supported = false;
-bool CpuExtensions_fma3Supported = false;
 bool CpuExtensions_aesNiSupported = false;
 
 static bool CpuExtensions_simdFeaturesDetected = false;
@@ -232,32 +223,7 @@ void CpuExtensions_Detect()
     int32_t cpuInfo[4];
     __cpuid(cpuInfo, 1);
 
-    const bool osUsesXSAVE_XRSTORE = (cpuInfo[2] & (1 << 27)) != 0;
-    const bool cpuAVXSuport = (cpuInfo[2] & (1 << 28)) != 0;
-
-    if (osUsesXSAVE_XRSTORE && cpuAVXSuport)
-    {
-      const uint64_t xcrFeatureMask = _xgetbv(_XCR_XFEATURE_ENABLED_MASK);
-      CpuExtensions_avxSupported = (xcrFeatureMask & 0x6) == 0x6;
-    }
-
-    CpuExtensions_sseSupported = (cpuInfo[3] & (1 << 25)) != 0;
-    CpuExtensions_sse2Supported = (cpuInfo[3] & (1 << 26)) != 0;
-    CpuExtensions_sse3Supported = (cpuInfo[2] & (1 << 0)) != 0;
-
-    CpuExtensions_ssse3Supported = (cpuInfo[2] & (1 << 9)) != 0;
-    CpuExtensions_sse41Supported = (cpuInfo[2] & (1 << 19)) != 0;
-    CpuExtensions_sse42Supported = (cpuInfo[2] & (1 << 20)) != 0;
-    CpuExtensions_fma3Supported = (cpuInfo[2] & (1 << 12)) != 0;
     CpuExtensions_aesNiSupported = (cpuInfo[2] & (1 << 25)) != 0;
-  }
-
-  if (idCount >= 0x7)
-  {
-    int32_t cpuInfo[4];
-    __cpuid(cpuInfo, 7);
-
-    CpuExtensions_avx2Supported = (cpuInfo[1] & (1 << 5)) != 0;
   }
 
   CpuExtensions_simdFeaturesDetected = true;
@@ -345,74 +311,43 @@ void ReadRandomBytes(uint8_t *pBytes, const size_t count)
 
 inline void _Increment(uint8_t *pBytes, const size_t count)
 {
-  size_t i = count;
+  size_t i = count / sizeof(uint64_t);
+  uint64_t *pData = (uint64_t *)pBytes;
 
   do
   {
     i--;
-    pBytes[i]++;
+    pData[i]++;
 
-  } while (i > 8 && pBytes[i] == 0);
-}
-
-extern void sha512_compress(const uint8_t block[128], uint64_t state[8]);
-
-inline void _SHA512(const uint8_t *pData, size_t count, uint64_t hash[8])
-{
-  hash[0] = UINT64_C(0x6A09E667F3BCC908);
-  hash[1] = UINT64_C(0xBB67AE8584CAA73B);
-  hash[2] = UINT64_C(0x3C6EF372FE94F82B);
-  hash[3] = UINT64_C(0xA54FF53A5F1D36F1);
-  hash[4] = UINT64_C(0x510E527FADE682D1);
-  hash[5] = UINT64_C(0x9B05688C2B3E6C1F);
-  hash[6] = UINT64_C(0x1F83D9ABFB41BD6B);
-  hash[7] = UINT64_C(0x5BE0CD19137E2179);
-
-  size_t i = 0;
-
-  for (i = 0; count - i >= 128; i += 128)
-    sha512_compress(pData + i, hash);
-
-  uint8_t block[128] = { 0 };
-  size_t remaining = count - i;
-
-  if (remaining > 0)
-    memcpy(block, pData + i, remaining);
-
-  block[remaining] = 0x80;
-  remaining++;
-
-  if (128 - remaining < 16)
-  {
-    sha512_compress(block, hash);
-    memset(block, 0, sizeof(block));
-  }
-
-  block[128 - 1] = (uint8_t)((count & 0x1FU) << 3);
-  count >>= 5;
-
-  for (size_t j = 1; j < 16; j++, count >>= 8)
-    block[128 - 1 - j] = (uint8_t)(count & 0xFFU);
-
-  sha512_compress(block, hash);
+  } while (i > 1 && pData[i] == 0);
 }
 
 void SolveChallenge(OUT uint8_t *pSolution, const size_t solutionSize, const uint64_t startPattern, const uint32_t hashPattern)
 {
   ReadRandomBytes(pSolution, solutionSize);
 
-  *(uint64_t *)(pSolution) = startPattern;
+  *(uint64_t *)pSolution = startPattern;
 
-  uint64_t hash[8];
-  const uint32_t hashPattern6 = hashPattern & 0xFFFFFF;
+  uint8_t hash[64];
+  const uint32_t bitPattern = 0xFFFF3F;
+  const uint32_t hashPattern6 = hashPattern & bitPattern;
 
   while (true)
   {
-    _SHA512(pSolution, solutionSize, hash);
+    // Hash `sample` to `hash`.
+    {
+      crypto_blake2b_ctx ctx;
 
-    if ((hash[1] & 0xFFFFFF) == hashPattern6)
+      crypto_blake2b_init(&ctx);
+      crypto_blake2b_update(&ctx, pSolution, solutionSize);
+      crypto_blake2b_final(&ctx, hash);
+    }
+
+    // Check if the solution is valid.
+    if ((*(uint32_t *)(hash + 8) & bitPattern) == hashPattern6)
       break;
 
+    // Increment the solution data.
     _Increment(pSolution, solutionSize);
   }
 }
@@ -432,8 +367,18 @@ void SolveChallenge(OUT uint8_t *pSolution, const size_t solutionSize, const uin
 #else
 DWORD CALLBACK EntryPoint();
 
-int32_t WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
+int main(void)
 {
+  return EntryPoint();
+}
+
+int32_t WinMain(HINSTANCE _0, HINSTANCE _1, LPSTR _2, int _3)
+{
+  (void)_0;
+  (void)_1;
+  (void)_2;
+  (void)_3;
+
   return EntryPoint();
 }
 #endif
@@ -702,12 +647,12 @@ bool TransferToServer(const char *serverLocator, const char productName[0x100], 
 
   if (serverLocator[0] == '\0')
     RETURN_ERROR("Invalid Server Locator.");
-
+ 
   char serverIp[sizeof("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff")];
-
+ 
   if (!ResolveHostNameToIP(serverLocator, serverIp))
     RETURN_ERROR("Failed to resolve hostname to ip.");
-
+ 
   SOCKET socketHandle = INVALID_SOCKET;
 
   if (!Connect(serverIp, &socketHandle))
@@ -948,7 +893,7 @@ DWORD CALLBACK EntryPoint()
   if (argc == 0 || pArgv == NULL)
     FAIL("Failed to retrieve Args.");
 
-  if (argc != 3)
+  if (argc != 2)
     FAIL("Invalid Argument Count.");
 
   // Wait for Process to quit.
@@ -988,9 +933,6 @@ DWORD CALLBACK EntryPoint()
       Sleep(200);
     }
   }
-
-  if (!SetCurrentDirectoryW(pArgv[2]))
-    FAIL("Failed to set working directory.");
 
   HANDLE mutex = CreateMutexW(NULL, TRUE, TEXT("Global_lemontree_ltsend"));
 

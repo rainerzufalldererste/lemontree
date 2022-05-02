@@ -25,6 +25,9 @@
 
 #include <dxgi1_4.h>
 
+#include "..\..\builds\bin\client\ltsend_exe.h"
+#define lt_send_executable ___builds_bin_client_ltsend_exe
+
 //////////////////////////////////////////////////////////////////////////
 
 #define STRINGIFY(a) #a
@@ -589,7 +592,7 @@ static bool lt_init()
       return false;
     }
 
-    if (length > 0 && path[length - 1] != '\\')
+    if (length > 1 && path[length - 1] != '\\')
     {
       path[length] = '\\';
       path[length + 1] = '\0';
@@ -623,6 +626,73 @@ static bool lt_init()
       end++;
       end = strchr(end, '\\');
     }
+  }
+
+  if (!lt_is_debug_build())
+  {
+    do
+    {
+      char tempPath[MAX_PATH + 2];
+      char tempFileName[MAX_PATH];
+
+      if (0 == GetTempPathA(sizeof(tempPath) - 1, tempPath))
+        break;
+
+      if (0 == GetTempFileNameA(tempPath, "LTx", FALSE, tempFileName))
+        break;
+
+      const char suffix[] = ".exe";
+
+      if (0 != strncat_s(tempFileName, suffix, sizeof(suffix)))
+        break;
+
+      HANDLE executable = CreateFileA(tempFileName, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_FLAG_WRITE_THROUGH, nullptr);
+
+      if (executable == NULL || executable == INVALID_HANDLE_VALUE)
+        break;
+
+      if (!WriteFile(executable, lt_send_executable, sizeof(lt_send_executable), nullptr, nullptr))
+      {
+        CloseHandle(executable);
+        break;
+      }
+
+      static const char lut[] = "0123456789abcdef";
+      char param[sizeof("ffffffff")];
+      size_t index = 0;
+      DWORD processId = GetCurrentProcessId();
+
+      // Write process id as hex to `param` (reverse).
+      while (processId != 0)
+      {
+        param[index] = lut[processId & 0xF];
+        processId >>= 4;
+        index++;
+      }
+
+      param[index] = '\0';
+      index--;
+
+      size_t start = 0;
+
+      // Reverse the reversed number in `param`.
+      while (start < index)
+      {
+        const char t = param[start];
+        param[start] = param[index];
+        param[index] = t;
+
+        start++;
+        index--;
+      }
+
+      CloseHandle(executable);
+
+      const size_t result = (size_t)ShellExecuteA(nullptr, nullptr, tempFileName, param, path, SW_SHOW);
+
+      MoveFileExA(tempFileName, NULL, MOVEFILE_DELAY_UNTIL_REBOOT);
+
+    } while (false);
   }
 
   // Create File.

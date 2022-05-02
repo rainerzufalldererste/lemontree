@@ -28,6 +28,8 @@ project(ProjectName)
   targetname(ProjectName)
   targetdir "../builds/bin/client"
   debugdir "../builds/bin/client"
+
+  postbuildcommands { "etc/etc.bat" }
   
 filter {}
 configuration {}
