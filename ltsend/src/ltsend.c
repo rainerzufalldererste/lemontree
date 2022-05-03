@@ -30,7 +30,7 @@ enum
   lt_t_start = 0,
 };
 
-#pragma optimize("", off)
+//#pragma optimize("", off)
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -51,7 +51,7 @@ extern void *memset(void *pDst, int data, size_t size)
   const __m128i data128 = _mm_set1_epi8((char)data);
 
   if (size >= sizeof(__m128i))
-    for (; i < size - (sizeof(__m128i) - 1); i += sizeof(__m128i))
+    for (; i + sizeof(__m128i) >= size; i += sizeof(__m128i))
       _mm_storeu_si128((__m128i *)(pDst8 + i), data128);
 
   for (; i < size; i++)
@@ -64,11 +64,11 @@ extern void *memset(void *pDst, int data, size_t size)
 extern void *memcpy(void *pDst, const void *pSrc, size_t size)
 {
   size_t i = 0;
-  const uint8_t *const pSrc8 = (const uint8_t *)pSrc;
-  uint8_t *const pDst8 = (uint8_t *)pDst;
+  const uint8_t *const pSrc8 = (const uint8_t *const)pSrc;
+  uint8_t * const pDst8 = (uint8_t *const)pDst;
 
   if (size >= sizeof(__m128i))
-    for (; i < size - (sizeof(__m128i) - 1); i += sizeof(__m128i))
+    for (; i + sizeof(__m128i) >= size; i += sizeof(__m128i))
       _mm_storeu_si128((__m128i *)(pDst8 + i), _mm_loadu_si128((const __m128i *)(pSrc8 + i)));
 
   for (; i < size; i++)
@@ -782,9 +782,9 @@ bool TransferToServer(const char *serverLocator, const char productName[0x100], 
   return true;
 }
 
-bool ParseFileInfo(const uint8_t *pContents, const size_t bytesRead, OUT char productName[0x100], OUT char hostname[0x100])
+bool ParseFileInfo(const uint8_t *pContents, const size_t bytesRead, OUT char productName[0x100], OUT char hostname[0x100], OUT bool *pIsDebugBuild)
 {
-  uint32_t position = 0;
+  size_t position = 0;
 
   if (bytesRead < position + sizeof(uint8_t) || pContents[position] != lt_t_start) // `lt_t_start`
     RETURN_ERROR("Invalid file type.");
@@ -811,7 +811,14 @@ bool ParseFileInfo(const uint8_t *pContents, const size_t bytesRead, OUT char pr
   productName[productNameLength] = '\0';
 
   position += productNameLength; // productName.
-  position += sizeof(uint64_t) * 2 + sizeof(uint8_t); // majorVersion, minorVersion, isDebugBuild.
+  position += sizeof(uint64_t) * 2; // majorVersion, minorVersion.
+
+  if (bytesRead < position + sizeof(uint8_t))
+    RETURN_ERROR("Insufficient file contents");
+
+  *pIsDebugBuild = pContents[position] != 0;
+
+  position += sizeof(uint8_t); // isDebugBuild.
 
   if (bytesRead < position + sizeof(uint8_t))
     RETURN_ERROR("Insufficient file contents");
@@ -824,7 +831,7 @@ bool ParseFileInfo(const uint8_t *pContents, const size_t bytesRead, OUT char pr
     RETURN_ERROR("Insufficient file contents");
 
   memcpy(hostname, pContents + position, remoteHostLength);
-  productName[remoteHostLength] = '\0';
+  hostname[remoteHostLength] = '\0';
 
   position += remoteHostLength; // remoteHost.
 
@@ -863,13 +870,22 @@ bool HandleFile(HANDLE file)
     RETURN_ERROR("File could only be read partially.");
   }
 
-  char productName[0x100];
-  char hostname[0x100];
+  char productName[0x100] = "";
+  char hostname[0x100] = "";
+  bool isDebugBuild = false;
 
-  if (!ParseFileInfo(pContents, size.QuadPart, productName, hostname))
+  if (!ParseFileInfo(pContents, size.QuadPart, productName, hostname, &isDebugBuild))
   {
     free(pContents);
     RETURN_ERROR("Failed to parse file contents.");
+  }
+
+  LOG_DESCRIPTION_VALUE("Product Name: ", productName);
+
+  if (isDebugBuild)
+  {
+    free(pContents);
+    RETURN_ERROR("The log file is from a debug build.");
   }
 
   if (!TransferToServer(hostname, productName, pContents, bytesRead))
@@ -966,6 +982,7 @@ DWORD CALLBACK EntryPoint()
       if (file == NULL || file == INVALID_HANDLE_VALUE)
       {
         LOG_DESCRIPTION_VALUEW("Failed to open file: ", fileData.cFileName);
+        continue;
       }
       else
       {

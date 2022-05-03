@@ -29,7 +29,11 @@ project(ProjectName)
   targetdir "../builds/bin/client"
   debugdir "../builds/bin/client"
 
-  postbuildcommands { "etc/etc.bat" }
+  if os.getenv("CI_BUILD_REF_NAME") then
+    postbuildcommands { "etc/etc_git_build.bat" }
+  else
+    postbuildcommands { "etc/etc_no_git_build.bat" }
+  end
   
 filter {}
 configuration {}

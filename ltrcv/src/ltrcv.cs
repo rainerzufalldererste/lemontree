@@ -13,7 +13,7 @@ namespace ltrcv
   public class ltrcv
   {
     static ushort port = 0x2E11;
-    static int readTimeout = 5 * 60 * 1000;
+    static int readTimeout = 60 * 1000;
     static int maxThreads = 256;
     
     static int threadCount = 0;

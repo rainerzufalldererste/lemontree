@@ -3,7 +3,7 @@
 extern const char *g_lt_product_name = "lt_example";
 extern const uint64_t g_lt_product_major_version = 0x1020304050607080;
 extern const uint64_t g_lt_product_minor_version = 0xFEDCBA9876543210;
-extern const bool g_lt_is_debug_build = true;
+extern const bool g_lt_is_debug_build = false;
 extern const char *g_lt_remote_host = "localhost";
 extern const char *g_lt_folder_path = nullptr;
 extern const bool g_lt_crash_stack_trace_include_data = true;

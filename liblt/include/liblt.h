@@ -38,9 +38,11 @@ extern "C"
   uint64_t lt_get_product_minor_version();
 
   // Reads from extern `const bool g_lt_is_debug_build`.
+  // Telemetry Logs from debug_builds will not be transmitted to the specified telemetry server.
   bool lt_is_debug_build();
 
   // Reads from extern `const char * g_lt_remote_host`.
+  // Either an IPv4/IPv6 address or a domain name.
   const char * lt_get_remote_host();
 
   // Reads from extern `const char * g_lt_folder_path`.
