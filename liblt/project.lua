@@ -60,8 +60,13 @@ filter { "configurations:Release" }
 	optimize "Speed"
 	flags { "NoBufferSecurityCheck", "NoIncrementalLink" }
   omitframepointer "On"
-	symbols "Off"
-
+	
+  if os.getenv("CI_BUILD_REF_NAME") then
+    symbols "Off"
+  else
+    symbols "On"
+  end
+  
 filter { "system:windows", "configurations:Release", "action:vs2012" }
 	buildoptions { "/d2Zi+" }
 

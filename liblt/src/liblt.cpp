@@ -848,6 +848,57 @@ static void lt_write_block_internal(IN const uint8_t *pData, const size_t size)
 #endif
 }
 
+#pragma optimize ("", off)
+
+static bool lt_get_stack_trace(DWORD processId, DWORD threadId)
+{
+  HANDLE process = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, false, processId);
+
+  if (process == NULL)
+    return false;
+
+  _PROCESS_BASIC_INFORMATION processInfo;
+  
+  if (0 /* STATUS_SUCCESS */ != NtQueryInformationProcess(process, ProcessBasicInformation, &processInfo, sizeof(processInfo), nullptr))
+  {
+    CloseHandle(process);
+    return false;
+  }
+
+  PEB processEnvironmentBlock;
+  size_t bytesRead = 0;
+
+  if (0 != ReadProcessMemory(process, processInfo.PebBaseAddress, &processEnvironmentBlock, sizeof(processEnvironmentBlock), &bytesRead) || bytesRead != sizeof(processEnvironmentBlock))
+  {
+    CloseHandle(process);
+    return false;
+  }
+
+  HANDLE thread = OpenThread(THREAD_GET_CONTEXT, false, threadId);
+
+  if (thread == NULL)
+  {
+    CloseHandle(process);
+    return false;
+  }
+
+  CONTEXT threadContext;
+  ZeroMemory(&threadContext, sizeof(threadContext));
+  threadContext.ContextFlags = (CONTEXT_CONTROL | CONTEXT_SEGMENTS);
+
+  if (0 == GetThreadContext(thread, &threadContext))
+  {
+    CloseHandle(process);
+    CloseHandle(thread);
+    return false;
+  }
+
+  threadContext.Rip;
+  
+  CloseHandle(thread);
+  return true;
+}
+
 static size_t lt_write_stack_trace(OUT uint8_t *pStackTrace, const bool includeData)
 {
   uint8_t *pStackTraceStart = pStackTrace;
@@ -858,6 +909,12 @@ static size_t lt_write_stack_trace(OUT uint8_t *pStackTrace, const bool includeD
   PVOID stack[lt_stack_trace_depth];
   const USHORT stackTraceSize = CaptureStackBackTrace(0, (DWORD)ARRAYSIZE(stack), stack, nullptr);
 
+  void **ppStack = reinterpret_cast<void **>(_AddressOfReturnAddress());
+  (void)ppStack;
+
+  uint64_t stackHi, stackLo;
+  GetCurrentThreadStackLimits(&stackLo, &stackHi);
+  
   uint64_t stackTraceHash = 0;
 
   uint32_t *pStackTraceHash = reinterpret_cast<uint32_t *>(pStackTrace);
