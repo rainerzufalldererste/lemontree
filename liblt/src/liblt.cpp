@@ -1157,13 +1157,8 @@ static bool lt_get_foreign_stack_trace_segments_inner(HANDLE heap, HANDLE proces
   return true;
 }
 
-static bool lt_get_foreign_stack_trace_segments(HANDLE process, REMOTE_DATA PEB *pPEB, OUT lt_process_segment **ppSegments, OUT size_t *pSegmentCount, OUT size_t *pMin, OUT size_t *pMax)
+static bool lt_get_foreign_stack_trace_segments(HANDLE heap, HANDLE process, REMOTE_DATA PEB *pPEB, OUT lt_process_segment **ppSegments, OUT size_t *pSegmentCount, OUT size_t *pMin, OUT size_t *pMax)
 {
-  HANDLE heap = GetProcessHeap();
-
-  if (heap == nullptr)
-    return false;
-
   *ppSegments = nullptr;
   *pSegmentCount = 0;
 
@@ -1182,8 +1177,76 @@ static bool lt_get_foreign_stack_trace_segments(HANDLE process, REMOTE_DATA PEB 
   return true;
 }
 
+static uint8_t * lt_write_potential_stack_address(const size_t value, uint8_t *pStackTrace, const bool includeData, HANDLE process, const lt_process_segment *pSegments, const size_t segmentCount, IN_OUT size_t *pLastModuleBaseAddress, OUT size_t *pStackTraceHash)
+{
+  for (size_t i = 0; i < segmentCount; i++)
+  {
+    if (value >= pSegments[i].moduleBase + pSegments[i].segmentBase && value < pSegments[i].moduleBase + pSegments[i].segmentMax)
+    {
+      *pStackTraceHash = (*pStackTraceHash ^ (value - pSegments[i].moduleBase) * 0xCC9E2D51) * 0x1B873593;
+
+      if (pSegments[i].isHostProcess)
+      {
+        *pStackTrace = lt_st_app_offset;
+        pStackTrace++;
+
+        *reinterpret_cast<uint64_t *>(pStackTrace) = value - pSegments[i].moduleBase;
+        pStackTrace += sizeof(uint64_t);
+      }
+      else if (*pLastModuleBaseAddress == pSegments[i].moduleBase)
+      {
+        *pStackTrace = lt_st_same_dll_offset;
+        pStackTrace++;
+
+        *reinterpret_cast<uint64_t *>(pStackTrace) = value - pSegments[i].moduleBase;
+        pStackTrace += sizeof(uint64_t);
+      }
+      else
+      {
+        *pStackTrace = lt_st_dll_offset;
+        pStackTrace++;
+
+        *pStackTrace = pSegments[i].moduleNameLength;
+        pStackTrace++;
+
+        memcpy(pStackTrace, pSegments[i].moduleName, pSegments[i].moduleNameLength);
+        pStackTrace += pSegments[i].moduleNameLength;
+
+        *reinterpret_cast<uint64_t *>(pStackTrace) = value - pSegments[i].moduleBase;
+        pStackTrace += sizeof(uint64_t);
+      }
+
+      if (includeData)
+      {
+        uint8_t data[16];
+        size_t bytesRead = 0;
+
+        if (0 != ReadProcessMemory(process, reinterpret_cast<const void *>(value), data, sizeof(data), &bytesRead) && bytesRead == 16)
+        {
+          *pStackTrace = lt_st_data16;
+          pStackTrace++;
+
+          memcpy(pStackTrace, data, sizeof(data));
+          pStackTrace += sizeof(data);
+        }
+      }
+
+      *pLastModuleBaseAddress = pSegments[i].moduleBase;
+
+      return pStackTrace;
+    }
+  }
+
+  return pStackTrace;
+}
+
 static size_t lt_write_foreign_stack_trace(OUT uint8_t *pStackTrace, const bool includeData, const DWORD processId, const DWORD threadId)
 {
+  HANDLE heap = GetProcessHeap();
+
+  if (heap == nullptr)
+    return 0;
+
   HANDLE process, thread;
 
   if (!lt_get_foreign_stack_trace_handles(processId, threadId, &process, &thread))
@@ -1199,20 +1262,77 @@ static size_t lt_write_foreign_stack_trace(OUT uint8_t *pStackTrace, const bool 
     return 0;
   }
 
-  lt_process_segment *pSegments = nullptr;
-  size_t segmentCount = 0;
-  REMOTE_POINTER size_t minSegPtr, maxSegPtr;
+  const size_t stackCount = (stackStart - stackPosition) / sizeof(size_t);
+  REMOTE_DATA size_t *pStack = reinterpret_cast<size_t *>(HeapAlloc(heap, 0, sizeof(size_t) * stackCount));
 
-  if (!lt_get_foreign_stack_trace_segments(process, &processEnvironmentBlock, &pSegments, &segmentCount, &minSegPtr, &maxSegPtr))
+  if (pStack == nullptr)
   {
     CloseHandle(process);
     CloseHandle(thread);
     return 0;
   }
 
-  // TODO: Walk Over the Stack, compare with the segments.
+  lt_process_segment *pSegments = nullptr;
+  size_t segmentCount = 0;
+  REMOTE_POINTER size_t minSegPtr, maxSegPtr;
 
-  HeapFree(GetProcessHeap(), 0, pSegments);
+  if (!lt_get_foreign_stack_trace_segments(heap, process, &processEnvironmentBlock, &pSegments, &segmentCount, &minSegPtr, &maxSegPtr))
+  {
+    HeapFree(heap, 0, pStack);
+    CloseHandle(process);
+    CloseHandle(thread);
+    return 0;
+  }
+
+  uint8_t *pStackTraceStart = pStackTrace;
+
+  *pStackTrace = lt_st_start;
+  pStackTrace++;
+
+  uint64_t stackTraceHash = 0;
+
+  uint32_t *pStackTraceHash = reinterpret_cast<uint32_t *>(pStackTrace);
+  pStackTrace += sizeof(uint32_t);
+
+  size_t lastModuleAddress = 0;
+  size_t tracesStored = 0;
+
+  uint8_t *pRet = lt_write_potential_stack_address(rip, pStackTrace, includeData, process, pSegments, segmentCount, &lastModuleAddress, &stackTraceHash);
+
+  if (pRet != pStackTrace)
+  {
+    tracesStored++;
+    pStackTrace = pRet;
+  }
+
+  for (int64_t i = segmentCount - 1; i >= 0; i--)
+  {
+    const size_t value = pStack[i];
+
+    if (value < minSegPtr || value >= maxSegPtr)
+      continue;
+
+    pRet = lt_write_potential_stack_address(rip, pStackTrace, includeData, process, pSegments, segmentCount, &lastModuleAddress, &stackTraceHash);
+
+    if (pRet != pStackTrace)
+    {
+      tracesStored++;
+      pStackTrace = pRet;
+
+      if (tracesStored == lt_stack_trace_depth)
+        break;
+    }
+  }
+
+  HeapFree(heap, 0, pStack);
+  HeapFree(heap, 0, pSegments);
+
+  *pStackTraceHash = (uint32_t)(stackTraceHash ^ (stackTraceHash >> 32));
+
+  *pStackTrace = lt_st_end;
+  pStackTrace++;
+
+  return pStackTrace - pStackTraceStart;
 }
 
 static size_t lt_write_stack_trace(OUT uint8_t *pStackTrace, const bool includeData)
@@ -1345,7 +1465,7 @@ static size_t lt_write_stack_trace(OUT uint8_t *pStackTrace, const bool includeD
     } while (pNext != nullptr && pNext != pAppMemoryModule);
   }
 
-  *pStackTraceHash = (uint32_t)(stackTraceHash | (stackTraceHash >> 32));
+  *pStackTraceHash = (uint32_t)(stackTraceHash ^ (stackTraceHash >> 32));
 
   *pStackTrace = lt_st_end;
   pStackTrace++;
