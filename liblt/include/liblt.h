@@ -4,10 +4,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#ifdef _WIN32
-#include <windows.h>
-#endif
-
 #ifndef IN
  #define IN
 #endif // !IN
@@ -61,7 +57,7 @@ extern "C"
   //////////////////////////////////////////////////////////////////////////
 
 #ifdef _WIN32
-  void lt_crash_ex(IN HANDLE process, IN HANDLE thread, const uint64_t errorCode, IN OPTIONAL const char *description);
+  void lt_crash_ex(const unsigned long processId, const unsigned long threadId, const uint64_t errorCode, IN OPTIONAL const char *description);
 #endif
 
   void lt_crash(const uint64_t errorCode, IN OPTIONAL const char *description); // `description`: 255 chars max (not including \0).

@@ -98,6 +98,7 @@ static bool lt_init();
 static void lt_write_block(IN const uint8_t *pData, const size_t size);
 static void lt_write_block_internal(IN const uint8_t *pData, const size_t size);
 static size_t lt_write_stack_trace(OUT uint8_t *pStackTrace, const bool includeData);
+static size_t lt_write_foreign_stack_trace(OUT uint8_t *pStackTrace, const bool includeData, const DWORD processId, const DWORD threadId);
 static size_t lt_write_system_info(OUT uint8_t *pData);
 
 inline uint64_t lt_time_100ns()
@@ -122,7 +123,51 @@ static struct lt_context
 
 //////////////////////////////////////////////////////////////////////////
 
-void lt_crash_ex(IN HANDLE process, IN HANDLE thread, const uint64_t errorCode, IN OPTIONAL const char *description);
+void lt_crash_ex(const DWORD processId, const DWORD threadId, const uint64_t errorCode, IN OPTIONAL const char *description)
+{
+  if (!lt_init())
+    return;
+
+  const uint64_t timestamp = lt_time_100ns();
+
+  uint8_t data[1024 * 10];
+  static_assert(sizeof(data) > 1 + 4 + 8 + 8 + 1 + 255 + 1 + 2 + 8 + lt_stack_trace_depth * (1 + 1 + 255 + 8) + 1, "data size may be insufficient.");
+
+  uint8_t *pData = data;
+
+  *pData = lt_t_crash;
+  pData += sizeof(uint8_t) + sizeof(uint16_t); // size of this block.
+
+  *reinterpret_cast<uint64_t *>(pData) = timestamp;
+  pData += sizeof(uint64_t);
+
+  *reinterpret_cast<uint64_t *>(pData) = errorCode;
+  pData += sizeof(uint64_t);
+
+  if (description != nullptr)
+  {
+    const uint8_t size = (uint8_t)min(0xFF, strlen(description));
+
+    *pData = size;
+    pData++;
+
+    memcpy(pData, description, size);
+    pData += size;
+  }
+  else
+  {
+    *pData = 0;
+    pData++;
+  }
+
+  const uint16_t stackTraceSize = (uint16_t)lt_write_foreign_stack_trace(pData + 2, lt_get_crash_stack_trace_include_data(), processId, threadId);
+  *reinterpret_cast<uint16_t *>(pData) = stackTraceSize;
+  pData += 2ULL + stackTraceSize;
+
+  *reinterpret_cast<uint16_t *>(&data[1]) = (uint16_t)(pData - data);
+
+  lt_write_block(data, pData - data);
+}
 
 void lt_crash(const uint64_t errorCode, IN OPTIONAL const char *description)
 {
@@ -1267,6 +1312,16 @@ static size_t lt_write_foreign_stack_trace(OUT uint8_t *pStackTrace, const bool 
 
   if (pStack == nullptr)
   {
+    CloseHandle(process);
+    CloseHandle(thread);
+    return 0;
+  }
+
+  size_t bytesRead = 0;
+
+  if (0 == ReadProcessMemory(process, reinterpret_cast<const void *>(stackStart), pStack, stackCount * sizeof(size_t), &bytesRead) || bytesRead != stackCount * sizeof(size_t))
+  {
+    HeapFree(heap, 0, pStack);
     CloseHandle(process);
     CloseHandle(thread);
     return 0;

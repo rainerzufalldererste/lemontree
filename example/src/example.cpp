@@ -1,3 +1,7 @@
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 #include "liblt.h"
 
 extern const char *g_lt_product_name = "lt_example";
@@ -121,6 +125,11 @@ int32_t main(const int32_t argc, const char **pArgv)
   lt_perf_metric(1, -1.0);
   lt_perf_metric(1, 20.0);
   lt_perf_metric(3, 1.0);
+
+#ifdef _WIN32
+  if (IsDebuggerPresent())
+    throw 0; // Generate an `EXCEPTION_DEBUG_EVENT` for `example_dbg`.
+#endif
 
   return 0;
 }
