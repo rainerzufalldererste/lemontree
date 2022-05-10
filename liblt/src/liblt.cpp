@@ -1028,12 +1028,12 @@ struct lt_process_segment
 {
   bool isHostProcess;
   uint8_t moduleNameLength;
-  char moduleName[0x100];
+  char moduleName[0xFF]; // <- not a c string. length is in `moduleNameLength`.
   REMOTE_POINTER size_t moduleBase;
   REMOTE_POINTER DWORD segmentBase, segmentMax;
 };
 
-static bool lt_append_segment(HANDLE heap, IN_OUT lt_process_segment **ppSegments, IN_OUT size_t *pSegmentCount)
+static bool lt_append_segment(HANDLE heap, IN_OUT lt_process_segment **ppSegments, IN_OUT size_t *pSegmentCount, IN const lt_process_segment *pNewSegment)
 {
   if (*ppSegments == nullptr)
   {
@@ -1044,7 +1044,7 @@ static bool lt_append_segment(HANDLE heap, IN_OUT lt_process_segment **ppSegment
     if (*ppSegments == nullptr)
       return false;
     
-    *pSegmentCount = 0;
+    *pSegmentCount = 1;
   }
   else
   {
@@ -1061,6 +1061,11 @@ static bool lt_append_segment(HANDLE heap, IN_OUT lt_process_segment **ppSegment
 
     *ppSegments = pNew;
     (*pSegmentCount)++;
+  }
+
+  // Append New Segment.
+  {
+    memcpy(*ppSegments + (*pSegmentCount - 1), pNewSegment, sizeof(lt_process_segment));
   }
 
   return true;
@@ -1117,7 +1122,6 @@ static bool lt_get_foreign_stack_trace_segments_inner(HANDLE heap, HANDLE proces
     const size_t sectionHeaderCount = ntHeader.FileHeader.NumberOfSections;
     const REMOTE_POINTER IMAGE_SECTION_HEADER *pSectionHeader = ((PIMAGE_SECTION_HEADER)((ULONG_PTR)(pNtHeader) + FIELD_OFFSET(IMAGE_NT_HEADERS, OptionalHeader) + ((ntHeader)).FileHeader.SizeOfOptionalHeader)); // Replicating this: `IMAGE_FIRST_SECTION(pNtHeader);` (without accessing remote memory)
 
-    REMOTE_POINTER wchar_t *pModuleName = tableEntry.FullDllName.Buffer;
     size_t count = 0;
 
     const size_t localModuleNameBytes = sizeof(wchar_t) * tableEntry.FullDllName.Length;
@@ -1152,7 +1156,7 @@ static bool lt_get_foreign_stack_trace_segments_inner(HANDLE heap, HANDLE proces
     char moduleName[0x100];
 
     for (size_t j = 0; j < moduleNameChars; j++)
-      moduleName[j] = (uint8_t)pLocalModuleName[j];
+      moduleName[j] = (uint8_t)pLocalModuleNameOffset[j];
 
     moduleName[moduleNameChars] = '\0';
 
@@ -1174,7 +1178,7 @@ static bool lt_get_foreign_stack_trace_segments_inner(HANDLE heap, HANDLE proces
         seg.segmentBase = sectionHeader.VirtualAddress;
         seg.segmentMax = sectionHeader.VirtualAddress + sectionHeader.Misc.VirtualSize;
         seg.moduleNameLength = moduleNameChars;
-        memcpy(seg.moduleName, moduleName, moduleNameChars);
+        memcpy(seg.moduleName, moduleName, moduleNameChars); // yes, this is not copying the null terminator, but we have the length, so who cares?
 
         if (*pSegmentCount == 0)
         {
@@ -1187,7 +1191,7 @@ static bool lt_get_foreign_stack_trace_segments_inner(HANDLE heap, HANDLE proces
           maxSegPtr = max(maxSegPtr, moduleBase + seg.segmentMax);
         }
 
-        if (!lt_append_segment(heap, ppSegments, pSegmentCount))
+        if (!lt_append_segment(heap, ppSegments, pSegmentCount, &seg))
           return false;
       }
     }
@@ -1319,7 +1323,7 @@ static size_t lt_write_foreign_stack_trace(OUT uint8_t *pStackTrace, const bool 
 
   size_t bytesRead = 0;
 
-  if (0 == ReadProcessMemory(process, reinterpret_cast<const void *>(stackStart), pStack, stackCount * sizeof(size_t), &bytesRead) || bytesRead != stackCount * sizeof(size_t))
+  if (0 == ReadProcessMemory(process, reinterpret_cast<const void *>(stackPosition), pStack, stackCount * sizeof(size_t), &bytesRead) || bytesRead != stackCount * sizeof(size_t))
   {
     HeapFree(heap, 0, pStack);
     CloseHandle(process);
@@ -1352,25 +1356,33 @@ static size_t lt_write_foreign_stack_trace(OUT uint8_t *pStackTrace, const bool 
   size_t lastModuleAddress = 0;
   size_t tracesStored = 0;
 
-  uint8_t *pRet = lt_write_potential_stack_address(rip, pStackTrace, includeData, process, pSegments, segmentCount, &lastModuleAddress, &stackTraceHash);
-
-  if (pRet != pStackTrace)
+  uint8_t *pRet;
+  
+  if (rip >= minSegPtr && rip < maxSegPtr)
   {
-    tracesStored++;
-    pStackTrace = pRet;
+    pRet = lt_write_potential_stack_address(rip, pStackTrace, includeData, process, pSegments, segmentCount, &lastModuleAddress, &stackTraceHash);
+
+    if (pRet != pStackTrace)
+    {
+      tracesStored++;
+      pStackTrace = pRet;
+    }
   }
+
+  size_t lastStackValue = 0;
 
   for (int64_t i = segmentCount - 1; i >= 0; i--)
   {
     const size_t value = pStack[i];
 
-    if (value < minSegPtr || value >= maxSegPtr)
+    if (value < minSegPtr || value >= maxSegPtr || value == lastStackValue)
       continue;
 
     pRet = lt_write_potential_stack_address(rip, pStackTrace, includeData, process, pSegments, segmentCount, &lastModuleAddress, &stackTraceHash);
 
     if (pRet != pStackTrace)
     {
+      lastStackValue = value;
       tracesStored++;
       pStackTrace = pRet;
 

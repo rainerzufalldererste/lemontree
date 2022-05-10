@@ -57,6 +57,8 @@ int32_t main(const int32_t argc, const char **pArgv)
     CloseHandle(processInfo.hProcess);
   }
 
+  lt_log(0, "Start");
+
   // Debug Process.
   {
     bool keepRunning = true;
@@ -76,6 +78,10 @@ int32_t main(const int32_t argc, const char **pArgv)
 
       case EXCEPTION_DEBUG_EVENT:
         lt_crash_ex(debugEvent.dwProcessId, debugEvent.dwThreadId, debugEvent.u.Exception.ExceptionRecord.ExceptionCode, "Crash in child process.");
+        printf("Wrote excaption as crash log. (process %" PRIi32 ", thread %" PRIi32 ", exception 0x%" PRIX32 ")\n", debugEvent.dwProcessId, debugEvent.dwThreadId, debugEvent.u.Exception.ExceptionRecord.ExceptionCode);
+        break;
+
+      default:
         break;
       }
 
@@ -90,6 +96,7 @@ int32_t main(const int32_t argc, const char **pArgv)
     } while (keepRunning);
   }
 
+  lt_log(0, "End");
   puts("Exit.");
 
   return 0;

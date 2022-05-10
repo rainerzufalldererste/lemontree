@@ -33,6 +33,11 @@ namespace ltrcv
     [STAThread]
     public static void Main(string[] args)
     {
+      string privateKeyPayh = "ltrcv.bin";
+
+      if (args.Length == 1)
+        privateKeyPayh = args[0];
+
       const string recognizedProductNamesFile = "productNames.txt";
       Console.WriteLine($"Attempting to read {nameof(recognizedProductNames)} from '{recognizedProductNamesFile}'...");
       recognizedProductNames = (from x in File.ReadAllLines(recognizedProductNamesFile) where !string.IsNullOrWhiteSpace(x) select x.Replace("\r", "").Replace("\n", "")).ToArray();
@@ -46,7 +51,7 @@ namespace ltrcv
 
       Console.WriteLine("Attempting to load private key...");
 
-      serverPrivateKey = File.ReadAllBytes("C:\\Windows\\cert\\ltrcv.bin");
+      serverPrivateKey = File.ReadAllBytes(privateKeyPayh);
       serverPublicKey = new byte[32];
       crypto_x25519_public_key(serverPublicKey, serverPrivateKey); // generate public key.
 
