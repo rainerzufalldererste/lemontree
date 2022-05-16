@@ -1358,20 +1358,31 @@ static size_t lt_write_foreign_stack_trace(OUT uint8_t *pStackTrace, const bool 
 
   uint8_t *pRet;
   
-  if (rip >= minSegPtr && rip < maxSegPtr)
+  if (rip >= minSegPtr && rip < maxSegPtr && (pRet = lt_write_potential_stack_address(rip, pStackTrace, includeData, process, pSegments, segmentCount, &lastModuleAddress, &stackTraceHash)) != pStackTrace)
   {
-    pRet = lt_write_potential_stack_address(rip, pStackTrace, includeData, process, pSegments, segmentCount, &lastModuleAddress, &stackTraceHash);
+    tracesStored++;
+    pStackTrace = pRet;
+  }
+  else
+  {
+    const char module_not_found[] = "MODULE_NOT_FOUND";
 
-    if (pRet != pStackTrace)
-    {
-      tracesStored++;
-      pStackTrace = pRet;
-    }
+    *pStackTrace = lt_st_dll_offset;
+    pStackTrace++;
+
+    *pStackTrace = sizeof(module_not_found) - 1;
+    pStackTrace++;
+
+    memcpy(pStackTrace, module_not_found, sizeof(module_not_found) - 1);
+    pStackTrace += sizeof(module_not_found) - 1;
+
+    *reinterpret_cast<uint64_t *>(pStackTrace) = rip;
+    pStackTrace += sizeof(uint64_t);
   }
 
   size_t lastStackValue = rip;
 
-  for (int64_t i = segmentCount - 1; i >= 0; i--)
+  for (size_t i = 0; i < segmentCount; i++)
   {
     const size_t value = pStack[i];
 

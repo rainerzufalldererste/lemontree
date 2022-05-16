@@ -75,7 +75,10 @@ int32_t main(const int32_t argc, const char **pArgv)
       DEBUG_EVENT debugEvent;
 
       if (!WaitForDebugEvent(&debugEvent, 2000))
-        FATAL("Failed to debug process. Aborting.");
+      {
+        puts("Failed to wait for debug event.");
+        break;
+      }
 
       DWORD continueStatus = DBG_CONTINUE;
 
@@ -101,7 +104,10 @@ int32_t main(const int32_t argc, const char **pArgv)
       }
 
       if (!ContinueDebugEvent(debugEvent.dwProcessId, debugEvent.dwThreadId, continueStatus))
-        FATAL("Failed to continue debugged process. Aborting.");
+      {
+        puts("Failed to continue debugged process.");
+        break;
+      }
 
     } while (keepRunning);
   }
