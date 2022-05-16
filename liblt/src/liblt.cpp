@@ -1369,7 +1369,7 @@ static size_t lt_write_foreign_stack_trace(OUT uint8_t *pStackTrace, const bool 
     }
   }
 
-  size_t lastStackValue = 0;
+  size_t lastStackValue = rip;
 
   for (int64_t i = segmentCount - 1; i >= 0; i--)
   {
@@ -1378,7 +1378,7 @@ static size_t lt_write_foreign_stack_trace(OUT uint8_t *pStackTrace, const bool 
     if (value < minSegPtr || value >= maxSegPtr || value == lastStackValue)
       continue;
 
-    pRet = lt_write_potential_stack_address(rip, pStackTrace, includeData, process, pSegments, segmentCount, &lastModuleAddress, &stackTraceHash);
+    pRet = lt_write_potential_stack_address(value, pStackTrace, includeData, process, pSegments, segmentCount, &lastModuleAddress, &stackTraceHash);
 
     if (pRet != pStackTrace)
     {

@@ -352,6 +352,16 @@ p.StackTraceElementModule {
   margin: 0 2pt 0 0;
 }
 
+p.StackTraceDisasm {
+  display: block;
+  margin: 2pt 0 10pt 10pt;
+  background: #222;
+  color: #687662;
+  width: fit-content;
+  padding: 2pt 5pt;
+  border-radius: 2pt;
+}
+
 p.StackTraceElementOffset {
   color: #555;
 }

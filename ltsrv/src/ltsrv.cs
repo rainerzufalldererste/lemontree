@@ -1078,6 +1078,7 @@ public struct StackTrace
   public string function;
   public string file;
   public uint? line;
+  public string disassembly;
 
   public string module;
 }

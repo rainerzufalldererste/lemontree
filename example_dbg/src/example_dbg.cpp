@@ -41,6 +41,8 @@ int32_t main(const int32_t argc, const char **pArgv)
 
   } while (0);
 
+  DWORD processId, threadId;
+
   // Launch Process.
   {
     PROCESS_INFORMATION processInfo;
@@ -52,6 +54,11 @@ int32_t main(const int32_t argc, const char **pArgv)
 
     if (!CreateProcessW(TEXT("example.exe"), nullptr, nullptr, nullptr, FALSE, DEBUG_PROCESS | CREATE_NEW_CONSOLE, nullptr, appPath, &startupInfo, &processInfo))
       FATAL("Failed to create process. (0x%" PRIX32 ")", GetLastError());
+
+    processId = processInfo.dwProcessId;
+    threadId = processInfo.dwThreadId;
+
+    printf("Created process %" PRIi32 ", thread %" PRIi32 ".\n", processId, threadId);
 
     CloseHandle(processInfo.hThread);
     CloseHandle(processInfo.hProcess);
@@ -70,6 +77,8 @@ int32_t main(const int32_t argc, const char **pArgv)
       if (!WaitForDebugEvent(&debugEvent, 2000))
         FATAL("Failed to debug process. Aborting.");
 
+      DWORD continueStatus = DBG_CONTINUE;
+
       switch (debugEvent.dwDebugEventCode)
       {
       case EXIT_PROCESS_DEBUG_EVENT:
@@ -77,18 +86,19 @@ int32_t main(const int32_t argc, const char **pArgv)
         break;
 
       case EXCEPTION_DEBUG_EVENT:
-        lt_crash_ex(debugEvent.dwProcessId, debugEvent.dwThreadId, debugEvent.u.Exception.ExceptionRecord.ExceptionCode, "Crash in child process.");
-        printf("Wrote excaption as crash log. (process %" PRIi32 ", thread %" PRIi32 ", exception 0x%" PRIX32 ")\n", debugEvent.dwProcessId, debugEvent.dwThreadId, debugEvent.u.Exception.ExceptionRecord.ExceptionCode);
+        continueStatus = DBG_EXCEPTION_NOT_HANDLED;
+        
+        if (debugEvent.dwProcessId == processId && debugEvent.dwThreadId == threadId)
+        {
+          lt_crash_ex(debugEvent.dwProcessId, debugEvent.dwThreadId, debugEvent.u.Exception.ExceptionRecord.ExceptionCode, "Crash in child process.");
+          printf("Wrote excaption as crash log. (exception 0x%" PRIX32 ")\n", debugEvent.u.Exception.ExceptionRecord.ExceptionCode);
+        }
+
         break;
 
       default:
         break;
       }
-
-      DWORD continueStatus = DBG_CONTINUE;
-
-      if (debugEvent.dwDebugEventCode == EXCEPTION_DEBUG_EVENT)
-        continueStatus = DBG_EXCEPTION_NOT_HANDLED;
 
       if (!ContinueDebugEvent(debugEvent.dwProcessId, debugEvent.dwThreadId, continueStatus))
         FATAL("Failed to continue debugged process. Aborting.");

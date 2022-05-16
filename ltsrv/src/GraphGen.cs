@@ -516,6 +516,9 @@ public static class GraphGen
           element.AddElement(new HText() { Class = "StackTraceElementAppModule" });
 
         element.AddElement(new HText($"0x{s.offset:X}") { Class = "StackTraceElementOffset" });
+
+        if (!string.IsNullOrWhiteSpace(s.disassembly))
+          element.AddElement(new HText(s.disassembly) { Class = "StackTraceDisasm" });
       }
     }
 
