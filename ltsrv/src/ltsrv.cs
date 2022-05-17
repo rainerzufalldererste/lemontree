@@ -423,7 +423,12 @@ public class ltsrv
 
     bool running = true;
 
-    using (var ws = new WebServer(8080, "web"))
+    int port = 8080;
+
+    if (args.Length == 1)
+      port = int.Parse(args[0]);
+
+    using (var ws = new WebServer(port, "web"))
     {
       Master.DiscoverPages();
 
