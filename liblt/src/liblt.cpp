@@ -33,6 +33,9 @@
 #define STRINGIFY(a) #a
 #define STRINGIFY_VALUE(a) STRINGIFY(a)
 
+#define REMOTE_POINTER
+#define REMOTE_DATA
+
 //////////////////////////////////////////////////////////////////////////
 
 const char * lt_get_product_name()
@@ -95,6 +98,7 @@ static bool lt_init();
 static void lt_write_block(IN const uint8_t *pData, const size_t size);
 static void lt_write_block_internal(IN const uint8_t *pData, const size_t size);
 static size_t lt_write_stack_trace(OUT uint8_t *pStackTrace, const bool includeData);
+static size_t lt_write_foreign_stack_trace(OUT uint8_t *pStackTrace, const bool includeData, const DWORD processId, const DWORD threadId);
 static size_t lt_write_system_info(OUT uint8_t *pData);
 
 inline uint64_t lt_time_100ns()
@@ -119,7 +123,51 @@ static struct lt_context
 
 //////////////////////////////////////////////////////////////////////////
 
-void lt_crash_ex(IN HANDLE process, IN HANDLE thread, const uint64_t errorCode, IN OPTIONAL const char *description);
+void lt_crash_ex(const DWORD processId, const DWORD threadId, const uint64_t errorCode, IN OPTIONAL const char *description)
+{
+  if (!lt_init())
+    return;
+
+  const uint64_t timestamp = lt_time_100ns();
+
+  uint8_t data[1024 * 10];
+  static_assert(sizeof(data) > 1 + 4 + 8 + 8 + 1 + 255 + 1 + 2 + 8 + lt_stack_trace_depth * (1 + 1 + 255 + 8) + 1, "data size may be insufficient.");
+
+  uint8_t *pData = data;
+
+  *pData = lt_t_crash;
+  pData += sizeof(uint8_t) + sizeof(uint16_t); // size of this block.
+
+  *reinterpret_cast<uint64_t *>(pData) = timestamp;
+  pData += sizeof(uint64_t);
+
+  *reinterpret_cast<uint64_t *>(pData) = errorCode;
+  pData += sizeof(uint64_t);
+
+  if (description != nullptr)
+  {
+    const uint8_t size = (uint8_t)min(0xFF, strlen(description));
+
+    *pData = size;
+    pData++;
+
+    memcpy(pData, description, size);
+    pData += size;
+  }
+  else
+  {
+    *pData = 0;
+    pData++;
+  }
+
+  const uint16_t stackTraceSize = (uint16_t)lt_write_foreign_stack_trace(pData + 2, lt_get_crash_stack_trace_include_data(), processId, threadId);
+  *reinterpret_cast<uint16_t *>(pData) = stackTraceSize;
+  pData += 2ULL + stackTraceSize;
+
+  *reinterpret_cast<uint16_t *>(&data[1]) = (uint16_t)(pData - data);
+
+  lt_write_block(data, pData - data);
+}
 
 void lt_crash(const uint64_t errorCode, IN OPTIONAL const char *description)
 {
@@ -848,6 +896,523 @@ static void lt_write_block_internal(IN const uint8_t *pData, const size_t size)
 #endif
 }
 
+#pragma optimize ("", off)
+
+// See: https://web.archive.org/web/20160813092413/http://undocumented.ntinternals.net/index.html?page=UserMode%2FUndocumented%20Functions%2FNT%20Objects%2FThread%2FTHREAD_INFORMATION_CLASS.html et al.
+
+typedef struct _THREAD_BASIC_INFORMATION
+{
+  NTSTATUS                ExitStatus;
+  PVOID                   TebBaseAddress;
+  CLIENT_ID               ClientId;
+  KAFFINITY               AffinityMask;
+  KPRIORITY               Priority;
+  KPRIORITY               BasePriority;
+} THREAD_BASIC_INFORMATION, *PTHREAD_BASIC_INFORMATION;
+
+typedef enum ___THREAD_INFORMATION_CLASS
+{
+  ThreadBasicInformation,
+  ThreadTimes,
+  ThreadPriority,
+  ThreadBasePriority,
+  ThreadAffinityMask,
+  ThreadImpersonationToken,
+  ThreadDescriptorTableEntry,
+  ThreadEnableAlignmentFaultFixup,
+  ThreadEventPair,
+  ThreadQuerySetWin32StartAddress,
+  ThreadZeroTlsCell,
+  ThreadPerformanceCount,
+  ThreadAmILastThread,
+  ThreadIdealProcessor,
+  ThreadPriorityBoost,
+  ThreadSetTlsArrayAddress,
+  __ThreadIsIoPending, // Already defined in windows header.
+  ThreadHideFromDebugger
+} __THREAD_INFORMATION_CLASS, *P__THREAD_INFORMATION_CLASS;
+
+static bool lt_get_foreign_stack_trace_handles(DWORD processId, DWORD threadId, OUT HANDLE *pProcess, OUT HANDLE *pThread)
+{
+  HANDLE process = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, false, processId);
+
+  if (process == nullptr)
+    return false;
+
+  HANDLE thread = OpenThread(THREAD_GET_CONTEXT | THREAD_QUERY_INFORMATION, false, threadId);
+
+  if (thread == nullptr)
+  {
+    CloseHandle(process);
+    return false;
+  }
+
+  *pProcess = process;
+  *pThread = thread;
+
+  return true;
+}
+
+static bool lt_get_foreign_stack_trace_properties(HANDLE process, HANDLE thread, OUT REMOTE_DATA PEB *pProcEnvBlock, OUT REMOTE_POINTER size_t *pStackPosition, OUT REMOTE_POINTER size_t *pStackStart, OUT REMOTE_POINTER size_t *pRip)
+{
+  PROCESS_BASIC_INFORMATION processInfo;
+  THREAD_BASIC_INFORMATION threadInfo;
+
+  // Query Process & Thread Information.
+  {
+    HMODULE ntdll = LoadLibraryW(TEXT("ntdll.dll"));
+
+    if (ntdll == nullptr)
+      return false;
+
+    decltype(NtQueryInformationProcess) *pNtQueryInformationProcess = reinterpret_cast<decltype(NtQueryInformationProcess) *>(GetProcAddress(ntdll, "NtQueryInformationProcess"));
+
+    if (pNtQueryInformationProcess == nullptr)
+    {
+      FreeLibrary(ntdll);
+      return false;
+    }
+
+    DWORD retrievedSize = 0;
+
+    if (0 /* STATUS_SUCCESS */ != pNtQueryInformationProcess(process, ProcessBasicInformation, &processInfo, sizeof(processInfo), &retrievedSize) || retrievedSize != sizeof(processInfo))
+    {
+      FreeLibrary(ntdll);
+      return false;
+    }
+
+    decltype(NtQueryInformationThread) *pNtQueryInformationThread = reinterpret_cast<decltype(NtQueryInformationThread) *>(GetProcAddress(ntdll, "NtQueryInformationThread"));
+
+    if (pNtQueryInformationThread == nullptr)
+    {
+      FreeLibrary(ntdll);
+      return false;
+    }
+
+    if (0 /* STATUS_SUCCESS */ != pNtQueryInformationThread(thread, (THREADINFOCLASS)ThreadBasicInformation, &threadInfo, sizeof(threadInfo), &retrievedSize) || retrievedSize != sizeof(threadInfo))
+    {
+      FreeLibrary(ntdll);
+      return false;
+    }
+
+    FreeLibrary(ntdll);
+  }
+
+  REMOTE_DATA PEB processEnvironmentBlock;
+  size_t bytesRead = 0;
+
+  if (0 == ReadProcessMemory(process, processInfo.PebBaseAddress, &processEnvironmentBlock, sizeof(processEnvironmentBlock), &bytesRead) || bytesRead != sizeof(processEnvironmentBlock))
+    return false;
+  
+  REMOTE_DATA NT_TIB threadInformationBlock;
+
+  if (0 == ReadProcessMemory(process, threadInfo.TebBaseAddress, &threadInformationBlock, sizeof(threadInformationBlock), &bytesRead) || bytesRead != sizeof(threadInformationBlock))
+    return false;
+
+  REMOTE_DATA CONTEXT threadContext;
+  ZeroMemory(&threadContext, sizeof(threadContext));
+  threadContext.ContextFlags = CONTEXT_ALL;
+
+  if (0 == GetThreadContext(thread, &threadContext))
+    return false;
+
+  *pProcEnvBlock = processEnvironmentBlock;
+  *pStackPosition = threadContext.Rsp;
+  *pStackStart = reinterpret_cast<size_t>(threadInformationBlock.StackBase);
+  *pRip = threadContext.Rip;
+  
+  return true;
+}
+
+struct lt_process_segment
+{
+  bool isHostProcess;
+  uint8_t moduleNameLength;
+  char moduleName[0xFF]; // <- not a c string. length is in `moduleNameLength`.
+  REMOTE_POINTER size_t moduleBase;
+  REMOTE_POINTER DWORD segmentBase, segmentMax;
+};
+
+static bool lt_append_segment(HANDLE heap, IN_OUT lt_process_segment **ppSegments, IN_OUT size_t *pSegmentCount, IN const lt_process_segment *pNewSegment)
+{
+  if (*ppSegments == nullptr)
+  {
+    *pSegmentCount = 0;
+
+    *ppSegments = reinterpret_cast<lt_process_segment *>(HeapAlloc(heap, 0, sizeof(lt_process_segment)));
+
+    if (*ppSegments == nullptr)
+      return false;
+    
+    *pSegmentCount = 1;
+  }
+  else
+  {
+    lt_process_segment *pNew = reinterpret_cast<lt_process_segment *>(HeapReAlloc(heap, 0, *ppSegments, sizeof(lt_process_segment) * (*pSegmentCount + 1)));
+
+    if (pNew == nullptr)
+    {
+      HeapFree(heap, 0, *ppSegments);
+      *ppSegments = nullptr;
+      *pSegmentCount = 0;
+
+      return false;
+    }
+
+    *ppSegments = pNew;
+    (*pSegmentCount)++;
+  }
+
+  // Append New Segment.
+  {
+    memcpy(*ppSegments + (*pSegmentCount - 1), pNewSegment, sizeof(lt_process_segment));
+  }
+
+  return true;
+}
+
+template <typename T>
+static bool lt_load_from_remote_process(HANDLE process, const REMOTE_POINTER T *pAddress, OUT REMOTE_DATA T *pOut)
+{
+  size_t bytesRead = 0;
+
+  if (0 == ReadProcessMemory(process, pAddress, pOut, sizeof(T), &bytesRead) || bytesRead != sizeof(T))
+    return false;
+
+  return true;
+}
+
+static bool lt_get_foreign_stack_trace_segments_inner(HANDLE heap, HANDLE process, REMOTE_DATA PEB *pPEB, OUT lt_process_segment **ppSegments, OUT size_t *pSegmentCount, OUT size_t *pMin, OUT size_t *pMax)
+{
+  REMOTE_POINTER size_t minSegPtr = 0, maxSegPtr = 0;
+
+  REMOTE_DATA PEB_LDR_DATA ldrData;
+
+  if (!lt_load_from_remote_process(process, pPEB->Ldr, &ldrData))
+    return false;
+
+  REMOTE_POINTER const LIST_ENTRY *pAppMemoryModule = ldrData.InMemoryOrderModuleList.Flink;
+  REMOTE_POINTER const LIST_ENTRY *pNext = pAppMemoryModule;
+
+  do
+  {
+    REMOTE_DATA LIST_ENTRY listEntry;
+    REMOTE_DATA LDR_DATA_TABLE_ENTRY tableEntry;
+
+    if (!lt_load_from_remote_process(process, pNext, &listEntry) || !lt_load_from_remote_process(process, CONTAINING_RECORD(pNext, LDR_DATA_TABLE_ENTRY, InMemoryOrderLinks), &tableEntry))
+      return false;
+
+    const REMOTE_POINTER IMAGE_DOS_HEADER *pDosHeader = reinterpret_cast<const REMOTE_POINTER IMAGE_DOS_HEADER *>(tableEntry.DllBase);
+
+    if (pDosHeader == nullptr)
+      break;
+
+    REMOTE_DATA IMAGE_DOS_HEADER dosHeader;
+
+    if (!lt_load_from_remote_process(process, pDosHeader, &dosHeader))
+      return false;
+
+    const REMOTE_POINTER IMAGE_NT_HEADERS *pNtHeader = reinterpret_cast<const REMOTE_POINTER IMAGE_NT_HEADERS *>((size_t)pDosHeader + dosHeader.e_lfanew);
+    
+    REMOTE_DATA IMAGE_NT_HEADERS ntHeader;
+
+    if (!lt_load_from_remote_process(process, pNtHeader, &ntHeader))
+      return false;
+    
+    const size_t sectionHeaderCount = ntHeader.FileHeader.NumberOfSections;
+    const REMOTE_POINTER IMAGE_SECTION_HEADER *pSectionHeader = ((PIMAGE_SECTION_HEADER)((ULONG_PTR)(pNtHeader) + FIELD_OFFSET(IMAGE_NT_HEADERS, OptionalHeader) + ((ntHeader)).FileHeader.SizeOfOptionalHeader)); // Replicating this: `IMAGE_FIRST_SECTION(pNtHeader);` (without accessing remote memory)
+
+    size_t count = 0;
+
+    const size_t localModuleNameBytes = sizeof(wchar_t) * tableEntry.FullDllName.Length;
+    wchar_t *pLocalModuleName = reinterpret_cast<wchar_t *>(HeapAlloc(heap, 0, localModuleNameBytes));
+    wchar_t *pLocalModuleNameOffset = pLocalModuleName;
+
+    if (pLocalModuleName == nullptr)
+      return false;
+
+    size_t bytesRead = 0;
+
+    if (0 == ReadProcessMemory(process, tableEntry.FullDllName.Buffer, pLocalModuleName, localModuleNameBytes, &bytesRead) || bytesRead != localModuleNameBytes)
+    {
+      HeapFree(heap, 0, pLocalModuleName);
+      return false;
+    }
+
+    for (uint16_t j = 0; j < tableEntry.FullDllName.Length; j++)
+    {
+      const wchar_t c = pLocalModuleName[j];
+
+      if (c == L'\\' || c == L'/')
+        pLocalModuleNameOffset = pLocalModuleName + j + 1;
+      else if (c == L'\0')
+        break;
+
+      count++;
+    }
+
+    const uint8_t moduleNameChars = (uint8_t)min(0xFF, (pLocalModuleName + count) - pLocalModuleNameOffset);
+
+    char moduleName[0x100];
+
+    for (size_t j = 0; j < moduleNameChars; j++)
+      moduleName[j] = (uint8_t)pLocalModuleNameOffset[j];
+
+    moduleName[moduleNameChars] = '\0';
+
+    HeapFree(heap, 0, pLocalModuleName);
+
+    for (size_t i = 0; i < sectionHeaderCount; i++)
+    {
+      REMOTE_DATA IMAGE_SECTION_HEADER sectionHeader;
+
+      if (!lt_load_from_remote_process(process, pSectionHeader + i, &sectionHeader))
+        return false;
+
+      if (sectionHeader.Characteristics & (IMAGE_SCN_MEM_EXECUTE | IMAGE_SCN_CNT_CODE))
+      {
+        const size_t moduleBase = reinterpret_cast<size_t>(pDosHeader);
+        lt_process_segment seg;
+        seg.isHostProcess = pNext == pAppMemoryModule;
+        seg.moduleBase = moduleBase;
+        seg.segmentBase = sectionHeader.VirtualAddress;
+        seg.segmentMax = sectionHeader.VirtualAddress + sectionHeader.Misc.VirtualSize;
+        seg.moduleNameLength = moduleNameChars;
+        memcpy(seg.moduleName, moduleName, moduleNameChars); // yes, this is not copying the null terminator, but we have the length, so who cares?
+
+        if (*pSegmentCount == 0)
+        {
+          minSegPtr = moduleBase + seg.segmentBase;
+          maxSegPtr = moduleBase + seg.segmentMax;
+        }
+        else
+        {
+          minSegPtr = min(minSegPtr, moduleBase + seg.segmentBase);
+          maxSegPtr = max(maxSegPtr, moduleBase + seg.segmentMax);
+        }
+
+        if (!lt_append_segment(heap, ppSegments, pSegmentCount, &seg))
+          return false;
+      }
+    }
+
+    pNext = listEntry.Flink;
+
+  } while (pNext != nullptr && pNext != pAppMemoryModule);
+
+  *pMin = minSegPtr;
+  *pMax = maxSegPtr;
+
+  return true;
+}
+
+static bool lt_get_foreign_stack_trace_segments(HANDLE heap, HANDLE process, REMOTE_DATA PEB *pPEB, OUT lt_process_segment **ppSegments, OUT size_t *pSegmentCount, OUT size_t *pMin, OUT size_t *pMax)
+{
+  *ppSegments = nullptr;
+  *pSegmentCount = 0;
+
+  if (!lt_get_foreign_stack_trace_segments_inner(heap, process, pPEB, ppSegments, pSegmentCount, pMin, pMax))
+  {
+    if (*ppSegments != nullptr)
+    {
+      HeapFree(heap, 0, *ppSegments);
+      *ppSegments = nullptr;
+    }
+
+    *pMin = 0;
+    *pMax = 0;
+  }
+
+  return true;
+}
+
+static uint8_t * lt_write_potential_stack_address(const size_t value, uint8_t *pStackTrace, const bool includeData, HANDLE process, const lt_process_segment *pSegments, const size_t segmentCount, IN_OUT size_t *pLastModuleBaseAddress, OUT size_t *pStackTraceHash)
+{
+  for (size_t i = 0; i < segmentCount; i++)
+  {
+    if (value >= pSegments[i].moduleBase + pSegments[i].segmentBase && value < pSegments[i].moduleBase + pSegments[i].segmentMax)
+    {
+      *pStackTraceHash = (*pStackTraceHash ^ (value - pSegments[i].moduleBase) * 0xCC9E2D51) * 0x1B873593;
+
+      if (pSegments[i].isHostProcess)
+      {
+        *pStackTrace = lt_st_app_offset;
+        pStackTrace++;
+
+        *reinterpret_cast<uint64_t *>(pStackTrace) = value - pSegments[i].moduleBase;
+        pStackTrace += sizeof(uint64_t);
+      }
+      else if (*pLastModuleBaseAddress == pSegments[i].moduleBase)
+      {
+        *pStackTrace = lt_st_same_dll_offset;
+        pStackTrace++;
+
+        *reinterpret_cast<uint64_t *>(pStackTrace) = value - pSegments[i].moduleBase;
+        pStackTrace += sizeof(uint64_t);
+      }
+      else
+      {
+        *pStackTrace = lt_st_dll_offset;
+        pStackTrace++;
+
+        *pStackTrace = pSegments[i].moduleNameLength;
+        pStackTrace++;
+
+        memcpy(pStackTrace, pSegments[i].moduleName, pSegments[i].moduleNameLength);
+        pStackTrace += pSegments[i].moduleNameLength;
+
+        *reinterpret_cast<uint64_t *>(pStackTrace) = value - pSegments[i].moduleBase;
+        pStackTrace += sizeof(uint64_t);
+      }
+
+      if (includeData)
+      {
+        uint8_t data[16];
+        size_t bytesRead = 0;
+
+        if (0 != ReadProcessMemory(process, reinterpret_cast<const void *>(value), data, sizeof(data), &bytesRead) && bytesRead == 16)
+        {
+          *pStackTrace = lt_st_data16;
+          pStackTrace++;
+
+          memcpy(pStackTrace, data, sizeof(data));
+          pStackTrace += sizeof(data);
+        }
+      }
+
+      *pLastModuleBaseAddress = pSegments[i].moduleBase;
+
+      return pStackTrace;
+    }
+  }
+
+  return pStackTrace;
+}
+
+static size_t lt_write_foreign_stack_trace(OUT uint8_t *pStackTrace, const bool includeData, const DWORD processId, const DWORD threadId)
+{
+  HANDLE heap = GetProcessHeap();
+
+  if (heap == nullptr)
+    return 0;
+
+  HANDLE process, thread;
+
+  if (!lt_get_foreign_stack_trace_handles(processId, threadId, &process, &thread))
+    return 0;
+
+  REMOTE_DATA PEB processEnvironmentBlock;
+  size_t stackPosition, stackStart, rip;
+
+  if (!lt_get_foreign_stack_trace_properties(process, thread, &processEnvironmentBlock, &stackPosition, &stackStart, &rip))
+  {
+    CloseHandle(process);
+    CloseHandle(thread);
+    return 0;
+  }
+
+  const size_t stackCount = (stackStart - stackPosition) / sizeof(size_t);
+  REMOTE_DATA size_t *pStack = reinterpret_cast<size_t *>(HeapAlloc(heap, 0, sizeof(size_t) * stackCount));
+
+  if (pStack == nullptr)
+  {
+    CloseHandle(process);
+    CloseHandle(thread);
+    return 0;
+  }
+
+  size_t bytesRead = 0;
+
+  if (0 == ReadProcessMemory(process, reinterpret_cast<const void *>(stackPosition), pStack, stackCount * sizeof(size_t), &bytesRead) || bytesRead != stackCount * sizeof(size_t))
+  {
+    HeapFree(heap, 0, pStack);
+    CloseHandle(process);
+    CloseHandle(thread);
+    return 0;
+  }
+
+  lt_process_segment *pSegments = nullptr;
+  size_t segmentCount = 0;
+  REMOTE_POINTER size_t minSegPtr, maxSegPtr;
+
+  if (!lt_get_foreign_stack_trace_segments(heap, process, &processEnvironmentBlock, &pSegments, &segmentCount, &minSegPtr, &maxSegPtr))
+  {
+    HeapFree(heap, 0, pStack);
+    CloseHandle(process);
+    CloseHandle(thread);
+    return 0;
+  }
+
+  uint8_t *pStackTraceStart = pStackTrace;
+
+  *pStackTrace = lt_st_start;
+  pStackTrace++;
+
+  uint64_t stackTraceHash = 0;
+
+  uint32_t *pStackTraceHash = reinterpret_cast<uint32_t *>(pStackTrace);
+  pStackTrace += sizeof(uint32_t);
+
+  size_t lastModuleAddress = 0;
+  size_t tracesStored = 0;
+
+  uint8_t *pRet;
+  
+  if (rip >= minSegPtr && rip < maxSegPtr && (pRet = lt_write_potential_stack_address(rip, pStackTrace, includeData, process, pSegments, segmentCount, &lastModuleAddress, &stackTraceHash)) != pStackTrace)
+  {
+    tracesStored++;
+    pStackTrace = pRet;
+  }
+  else
+  {
+    const char module_not_found[] = "MODULE_NOT_FOUND";
+
+    *pStackTrace = lt_st_dll_offset;
+    pStackTrace++;
+
+    *pStackTrace = sizeof(module_not_found) - 1;
+    pStackTrace++;
+
+    memcpy(pStackTrace, module_not_found, sizeof(module_not_found) - 1);
+    pStackTrace += sizeof(module_not_found) - 1;
+
+    *reinterpret_cast<uint64_t *>(pStackTrace) = rip;
+    pStackTrace += sizeof(uint64_t);
+  }
+
+  size_t lastStackValue = rip;
+
+  for (size_t i = 0; i < segmentCount; i++)
+  {
+    const size_t value = pStack[i];
+
+    if (value < minSegPtr || value >= maxSegPtr || value == lastStackValue)
+      continue;
+
+    pRet = lt_write_potential_stack_address(value, pStackTrace, includeData, process, pSegments, segmentCount, &lastModuleAddress, &stackTraceHash);
+
+    if (pRet != pStackTrace)
+    {
+      lastStackValue = value;
+      tracesStored++;
+      pStackTrace = pRet;
+
+      if (tracesStored == lt_stack_trace_depth)
+        break;
+    }
+  }
+
+  HeapFree(heap, 0, pStack);
+  HeapFree(heap, 0, pSegments);
+
+  *pStackTraceHash = (uint32_t)(stackTraceHash ^ (stackTraceHash >> 32));
+
+  *pStackTrace = lt_st_end;
+  pStackTrace++;
+
+  return pStackTrace - pStackTraceStart;
+}
+
 static size_t lt_write_stack_trace(OUT uint8_t *pStackTrace, const bool includeData)
 {
   uint8_t *pStackTraceStart = pStackTrace;
@@ -978,7 +1543,7 @@ static size_t lt_write_stack_trace(OUT uint8_t *pStackTrace, const bool includeD
     } while (pNext != nullptr && pNext != pAppMemoryModule);
   }
 
-  *pStackTraceHash = (uint32_t)(stackTraceHash | (stackTraceHash >> 32));
+  *pStackTraceHash = (uint32_t)(stackTraceHash ^ (stackTraceHash >> 32));
 
   *pStackTrace = lt_st_end;
   pStackTrace++;

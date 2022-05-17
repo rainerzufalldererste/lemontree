@@ -1,3 +1,8 @@
+#ifdef _WIN32
+#include <windows.h>
+#include <intrin.h>
+#endif
+
 #include "liblt.h"
 
 extern const char *g_lt_product_name = "lt_example";
@@ -121,6 +126,22 @@ int32_t main(const int32_t argc, const char **pArgv)
   lt_perf_metric(1, -1.0);
   lt_perf_metric(1, 20.0);
   lt_perf_metric(3, 1.0);
+
+#ifdef _WIN32
+  if (IsDebuggerPresent())
+  {
+    // Generate an `EXCEPTION_DEBUG_EVENT` for `example_dbg`.
+    // Please Mr. Compiler, let us crash.
+
+    size_t a[2];
+    _mm_storeu_si128(reinterpret_cast<__m128i *>(a), _mm_setzero_si128()); // set a[0] and a[1] to 0.
+
+    size_t b = *reinterpret_cast<const size_t *>(a[0]); // maybe a little bit of nullptr deref.
+
+    if (b != 0) // definetely not unused!
+      __debugbreak(); // or just plain dbgbreak.
+  }
+#endif
 
   return 0;
 }

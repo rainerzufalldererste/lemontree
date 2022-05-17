@@ -478,7 +478,7 @@ public static class GraphGen
 
     var errorInfo = new HContainer() { ID = Hash.GetHash(), Class = "ErrorInfo" };
 
-    container.AddElement(new HContainer() { Class = "ErrorDescription", Elements = { new HContainer() { Class = "ErrorBarContainer", Elements = { new HText($"{t.count}") { Class = "BarError", Style = $"--value:{percentage};", Title = t.count.ToString() } } }, new HText(e.errorCode.ToString()) { Class = "ErrorCode", Name = e.description ?? "" }, new HButton("+", "", $"document.getElementById(\"{errorInfo.ID}\").style.display = \"block\";") { Class = "ErrorInfoShowButton" }, new HContainer() { Elements = { new HText($"{t.avgDelay:0.####}s") { Class = "DataDelay" }, new HText($"{t.minDelay:0.####}s") { Class = "DataDelayMin" }, new HText($"{t.maxDelay:0.####}s") { Class = "DataDelayMax" } } } } });
+    container.AddElement(new HContainer() { Class = "ErrorDescription", Elements = { new HContainer() { Class = "ErrorBarContainer", Elements = { new HText($"{t.count}") { Class = "BarError", Style = $"--value:{percentage};", Title = t.count.ToString() } } }, new HText($"{e.errorCode} / 0x{e.errorCode.value:X}") { Class = "ErrorCode", Name = e.description ?? "" }, new HButton("+", "", $"document.getElementById(\"{errorInfo.ID}\").style.display = \"block\";") { Class = "ErrorInfoShowButton" }, new HContainer() { Elements = { new HText($"{t.avgDelay:0.####}s") { Class = "DataDelay" }, new HText($"{t.minDelay:0.####}s") { Class = "DataDelayMin" }, new HText($"{t.maxDelay:0.####}s") { Class = "DataDelayMax" } } } } });
 
     container.AddElement(errorInfo);
 
@@ -516,6 +516,9 @@ public static class GraphGen
           element.AddElement(new HText() { Class = "StackTraceElementAppModule" });
 
         element.AddElement(new HText($"0x{s.offset:X}") { Class = "StackTraceElementOffset" });
+
+        if (!string.IsNullOrWhiteSpace(s.disassembly))
+          element.AddElement(new HText(s.disassembly) { Class = "StackTraceDisasm" });
       }
     }
 

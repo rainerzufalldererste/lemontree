@@ -1,12 +1,13 @@
-ProjectName = "liblt"
+ProjectName = "example_dbg"
 project(ProjectName)
 
   --Settings
-  kind "StaticLib"
+  kind "ConsoleApp"
   language "C++"
   staticruntime "On"
 
-  dependson { "ltsend" }
+  dependson { "liblt" }
+  dependson { "example" }
 
   filter { "system:windows" }
     buildoptions { '/Gm-' }
@@ -22,25 +23,23 @@ project(ProjectName)
   objdir "intermediate/obj"
 
   files { "src/**.cpp", "src/**.c", "src/**.cc", "src/**.h", "src/**.hh", "src/**.hpp", "src/**.inl", "src/**rc" }
-  files { "include/**.h", "include/**.hh", "include/**.hpp", "include/**.inl" }
-  files { "common/**.cpp", "common/**.c", "common/**.cc", "common/**.h", "common/**.hh", "common/**.hpp", "common/**.inl" }
   files { "project.lua" }
 
-  includedirs { "include", "common", "src" }
+  includedirs { "../liblt/include" }
+  links { "../builds/lib/liblt.lib" }
 
   filter { "configurations:Debug", "system:Windows" }
     ignoredefaultlibraries { "libcmt" }
   filter { }
   
   targetname(ProjectName)
-  targetdir "../builds/lib"
-  debugdir "../builds/lib"
+  targetdir "../builds/bin/example"
+  debugdir "../builds/bin/example"
   
 filter {}
 configuration {}
 
 warnings "Extra"
-
 targetname "%{prj.name}"
 
 filter {}
@@ -60,13 +59,8 @@ filter { "configurations:Release" }
 	optimize "Speed"
 	flags { "NoBufferSecurityCheck", "NoIncrementalLink" }
   omitframepointer "On"
-	
-  if os.getenv("CI_BUILD_REF_NAME") then
-    symbols "Off"
-  else
-    symbols "On"
-  end
-  
+	symbols "On"
+
 filter { "system:windows", "configurations:Release", "action:vs2012" }
 	buildoptions { "/d2Zi+" }
 
