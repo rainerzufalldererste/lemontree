@@ -15,6 +15,11 @@
 
 #include <wincrypt.h>
 #include <strsafe.h>
+#include <intrin.h>
+
+#pragma warning(push, 0)
+#include <winternl.h>
+#pragma warning(pop)
 
 #include <WinDNS.h>
 #pragma comment(lib, "Dnsapi.lib")
@@ -202,6 +207,7 @@ static bool _OpenLogFile();
 __declspec(noreturn) static void _LogErrorAndQuit(const char *text, const size_t errorCode);
 static void _Log(const char *text);
 static void _LogW(const wchar_t *text);
+void _SetupSignalHandler();
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -692,6 +698,8 @@ bool TransferToServer(const char *serverLocator, const char productName[0x100], 
     RETURN_ERROR("Failed to send solution.");
   }
 
+  uint8_t mac[16];
+
   // Handshake Step 4, 5: Send Client Public Key (and Encrypt Data), then: Send MAC.
   {
     const uint8_t serverPublicKey[32] =
@@ -738,18 +746,20 @@ bool TransferToServer(const char *serverLocator, const char productName[0x100], 
       MemoryBarrier();
     }
 
-    uint8_t mac[16];
-
     crypto_lock(mac, pData, sessionKeys, sessionKeys + 32, pData, dataSize); // yes, we're inplace encrypting `pData`. that is perfectly fine.
 
     ZeroMemory(sessionKeys, sizeof(sessionKeys));
     MemoryBarrier();
+  }
 
-    if (!Send(&socketHandle, mac, sizeof(mac)))
-    {
-      DestroySocket(&socketHandle);
-      RETURN_ERROR("Failed to send file authentication.");
-    }
+  bool retried = false;
+retry:
+
+  // Send the MAC of the encrypted file contents.
+  if (!Send(&socketHandle, mac, sizeof(mac)))
+  {
+    DestroySocket(&socketHandle);
+    RETURN_ERROR("Failed to send file authentication.");
   }
 
   // Send the (now encrypted) actual file contents.
@@ -770,7 +780,13 @@ bool TransferToServer(const char *serverLocator, const char productName[0x100], 
       RETURN_ERROR("Failed to receive server acknowledgement.");
     }
 
-    if (ok[0] != 'O' || ok[1] != 'K')
+    if (!retried && ok[0] == 'R' || ok[1] == 'E')
+    {
+      retried = true;
+      LOG("Server requested retry. Retrying transmission.");
+      goto retry;
+    }
+    else if (ok[0] != 'O' || ok[1] != 'K')
     {
       DestroySocket(&socketHandle);
       RETURN_ERROR("Receive invalid server acknowledgement.");
@@ -848,8 +864,8 @@ bool HandleFile(HANDLE file)
   if (!GetFileSizeEx(file, &size))
     RETURN_ERROR("Failed to retrieve file size from handle.");
 
-  if ((size_t)size.QuadPart > 1024 * 128)
-    RETURN_ERROR("File size exceeds 128 kb.");
+  if ((size_t)size.QuadPart > 1024 * 256) // this has been increased from 128.
+    RETURN_ERROR("File size exceeds 256 kb.");
 
   uint8_t *pContents = malloc(size.QuadPart);
 
@@ -858,7 +874,7 @@ bool HandleFile(HANDLE file)
 
   DWORD bytesRead = 0;
 
-  if (TRUE != ReadFile(file, pContents, size.LowPart /* Should be sufficient, because we're reading 1024 * 128  bytes max */, &bytesRead, NULL))
+  if (TRUE != ReadFile(file, pContents, size.LowPart /* Should be sufficient, because we're reading 1024 * 256  bytes max */, &bytesRead, NULL))
   {
     free(pContents);
     RETURN_ERROR("Failed to read file contents.");
@@ -901,6 +917,7 @@ bool HandleFile(HANDLE file)
 
 DWORD CALLBACK EntryPoint()
 {
+  _SetupSignalHandler();
   SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_LOWEST);
 
   int32_t argc = 0;
@@ -946,7 +963,7 @@ DWORD CALLBACK EntryPoint()
       WaitForSingleObject(process, INFINITE);
       
       // To ensure that writing the log file is finalized.
-      Sleep(200);
+      Sleep(2000);
     }
   }
 
@@ -1108,4 +1125,72 @@ static void _LogW(const wchar_t *text)
     if (count > 0)
       WriteFile(_LogFile, utf8, count - 1, NULL, NULL);
   }
+}
+
+//////////////////////////////////////////////////////////////////////////
+
+void _LogHex(const uint64_t value)
+{
+  static const char lut[] = "0123456789ABCDEF";
+  char param[sizeof("FFFFFFFFFFFFFFFF")];
+  size_t index = 0;
+  uint64_t val = value;
+
+  // Write process id as hex to `param` (reverse).
+  while (val != 0)
+  {
+    param[index] = lut[val & 0xF];
+    val >>= 4;
+    index++;
+  }
+
+  param[index] = '\0';
+  index--;
+
+  size_t start = 0;
+
+  // Reverse the reversed number in `param`.
+  while (start < index)
+  {
+    const char t = param[start];
+    param[start] = param[index];
+    param[index] = t;
+
+    start++;
+    index--;
+  }
+
+  _Log(param);
+}
+
+BOOL WINAPI _SignalHandler(DWORD type)
+{
+  _Log("[CRITICAL] Signal raised: 0x");
+  _LogHex(type);
+  _Log(".\n");
+
+  return TRUE;
+}
+
+LONG WINAPI TopLevelExceptionHandler(IN EXCEPTION_POINTERS *pExceptionInfo)
+{
+  _Log("[CRITICAL] Exception raised: 0x");
+  _LogHex(pExceptionInfo->ExceptionRecord->ExceptionCode);
+
+  PEB *pProcessEnvironmentBlock = (PEB *)__readgsqword(0x60);
+  LDR_DATA_TABLE_ENTRY *pApplicationModuleEntry = CONTAINING_RECORD(pProcessEnvironmentBlock->Ldr->InMemoryOrderModuleList.Flink, LDR_DATA_TABLE_ENTRY, InMemoryOrderLinks);
+
+  _Log(" at 0x");
+  _LogHex((uint64_t)pExceptionInfo->ExceptionRecord->ExceptionAddress - (uint64_t)pApplicationModuleEntry->DllBase);
+  _Log(".\n");
+
+  return EXCEPTION_CONTINUE_SEARCH;
+}
+
+void _SetupSignalHandler()
+{
+  SetUnhandledExceptionFilter(TopLevelExceptionHandler);
+
+  if (0 == SetConsoleCtrlHandler(_SignalHandler, TRUE))
+    LOG("Failed to set ConsoleCrtHandler.");
 }

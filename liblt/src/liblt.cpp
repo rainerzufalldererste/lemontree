@@ -896,8 +896,6 @@ static void lt_write_block_internal(IN const uint8_t *pData, const size_t size)
 #endif
 }
 
-#pragma optimize ("", off)
-
 // See: https://web.archive.org/web/20160813092413/http://undocumented.ntinternals.net/index.html?page=UserMode%2FUndocumented%20Functions%2FNT%20Objects%2FThread%2FTHREAD_INFORMATION_CLASS.html et al.
 
 typedef struct _THREAD_BASIC_INFORMATION
