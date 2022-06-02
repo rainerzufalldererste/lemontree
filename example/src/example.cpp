@@ -127,6 +127,16 @@ int32_t main(const int32_t argc, const char **pArgv)
   lt_perf_metric(1, 20.0);
   lt_perf_metric(3, 1.0);
 
+  // Apparently sending a log file fails, when it's too large or something.
+  {
+    for (size_t i = 0; i < 1024; i++)
+    {
+      lt_observe_value_u64(123, i);
+      lt_operation(i % 140, i % 11, i % 7);
+      lt_observe_value_i64(12345, i * i);
+    }
+  }
+
 #ifdef _WIN32
   if (IsDebuggerPresent())
   {

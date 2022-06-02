@@ -13,7 +13,7 @@ namespace ltrcv
   public class ltrcv
   {
     static ushort port = 0x2E11;
-    static int readTimeout = 60 * 1000;
+    static int readTimeout = 120 * 1000;
     static int maxThreads = 256;
     
     static int threadCount = 0;
@@ -84,7 +84,7 @@ namespace ltrcv
       TcpClient tcpClient = receiveTask.Result;
       tcpClient.ReceiveTimeout = readTimeout;
 
-      Console.WriteLine("Client Connected: " + tcpClient.Client.RemoteEndPoint.ToString());
+      Console.WriteLine("Client connected: " + tcpClient.Client.RemoteEndPoint.ToString());
 
       return tcpClient;
     }
@@ -120,7 +120,7 @@ namespace ltrcv
             if (client == null)
               continue;
 
-            Console.WriteLine($"TCP Client connected. ({client.Client.RemoteEndPoint})");
+            Console.WriteLine($"TCP Connection accepted. ({client.Client.RemoteEndPoint})");
 
             new Thread(() => { ClientThread(client); }).Start();
           }
@@ -251,25 +251,25 @@ namespace ltrcv
             crypto_blake2b_final(ref ctx, sessionKeys);
           }
 
-          byte[] mac = new byte[16];
+          Span<byte> actualData;
 
-          bytesRead = stream.Read(mac, 0, mac.Length);
+          try
+          {
+            ReadDecryptFile(stream, sessionKeys, out actualData);
+          }
+          catch (InvalidDataException e)
+          {
+            Console.WriteLine($"Failed to Read and Decrypt telemetry data. Retrying. ({e.Message})");
 
-          if (bytesRead != mac.Length)
-            throw new Exception("Insufficient Bytes for MAC.");
+            // Send `RE` retry command.
+            {
+              byte[] bytes = new byte[] { (byte)'R', (byte)'E' };
 
-          byte[] data = new byte[1024 * 128];
+              stream.Write(bytes, 0, bytes.Length);
+            }
 
-          bytesRead = stream.Read(data, 0, data.Length);
-
-          if (bytesRead == 0)
-            throw new Exception("Invalid data size.");
-
-          Span<byte> actualData = ((Span<byte>)data).Slice(0, bytesRead);
-
-          // yes, we're inplace decrypting. according to the monocypher documentation this is fully supported. I don't see how a c# binding would change that.
-          if (0 != crypto_unlock(actualData, sessionKeys.Slice(0, 32), sessionKeys.Slice(32, 24), mac, actualData))
-            throw new Exception("File could not be validated."); // Content is invalid.
+            ReadDecryptFile(stream, sessionKeys, out actualData);
+          }
 
           // Parse data (to see if the project name is valid), Save.
           {
@@ -302,7 +302,7 @@ namespace ltrcv
               Directory.CreateDirectory(directoryName);
 
             string filename = $"{directoryName}\\{DateTime.Now.Ticks}";
-            
+
             File.WriteAllBytes(filename, actualData.ToArray());
 
             Console.WriteLine($"['{actualProductName}']: New file '{filename}' ({actualData.Length} bytes).");
@@ -337,6 +337,46 @@ namespace ltrcv
 
           threadCountMutex.ReleaseMutex();
         }
+      }
+    }
+
+    private static void ReadDecryptFile(NetworkStream stream, Span<byte> sessionKeys, out Span<byte> actualData)
+    {
+      Thread.Sleep(250);
+
+      byte[] mac = new byte[16];
+
+      int bytesRead = stream.Read(mac, 0, mac.Length);
+
+      if (bytesRead != mac.Length)
+        throw new Exception("Insufficient Bytes for MAC.");
+
+      byte[] data = new byte[1024 * 256];
+
+      const int retriesInitial = 50;
+      int retriesLeft = retriesInitial;
+      int dataIndex = 0;
+    retry:
+
+      Thread.Sleep(250);
+
+      bytesRead = stream.Read(data, dataIndex, data.Length - dataIndex);
+
+      if (bytesRead == 0)
+        throw new Exception(retriesInitial == retriesLeft ? "No data received." : "No data received. File assumed invalid.");
+
+      dataIndex += bytesRead;
+      actualData = ((Span<byte>)data).Slice(0, dataIndex);
+
+      // yes, we're inplace decrypting. according to the monocypher documentation this is fully supported. I don't see how a c# binding would change that.
+      int result = crypto_unlock(actualData, sessionKeys.Slice(0, 32), sessionKeys.Slice(32, 24), mac, actualData);
+
+      if (0 != result)
+      {
+        if (retriesLeft-- > 0)
+          goto retry;
+        else
+          throw new InvalidDataException($"File could not be validated (result: {result})."); // Content is invalid.
       }
     }
   }
