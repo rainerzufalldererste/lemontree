@@ -181,7 +181,8 @@ public class ltsrv
           ++index;
 
           if (x.MinAutoReloadMinutes.HasValue && (DateTime.UtcNow - x.LastUpdateTimestamp).TotalMinutes > x.MinAutoReloadMinutes.Value)
-            actionableItems.Add(Tuple.Create(index, x.OriginDirectory));
+            if (Directory.Exists(x.OriginDirectory))
+              actionableItems.Add(Tuple.Create(index, x.OriginDirectory));
         }
       }
     }

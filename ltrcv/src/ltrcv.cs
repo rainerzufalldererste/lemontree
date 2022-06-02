@@ -84,7 +84,7 @@ namespace ltrcv
       TcpClient tcpClient = receiveTask.Result;
       tcpClient.ReceiveTimeout = readTimeout;
 
-      Console.WriteLine("Client Connected: " + tcpClient.Client.RemoteEndPoint.ToString());
+      Console.WriteLine("Client connected: " + tcpClient.Client.RemoteEndPoint.ToString());
 
       return tcpClient;
     }
@@ -120,7 +120,7 @@ namespace ltrcv
             if (client == null)
               continue;
 
-            Console.WriteLine($"TCP Client connected. ({client.Client.RemoteEndPoint})");
+            Console.WriteLine($"TCP Connection accepted. ({client.Client.RemoteEndPoint})");
 
             new Thread(() => { ClientThread(client); }).Start();
           }
@@ -342,6 +342,8 @@ namespace ltrcv
 
     private static void ReadDecryptFile(NetworkStream stream, Span<byte> sessionKeys, out Span<byte> actualData)
     {
+      Thread.Sleep(250);
+
       byte[] mac = new byte[16];
 
       int bytesRead = stream.Read(mac, 0, mac.Length);
@@ -351,18 +353,31 @@ namespace ltrcv
 
       byte[] data = new byte[1024 * 256];
 
-      bytesRead = stream.Read(data, 0, data.Length);
+      const int retriesInitial = 50;
+      int retriesLeft = retriesInitial;
+      int dataIndex = 0;
+    retry:
+
+      Thread.Sleep(250);
+
+      bytesRead = stream.Read(data, dataIndex, data.Length - dataIndex);
 
       if (bytesRead == 0)
-        throw new Exception("Invalid data size.");
+        throw new Exception(retriesInitial == retriesLeft ? "No data received." : "No data received. File assumed invalid.");
 
-      actualData = ((Span<byte>)data).Slice(0, bytesRead);
+      dataIndex += bytesRead;
+      actualData = ((Span<byte>)data).Slice(0, dataIndex);
 
       // yes, we're inplace decrypting. according to the monocypher documentation this is fully supported. I don't see how a c# binding would change that.
       int result = crypto_unlock(actualData, sessionKeys.Slice(0, 32), sessionKeys.Slice(32, 24), mac, actualData);
 
       if (0 != result)
-        throw new InvalidDataException($"File could not be validated (result: {result})."); // Content is invalid.
+      {
+        if (retriesLeft-- > 0)
+          goto retry;
+        else
+          throw new InvalidDataException($"File could not be validated (result: {result})."); // Content is invalid.
+      }
     }
   }
 }

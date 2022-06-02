@@ -472,13 +472,23 @@ public static class GraphGen
     return ret;
   }
 
+  private static string ShowById(string ID, string displayType = "block") => $"document.getElementById(\"{ID}\").style.display = \"{displayType}\";";
+
+  private static string HideById(string ID) => $"document.getElementById(\"{ID}\").style.display = \"none\";";
+
   private static void AppendErrorData(HContainer container, ulong maxCount, Error e, TransitionData t)
   {
     double percentage = ((double)t.count.value / (double)maxCount) * 100.0;
 
     var errorInfo = new HContainer() { ID = Hash.GetHash(), Class = "ErrorInfo" };
+    
+    string expandId = Hash.GetHash();
+    string collapseId = Hash.GetHash();
 
-    container.AddElement(new HContainer() { Class = "ErrorDescription", Elements = { new HContainer() { Class = "ErrorBarContainer", Elements = { new HText($"{t.count}") { Class = "BarError", Style = $"--value:{percentage};", Title = t.count.ToString() } } }, new HText($"{e.errorCode} / 0x{e.errorCode.value:X}") { Class = "ErrorCode", Name = e.description ?? "" }, new HButton("+", "", $"document.getElementById(\"{errorInfo.ID}\").style.display = \"block\";") { Class = "ErrorInfoShowButton" }, new HContainer() { Elements = { new HText($"{t.avgDelay:0.####}s") { Class = "DataDelay" }, new HText($"{t.minDelay:0.####}s") { Class = "DataDelayMin" }, new HText($"{t.maxDelay:0.####}s") { Class = "DataDelayMax" } } } } });
+    var expandErrorInfoButton = new HButton("+", "", ShowById(errorInfo.ID) + ShowById(collapseId, "inline") + HideById(expandId)) { Class = "ErrorInfoShowButton", ID = expandId };
+    var collapseErrorInfoButton = new HButton("-", "", HideById(errorInfo.ID) + HideById(collapseId) + ShowById(expandId, "inline")) { Class = "ErrorInfoHideButton", ID = collapseId };
+
+    container.AddElement(new HContainer() { Class = "ErrorDescription", Elements = { new HContainer() { Class = "ErrorBarContainer", Elements = { new HText($"{t.count}") { Class = "BarError", Style = $"--value:{percentage};", Title = t.count.ToString() } } }, new HText($"{e.errorCode} / 0x{e.errorCode.value:X}") { Class = "ErrorCode", Name = e.description ?? "" }, expandErrorInfoButton, collapseErrorInfoButton, new HContainer() { Elements = { new HText($"{t.avgDelay:0.####}s") { Class = "DataDelay" }, new HText($"{t.minDelay:0.####}s") { Class = "DataDelayMin" }, new HText($"{t.maxDelay:0.####}s") { Class = "DataDelayMax" } } } } });
 
     container.AddElement(errorInfo);
 
