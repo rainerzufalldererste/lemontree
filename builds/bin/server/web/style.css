@@ -19,6 +19,22 @@ a {
   color: #838383;
 }
 
+a.nav {
+  text-decoration: none;
+  font-size: 80%;
+  margin-top: 20pt;
+  display: inline-block;
+  padding: 1pt 10pt 2pt 10pt;
+  background: #3a3a3a;
+  border-radius: 20pt 1pt 20pt 1pt;
+  color: #aaa;
+}
+
+a.nav:hover, a.nav:active {
+  background: #6e6e6e;
+  color: #fff;
+}
+
 a.LargeButton {
   display: inline-block;
   background: #444;
@@ -26,6 +42,7 @@ a.LargeButton {
   padding: 2pt 6pt 3pt;
   border-radius: 2pt;
   margin: 2pt;
+  color: #fff;
 }
 
 a.Button, a.StateLink, a.OperationLink {
