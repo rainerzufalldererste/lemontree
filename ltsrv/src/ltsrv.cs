@@ -514,6 +514,8 @@ public class SubSystemInfo : ElementResponse
 
   internal static IEnumerable<HElement> ShowMajorVersions(SessionData sessionData, string productName)
   {
+    yield return new HLink("Products", "/subsystem") { Class = "nav" };
+
     if (ltsrv._Analysis[productName].Count == 1)
     {
       yield return new HScript(ScriptCollection.GetPageReferalToX, $"/subsystem?p={productName.EncodeUrl()}&V={ltsrv._Analysis[productName].First().Key}");
@@ -528,6 +530,9 @@ public class SubSystemInfo : ElementResponse
 
   internal static IEnumerable<HElement> ShowMinorVersions(SessionData sessionData, string productName, ulong majorVersion)
   {
+    yield return new HLink("Products", "/subsystem") { Class = "nav" };
+    yield return new HLink(productName, $"/subsystem?p={productName.EncodeUrl()}") { Class = "nav" };
+
     if (ltsrv._Analysis[productName][(uint64_t)majorVersion].Count == 1)
     {
       yield return new HScript(ScriptCollection.GetPageReferalToX, $"/subsystem?p={productName.EncodeUrl()}&V={majorVersion}&v={ltsrv._Analysis[productName][(uint64_t)majorVersion].First().Key}");
@@ -542,6 +547,10 @@ public class SubSystemInfo : ElementResponse
 
   internal static IEnumerable<HElement> ShowSubSystems(SessionData sessionData, string productName, ulong majorVersion, ulong minorVersion)
   {
+    yield return new HLink("Products", "/subsystem") { Class = "nav" };
+    yield return new HLink(productName, $"/subsystem?p={productName.EncodeUrl()}") { Class = "nav" };
+    yield return new HLink(majorVersion.ToString(), $"/subsystem?p={productName.EncodeUrl()}&V={majorVersion}") { Class = "nav" };
+
     var container = ltsrv._Analysis[productName][(uint64_t)majorVersion][(uint64_t)minorVersion];
     var info = container.info;
     var analysis = container.analysis;
@@ -555,7 +564,7 @@ public class SubSystemInfo : ElementResponse
     yield return new HHeadline($"SubSystems", 2);
 
     foreach (var x in analysis.subSystems)
-      yield return new HLink(x.index.ToString(), $"/subsystem?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&ss={x.index}") { Class = "LargeButton" };
+      yield return new HLink(info.GetSubSystemName(x.index), $"/subsystem?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&ss={x.index}") { Class = "LargeButton" };
 
     yield return new HHeadline($"Crashes", 2);
 
@@ -625,6 +634,11 @@ public class SubSystemInfo : ElementResponse
 
   internal static IEnumerable<HElement> ShowContents(SessionData sessionData, string productName, ulong majorVersion, ulong minorVersion, ulong subSystem)
   {
+    yield return new HLink("Products", "/subsystem") { Class = "nav" };
+    yield return new HLink(productName, $"/subsystem?p={productName.EncodeUrl()}") { Class = "nav" };
+    yield return new HLink(majorVersion.ToString(), $"/subsystem?p={productName.EncodeUrl()}&V={majorVersion}") { Class = "nav" };
+    yield return new HLink(minorVersion.ToString(), $"/subsystem?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}") { Class = "nav" };
+
     var container = ltsrv._Analysis[productName][(uint64_t)majorVersion][(uint64_t)minorVersion];
     var info = container.info;
     var analysis = container.analysis;
@@ -686,6 +700,12 @@ public class StateInfo : ElementResponse
     var info = container.info;
     var analysis = container.analysis;
 
+    yield return new HLink("Products", "/subsystem") { Class = "nav" };
+    yield return new HLink(productName, $"/subsystem?p={productName.EncodeUrl()}") { Class = "nav" };
+    yield return new HLink(majorVersion.ToString(), $"/subsystem?p={productName.EncodeUrl()}&V={majorVersion}") { Class = "nav" };
+    yield return new HLink(minorVersion.ToString(), $"/subsystem?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}") { Class = "nav" };
+    yield return new HLink(info.GetSubSystemName(subSystem), $"/subsystem?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&id={subSystem}") { Class = "nav" };
+
     var s = analysis.subSystems.FindItem((uint64_t)subSystem).states.FindItem(new StateId(state, subStateIndex));
 
     yield return new HHeadline(info.GetStateName((uint64_t)subSystem, (uint64_t)state, (uint64_t)subStateIndex)) { Class = "stateName" };
@@ -730,6 +750,12 @@ public class OperationInfo : ElementResponse
     var container = ltsrv._Analysis[productName][(uint64_t)majorVersion][(uint64_t)minorVersion];
     var info = container.info;
     var analysis = container.analysis;
+
+    yield return new HLink("Products", "/subsystem") { Class = "nav" };
+    yield return new HLink(productName, $"/subsystem?p={productName.EncodeUrl()}") { Class = "nav" };
+    yield return new HLink(majorVersion.ToString(), $"/subsystem?p={productName.EncodeUrl()}&V={majorVersion}") { Class = "nav" };
+    yield return new HLink(minorVersion.ToString(), $"/subsystem?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}") { Class = "nav" };
+    yield return new HLink(info.GetSubSystemName(subSystem), $"/subsystem?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&id={subSystem}") { Class = "nav" };
 
     var s = analysis.subSystems.FindItem((uint64_t)subSystem).operations.FindItem((uint64_t)operationIndex);
 
@@ -776,6 +802,11 @@ public class ValueInfo : ElementResponse
 
   private IEnumerable<HElement> ShowValueU64(SessionData sessionData, string productName, ulong majorVersion, ulong minorVersion, ulong valueIndex)
   {
+    yield return new HLink("Products", "/subsystem") { Class = "nav" };
+    yield return new HLink(productName, $"/subsystem?p={productName.EncodeUrl()}") { Class = "nav" };
+    yield return new HLink(majorVersion.ToString(), $"/subsystem?p={productName.EncodeUrl()}&V={majorVersion}") { Class = "nav" };
+    yield return new HLink(minorVersion.ToString(), $"/subsystem?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}") { Class = "nav" };
+
     var container = ltsrv._Analysis[productName][(uint64_t)majorVersion][(uint64_t)minorVersion];
     var info = container.info;
     var analysis = container.analysis;
@@ -791,6 +822,11 @@ public class ValueInfo : ElementResponse
 
   private IEnumerable<HElement> ShowValueI64(SessionData sessionData, string productName, ulong majorVersion, ulong minorVersion, ulong valueIndex)
   {
+    yield return new HLink("Products", "/subsystem") { Class = "nav" };
+    yield return new HLink(productName, $"/subsystem?p={productName.EncodeUrl()}") { Class = "nav" };
+    yield return new HLink(majorVersion.ToString(), $"/subsystem?p={productName.EncodeUrl()}&V={majorVersion}") { Class = "nav" };
+    yield return new HLink(minorVersion.ToString(), $"/subsystem?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}") { Class = "nav" };
+
     var container = ltsrv._Analysis[productName][(uint64_t)majorVersion][(uint64_t)minorVersion];
     var info = container.info;
     var analysis = container.analysis;
@@ -806,6 +842,11 @@ public class ValueInfo : ElementResponse
 
   private IEnumerable<HElement> ShowValueString(SessionData sessionData, string productName, ulong majorVersion, ulong minorVersion, ulong valueIndex)
   {
+    yield return new HLink("Products", "/subsystem") { Class = "nav" };
+    yield return new HLink(productName, $"/subsystem?p={productName.EncodeUrl()}") { Class = "nav" };
+    yield return new HLink(majorVersion.ToString(), $"/subsystem?p={productName.EncodeUrl()}&V={majorVersion}") { Class = "nav" };
+    yield return new HLink(minorVersion.ToString(), $"/subsystem?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}") { Class = "nav" };
+
     var container = ltsrv._Analysis[productName][(uint64_t)majorVersion][(uint64_t)minorVersion];
     var info = container.info;
     var analysis = container.analysis;
@@ -847,6 +888,11 @@ public class ValueRangeInfo : ElementResponse
 
   private IEnumerable<HElement> ShowValueU64(SessionData sessionData, string productName, ulong majorVersion, ulong minorVersion, ulong valueIndex)
   {
+    yield return new HLink("Products", "/subsystem") { Class = "nav" };
+    yield return new HLink(productName, $"/subsystem?p={productName.EncodeUrl()}") { Class = "nav" };
+    yield return new HLink(majorVersion.ToString(), $"/subsystem?p={productName.EncodeUrl()}&V={majorVersion}") { Class = "nav" };
+    yield return new HLink(minorVersion.ToString(), $"/subsystem?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}") { Class = "nav" };
+
     var container = ltsrv._Analysis[productName][(uint64_t)majorVersion][(uint64_t)minorVersion];
     var info = container.info;
     var analysis = container.analysis;
@@ -860,6 +906,11 @@ public class ValueRangeInfo : ElementResponse
 
   private IEnumerable<HElement> ShowValueI64(SessionData sessionData, string productName, ulong majorVersion, ulong minorVersion, ulong valueIndex)
   {
+    yield return new HLink("Products", "/subsystem") { Class = "nav" };
+    yield return new HLink(productName, $"/subsystem?p={productName.EncodeUrl()}") { Class = "nav" };
+    yield return new HLink(majorVersion.ToString(), $"/subsystem?p={productName.EncodeUrl()}&V={majorVersion}") { Class = "nav" };
+    yield return new HLink(minorVersion.ToString(), $"/subsystem?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}") { Class = "nav" };
+
     var container = ltsrv._Analysis[productName][(uint64_t)majorVersion][(uint64_t)minorVersion];
     var info = container.info;
     var analysis = container.analysis;
@@ -873,6 +924,11 @@ public class ValueRangeInfo : ElementResponse
 
   private IEnumerable<HElement> ShowValueF64(SessionData sessionData, string productName, ulong majorVersion, ulong minorVersion, ulong valueIndex)
   {
+    yield return new HLink("Products", "/subsystem") { Class = "nav" };
+    yield return new HLink(productName, $"/subsystem?p={productName.EncodeUrl()}") { Class = "nav" };
+    yield return new HLink(majorVersion.ToString(), $"/subsystem?p={productName.EncodeUrl()}&V={majorVersion}") { Class = "nav" };
+    yield return new HLink(minorVersion.ToString(), $"/subsystem?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}") { Class = "nav" };
+
     var container = ltsrv._Analysis[productName][(uint64_t)majorVersion][(uint64_t)minorVersion];
     var info = container.info;
     var analysis = container.analysis;
@@ -906,6 +962,11 @@ public class PerformanceMetricInfo : ElementResponse
 
   private IEnumerable<HElement> ShowMetric(SessionData sessionData, string productName, ulong majorVersion, ulong minorVersion, ulong valueIndex)
   {
+    yield return new HLink("Products", "/subsystem") { Class = "nav" };
+    yield return new HLink(productName, $"/subsystem?p={productName.EncodeUrl()}") { Class = "nav" };
+    yield return new HLink(majorVersion.ToString(), $"/subsystem?p={productName.EncodeUrl()}&V={majorVersion}") { Class = "nav" };
+    yield return new HLink(minorVersion.ToString(), $"/subsystem?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}") { Class = "nav" };
+
     var container = ltsrv._Analysis[productName][(uint64_t)majorVersion][(uint64_t)minorVersion];
     var info = container.info;
     var analysis = container.analysis;
@@ -1287,6 +1348,7 @@ public class Operation : TransitionDataWithDelay
 
 public class InfoSubSystem
 {
+  public string name;
   public List<string> states;
   public List<string> operations;
   public List<string> profilerData;
@@ -1309,6 +1371,25 @@ public class Info
   public List<string> observedValueRangeU64;
   public List<string> observedValueRangeI64;
   public List<string> observedValueRangeF64;
+
+  public string GetSubSystemName(ulong subSystem)
+  {
+    if (subSystems != null)
+    {
+      foreach (var subSys in subSystems)
+      {
+        if (subSys.index == subSystem)
+        {
+          if (string.IsNullOrWhiteSpace(subSys.value.name))
+            break;
+
+          return $"{subSys.value.name} ({subSystem})";
+        }
+      }
+    }
+
+    return $"SubState #{subSystem}";
+  }
 
   public string GetName(uint64_t subSystem, object x)
   {
