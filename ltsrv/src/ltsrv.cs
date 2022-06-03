@@ -555,7 +555,7 @@ public class SubSystemInfo : ElementResponse
     yield return new HHeadline($"SubSystems", 2);
 
     foreach (var x in analysis.subSystems)
-      yield return new HLink(x.index.ToString(), $"/subsystem?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&ss={x.index}") { Class = "LargeButton" };
+      yield return new HLink(info.GetSubSystemName(x.index), $"/subsystem?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&ss={x.index}") { Class = "LargeButton" };
 
     yield return new HHeadline($"Crashes", 2);
 
@@ -1287,6 +1287,7 @@ public class Operation : TransitionDataWithDelay
 
 public class InfoSubSystem
 {
+  public string name;
   public List<string> states;
   public List<string> operations;
   public List<string> profilerData;
@@ -1309,6 +1310,25 @@ public class Info
   public List<string> observedValueRangeU64;
   public List<string> observedValueRangeI64;
   public List<string> observedValueRangeF64;
+
+  public string GetSubSystemName(ulong subSystem)
+  {
+    if (subSystems != null)
+    {
+      foreach (var subSys in subSystems)
+      {
+        if (subSys.index == subSystem)
+        {
+          if (string.IsNullOrWhiteSpace(subSys.value.name))
+            break;
+
+          return $"{subSys.value.name} ({subSystem})";
+        }
+      }
+    }
+
+    return $"SubState #{subSystem}";
+  }
 
   public string GetName(uint64_t subSystem, object x)
   {
