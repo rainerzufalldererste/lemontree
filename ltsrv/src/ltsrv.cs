@@ -60,7 +60,16 @@ public class ltsrv
 
           Console.WriteLine($"Deserialized & Sorted Analysis '{analysis.productName}' ({analysis.majorVersion}.{analysis.minorVersion}).");
 
-          _Analysis.Add(analysis.productName, new Dictionary<uint64_t, Dictionary<uint64_t, AnalysisInfo>> { { analysis.majorVersion, new Dictionary<uint64_t, AnalysisInfo>() { { analysis.minorVersion, new AnalysisInfo(analysis) } } } });
+          if (!_Analysis.ContainsKey(analysis.productName))
+            _Analysis.Add(analysis.productName, new Dictionary<uint64_t, Dictionary<uint64_t, AnalysisInfo>>());
+
+          if (!_Analysis[analysis.productName].ContainsKey(analysis.majorVersion))
+            _Analysis[analysis.productName].Add(analysis.majorVersion, new Dictionary<uint64_t, AnalysisInfo>());
+
+          if (_Analysis[analysis.productName][analysis.majorVersion].ContainsKey(analysis.minorVersion))
+            throw new Exception($"Analysis for '{analysis.productName}' ({analysis.majorVersion}.{analysis.minorVersion}) already exists.");
+
+          _Analysis[analysis.productName][analysis.majorVersion].Add(analysis.minorVersion, new AnalysisInfo(analysis));
         }
         catch (Exception e)
         {
