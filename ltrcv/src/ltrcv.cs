@@ -351,7 +351,7 @@ namespace ltrcv
       if (bytesRead != mac.Length)
         throw new Exception("Insufficient Bytes for MAC.");
 
-      byte[] data = new byte[1024 * 256];
+      byte[] data = new byte[1024 * 1024];
 
       const int retriesInitial = 50;
       int retriesLeft = retriesInitial;

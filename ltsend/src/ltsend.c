@@ -866,8 +866,8 @@ bool HandleFile(HANDLE file)
   if (!GetFileSizeEx(file, &size))
     RETURN_ERROR("Failed to retrieve file size from handle.");
 
-  if ((size_t)size.QuadPart > 1024 * 256) // this has been increased from 128.
-    RETURN_ERROR("File size exceeds 256 kb.");
+  if ((size_t)size.QuadPart > 1024 * 1024) // this has been increased from 128 and 256.
+    RETURN_ERROR("File size exceeds 1 MiB.");
 
   uint8_t *pContents = malloc(size.QuadPart);
 
@@ -876,7 +876,7 @@ bool HandleFile(HANDLE file)
 
   DWORD bytesRead = 0;
 
-  if (TRUE != ReadFile(file, pContents, size.LowPart /* Should be sufficient, because we're reading 1024 * 256  bytes max */, &bytesRead, NULL))
+  if (TRUE != ReadFile(file, pContents, size.LowPart /* Should be sufficient, because we're reading 1024 * 1024 bytes max */, &bytesRead, NULL))
   {
     free(pContents);
     RETURN_ERROR("Failed to read file contents.");
