@@ -207,6 +207,7 @@ static bool _OpenLogFile();
 __declspec(noreturn) static void _LogErrorAndQuit(const char *text, const size_t errorCode);
 static void _Log(const char *text);
 static void _LogW(const wchar_t *text);
+static void _LogHex(const uint64_t value);
 void _SetupSignalHandler();
 
 //////////////////////////////////////////////////////////////////////////
@@ -367,6 +368,7 @@ void SolveChallenge(OUT uint8_t *pSolution, const size_t solutionSize, const uin
 #define LOG_VALUEW(value) do { _LogW(value); _Log("\n"); } while (0)
 #define LOG_DESCRIPTION_VALUE(description, value) do { _Log("LOG: " description); _Log(value); _Log("\n"); } while (0)
 #define LOG_DESCRIPTION_VALUEW(description, value) do { _Log("LOG: " description); _LogW(value); _Log("\n"); } while (0)
+#define LOG_DESCRIPTION_HEX_VALUE(description, value) do { _Log("LOG: " description); _LogHex(value); _Log("\n"); } while (0)
 
 #ifdef NO_C_RUNTIME
 #pragma comment(linker, "/entry:EntryPoint")
@@ -945,9 +947,9 @@ DWORD CALLBACK EntryPoint()
         if (c >= L'0' && c <= L'9')
           value = c - '0';
         else if (c >= 'A' && c <= 'F')
-          value = c - 'A';
+          value = c - 'A' + 0xA;
         else if (c >= 'a' && c <= 'f')
-          value = c - 'a';
+          value = c - 'a' + 0xA;
         else
           FAIL("Invalid Process Id.");
 
@@ -961,9 +963,15 @@ DWORD CALLBACK EntryPoint()
     if (process != NULL)
     {
       WaitForSingleObject(process, INFINITE);
+
+      LOG_DESCRIPTION_HEX_VALUE("Awaited process 0x", processId);
       
       // To ensure that writing the log file is finalized.
-      Sleep(2000);
+      Sleep(200);
+    }
+    else
+    {
+      LOG_DESCRIPTION_HEX_VALUE("Failed to find/open process 0x", processId);
     }
   }
 
@@ -1127,8 +1135,6 @@ static void _LogW(const wchar_t *text)
   }
 }
 
-//////////////////////////////////////////////////////////////////////////
-
 void _LogHex(const uint64_t value)
 {
   static const char lut[] = "0123456789ABCDEF";
@@ -1162,6 +1168,8 @@ void _LogHex(const uint64_t value)
 
   _Log(param);
 }
+
+//////////////////////////////////////////////////////////////////////////
 
 BOOL WINAPI _SignalHandler(DWORD type)
 {
