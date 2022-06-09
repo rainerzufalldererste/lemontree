@@ -215,9 +215,6 @@ public class ltsrv
 
               int bytesRead = file.Read(bytes, 0, bytes.Length);
 
-              if (bytesRead != bytes.Length)
-                throw new Exception($"Failed to read first {bytes} bytes.");
-
               int offset = 0;
 
               if (bytes[offset] != 0)
@@ -251,6 +248,8 @@ public class ltsrv
           catch (Exception e)
           {
             Logger.LogError($"Failed to Read or Parse File '{y}' ({e.SafeMessage()})");
+
+            _IgnoredFiles.Add(y, true);
           }
         }
       }
@@ -1418,7 +1417,7 @@ public class Info
       {
         if (subSys.index == subSystem)
         {
-          if ((ulong)subSys.value.states.Count > stateIndex)
+          if (subSys.value.states != null && (ulong)subSys.value.states.Count > stateIndex)
             return $"{subSys.value.states[(int)stateIndex.value]} ({subStateIndex}) {append}";
 
           break;
@@ -1437,7 +1436,7 @@ public class Info
       {
         if (subSys.index == subSystem)
         {
-          if ((ulong)subSys.value.operations.Count > operationType)
+          if (subSys.value.operations != null && (ulong)subSys.value.operations.Count > operationType)
             return subSys.value.operations[(int)operationType.value] + append;
 
           break;
@@ -1456,7 +1455,7 @@ public class Info
       {
         if (subSys.index == subSystem)
         {
-          if ((ulong)subSys.value.profilerData.Count > dataIndex)
+          if (subSys.value.profilerData != null && (ulong)subSys.value.profilerData.Count > dataIndex)
             return subSys.value.profilerData[(int)dataIndex.value];
 
           break;

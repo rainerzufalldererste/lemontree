@@ -120,7 +120,7 @@ namespace ltrcv
             if (client == null)
               continue;
 
-            Console.WriteLine($"TCP Connection accepted. ({client.Client.RemoteEndPoint})");
+            Console.WriteLine($"[{DateTime.Now.ToShortDateString()} {DateTime.Now.ToShortTimeString()}] TCP Connection accepted. ({client.Client.RemoteEndPoint})");
 
             new Thread(() => { ClientThread(client); }).Start();
           }
