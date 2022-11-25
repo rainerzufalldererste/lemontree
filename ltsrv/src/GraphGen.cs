@@ -50,7 +50,7 @@ public static class GraphGen
 
     double offset = 0;
     int index = 0;
-    string[] colors = { "#fff378", "#ffd070", "#ffaf7c", "#ff9293", "#fd80ac", "#d279c0", "#9777c9", "#4c75c2" };
+    string[] colors = { "0.0", "0.125", "0.25", "0.375", "0.5", "0.652", "0.75", "0.875", "1.0" };
 
     foreach (var x in list)
     {
@@ -58,7 +58,7 @@ public static class GraphGen
       string color = colors[index++ % colors.Length];
 
       pieChart.AddElement(new HContainer() { Class = "PieSegment", Style = $"--offset: {offset}; --value: {percentage}; --bg: {color};" + (percentage > 50 ? " --over50: 1;" : "") });
-      description.AddElement(new HContainer() { Class = "PieDescriptionContainer", Elements = { GetElementName(analysis, info, subSystem, x.index), new HText($"{percentage:0.##}%") { Class = "DataPercentage", Style = $"color:{color};" }, new HText($"{x.value.count}") { Class = "DataCount" }, new HText($"{x.value.avgDelay:0.####}s") { Class = "DataDelay" }, new HText($"{x.value.minDelay:0.####}s") { Class = "DataDelayMin" }, new HText($"{x.value.maxDelay:0.####}s") { Class = "DataDelayMax" } } });
+      description.AddElement(new HContainer() { Class = "PieDescriptionContainer", Elements = { GetElementName(analysis, info, subSystem, x.index), new HText($"{percentage:0.##}%") { Class = "DataPercentage", Style = $"--col: {color};" }, new HText($"{x.value.count}") { Class = "DataCount" }, new HText($"{x.value.avgDelay:0.####}s") { Class = "DataDelay" }, new HText($"{x.value.minDelay:0.####}s") { Class = "DataDelayMin" }, new HText($"{x.value.maxDelay:0.####}s") { Class = "DataDelayMax" } } });
 
       offset += percentage;
     }
@@ -81,7 +81,7 @@ public static class GraphGen
 
     double offset = 0;
     int index = 0;
-    string[] colors = { "#fff378", "#ffd070", "#ffaf7c", "#ff9293", "#fd80ac", "#d279c0", "#9777c9", "#4c75c2" };
+    string[] colors = { "0.0", "0.125", "0.25", "0.375", "0.5", "0.652", "0.75", "0.875", "1.0" };
 
     foreach (var x in list)
     {
@@ -89,7 +89,7 @@ public static class GraphGen
       string color = colors[index++ % colors.Length];
 
       pieChart.AddElement(new HContainer() { Class = "PieSegment", Style = $"--offset: {offset}; --value: {percentage}; --bg: {color};" + (percentage > 50 ? " --over50: 1;" : "") });
-      description.AddElement(new HContainer() { Class = "PieDescriptionContainer", Elements = { new HText(x.index.ToString()) { Class = "DataName" }, new HText($"{percentage:0.##}%") { Class = "DataPercentage", Style = $"color:{color};" }, new HText($"{x.value}") { Class = "DataCount" } } });
+      description.AddElement(new HContainer() { Class = "PieDescriptionContainer", Elements = { new HText(x.index.ToString()) { Class = "DataName" }, new HText($"{percentage:0.##}%") { Class = "DataPercentage", Style = $"--col: {color};" }, new HText($"{x.value}") { Class = "DataCount" } } });
 
       offset += percentage;
     }
@@ -131,14 +131,14 @@ public static class GraphGen
       total += x.value;
 
     int index = 0;
-    string[] colors = { "#fff378", "#ffd070", "#ffaf7c", "#ff9293", "#fd80ac", "#d279c0", "#9777c9", "#4c75c2" };
+    string[] colors = { "0.0", "0.125", "0.25", "0.375", "0.5", "0.652", "0.75", "0.875", "1.0" };
 
     foreach (var x in list)
     {
       double percentage = ((double)x.value / (double)total) * 100.0;
       string color = colors[index++ % colors.Length];
 
-      graph.AddElement(new HContainer() { Class = "LineGraphLine", Style = $"--value:{percentage}; background:{color}", Title = $"{x.index} ({x.value})" });
+      graph.AddElement(new HContainer() { Class = "LineGraphLine", Style = $"--value:{percentage}; --col: {color}", Title = $"{x.index} ({x.value})" });
     }
 
     return graph;
@@ -159,7 +159,7 @@ public static class GraphGen
 
     double offset = 0;
     int index = 0;
-    string[] colors = { "#fff378", "#ffd070", "#ffaf7c", "#ff9293", "#fd80ac", "#d279c0", "#9777c9", "#4c75c2" };
+    string[] colors = { "0.0", "0.125", "0.25", "0.375", "0.5", "0.652", "0.75", "0.875", "1.0" };
 
     foreach (var x in list)
     {
@@ -167,7 +167,7 @@ public static class GraphGen
       string color = colors[index++ % colors.Length];
 
       pieChart.AddElement(new HContainer() { Class = "PieSegment", Style = $"--offset: {offset}; --value: {percentage}; --bg: {color};" + (percentage > 50 ? " --over50: 1;" : "") });
-      description.AddElement(new HContainer() { Class = "PieDescriptionContainer", Elements = { GetElementName(analysis, info, subSystem, x.index), new HText($"{percentage:0.##}%") { Class = "DataPercentage", Style = $"color:{color};" }, new HText($"{x.value.count}") { Class = "DataCount" }, new HText($"{x.value.avgDelay:0.####}s") { Class = "DataDelay" }, new HText($"{x.value.minDelay:0.####}s") { Class = "DataDelayMin" }, new HText($"{x.value.maxDelay:0.####}s") { Class = "DataDelayMax" }, ToLineGraph(x.value.operations) } });
+      description.AddElement(new HContainer() { Class = "PieDescriptionContainer", Elements = { GetElementName(analysis, info, subSystem, x.index), new HText($"{percentage:0.##}%") { Class = "DataPercentage", Style = $"--col: {color};" }, new HText($"{x.value.count}") { Class = "DataCount" }, new HText($"{x.value.avgDelay:0.####}s") { Class = "DataDelay" }, new HText($"{x.value.minDelay:0.####}s") { Class = "DataDelayMin" }, new HText($"{x.value.maxDelay:0.####}s") { Class = "DataDelayMax" }, ToLineGraph(x.value.operations) } });
 
       offset += percentage;
     }
@@ -187,7 +187,7 @@ public static class GraphGen
     ulong offsetCount = 0;
 
     int index = 0;
-    string[] colors = { "#fff378", "#ffd070", "#ffaf7c", "#ff9293", "#fd80ac", "#d279c0", "#9777c9", "#4c75c2" };
+    string[] colors = { "0.0", "0.125", "0.25", "0.375", "0.5", "0.652", "0.75", "0.875", "1.0" };
 
     foreach (var x in list)
     {
@@ -195,7 +195,7 @@ public static class GraphGen
       string color = colors[index++ % colors.Length];
 
       pieChart.AddElement(new HContainer() { Class = "PieSegment", Style = $"--offset: {offset}; --value: {percentage}; --bg: {color};" + (percentage > 50 ? " --over50: 1;" : "") });
-      description.AddElement(new HContainer() { Class = "PieDescriptionContainer", Elements = { new HText(x.value.ToString()) { Class = "DataName" }, new HText($"{percentage:0.##}%") { Class = "DataPercentage", Style = $"color:{color};" }, new HText($"{x.count}") { Class = "DataCount" } } });
+      description.AddElement(new HContainer() { Class = "PieDescriptionContainer", Elements = { new HText(x.value.ToString()) { Class = "DataName" }, new HText($"{percentage:0.##}%") { Class = "DataPercentage", Style = $"--col: {color};" }, new HText($"{x.count}") { Class = "DataCount" } } });
 
       offset += percentage;
       offsetCount += x.count.value;
@@ -207,7 +207,7 @@ public static class GraphGen
       string color = "#777";
 
       pieChart.AddElement(new HContainer() { Class = "PieSegment", Style = $"--offset: {offset}; --value: {percentage}; --bg: {color};" + (percentage > 50 ? " --over50: 1;" : "") });
-      description.AddElement(new HContainer() { Class = "PieDescriptionContainer", Elements = { new HText("Other") { Class = "DataName" }, new HText($"{percentage:0.##}%") { Class = "DataPercentage", Style = $"color:{color};" }, new HText($"{count.value - offsetCount}") { Class = "DataCount" } } });
+      description.AddElement(new HContainer() { Class = "PieDescriptionContainer", Elements = { new HText("Other") { Class = "DataName" }, new HText($"{percentage:0.##}%") { Class = "DataPercentage", Style = $"--col: {color};" }, new HText($"{count.value - offsetCount}") { Class = "DataCount" } } });
     }
 
     return new HContainer() { Class = "DataInfo", Elements = { new HHeadline(name), pieChart, description } };
@@ -230,7 +230,7 @@ public static class GraphGen
     ulong offsetCount = 0;
 
     int index = 0;
-    string[] colors = { "#fff378", "#ffd070", "#ffaf7c", "#ff9293", "#fd80ac", "#d279c0", "#9777c9", "#4c75c2" };
+    string[] colors = { "0.0", "0.125", "0.25", "0.375", "0.5", "0.652", "0.75", "0.875", "1.0" };
 
     foreach (var x in data.values)
     {
@@ -238,7 +238,7 @@ public static class GraphGen
       string color = colors[index++ % colors.Length];
 
       pieChart.AddElement(new HContainer() { Class = "PieSegment", Style = $"--offset: {offset}; --value: {percentage}; --bg: {color};" + (percentage > 50 ? " --over50: 1;" : "") });
-      description.AddElement(new HContainer() { Class = "PieDescriptionContainer", Elements = { new HText(x.value.ToString()) { Class = "DataName" }, new HText($"{percentage:0.##}%") { Class = "DataPercentage", Style = $"color:{color};" }, new HText($"{x.count}") { Class = "DataCount" } } });
+      description.AddElement(new HContainer() { Class = "PieDescriptionContainer", Elements = { new HText(x.value.ToString()) { Class = "DataName" }, new HText($"{percentage:0.##}%") { Class = "DataPercentage", Style = $"--col: {color};" }, new HText($"{x.count}") { Class = "DataCount" } } });
 
       offset += percentage;
       offsetCount += x.count.value;
@@ -250,7 +250,7 @@ public static class GraphGen
       string color = "#777";
 
       pieChart.AddElement(new HContainer() { Class = "PieSegment", Style = $"--offset: {offset}; --value: {percentage}; --bg: {color};" + (percentage > 50 ? " --over50: 1;" : "") });
-      description.AddElement(new HContainer() { Class = "PieDescriptionContainer", Elements = { new HText("Other") { Class = "DataName" }, new HText($"{percentage:0.##}%") { Class = "DataPercentage", Style = $"color:{color};" }, new HText($"{data.count.value - offsetCount}") { Class = "DataCount" } } });
+      description.AddElement(new HContainer() { Class = "PieDescriptionContainer", Elements = { new HText("Other") { Class = "DataName" }, new HText($"{percentage:0.##}%") { Class = "DataPercentage", Style = $"--col: {color};" }, new HText($"{data.count.value - offsetCount}") { Class = "DataCount" } } });
     }
 
     var ret = new HContainer() { Class = "DataInfo", Elements = { new HHeadline(name) } };

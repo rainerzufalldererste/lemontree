@@ -113,7 +113,7 @@ h1.Page {
 }
 
 .PieSegment:after, .PieSegment:before {
-  background: var(--bg, #e74c3c);
+  background: hsl(calc((0.125 - var(--bg, 0.5) * 0.425) * 360) 80% 62%);
   content: '';
   height: 100%;
   position: absolute;
@@ -136,6 +136,7 @@ p.DataPercentage {
   margin: 0;
   float: left;
   padding: 0 10pt 0 0;
+  color: hsl(calc((0.125 - var(--col, 0.5) * 0.425) * 360) 80% 62%);
 }
 
 p.DataCount {
@@ -182,6 +183,30 @@ p.DataDelayMax {
   margin-left: -1pt;
 }
 
+.PieDescriptionContainer:nth-child(n+5) {
+  padding: 2.5pt 7.5pt;
+  margin: 1pt;
+}
+
+.PieDescriptionContainer:nth-child(n+5) p.DataPercentage {
+  font-size: 15pt;
+}
+
+.PieDescriptionContainer:nth-child(n+5) p.DataCount {
+  display: inline-block;
+  margin: 0 3pt;
+}
+
+.PieDescriptionContainer:nth-child(n+5) a.Button, .PieDescriptionContainer:nth-child(n+5) a.StateLink, .PieDescriptionContainer:nth-child(n+5) a.OperationLink {
+  max-width: 145pt;
+  margin: auto 3pt;
+  max-height: 14pt;
+}
+
+.PieDescriptionContainer:nth-child(n+5) p.DataDelay, .PieDescriptionContainer:nth-child(n+5) p.DataDelayMin, .PieDescriptionContainer:nth-child(n+5) p.DataDelayMax {
+  font-size: 80%;
+}
+
 .DataInfo {
   border-top: #aaa 2pt solid;
   margin: 5pt 0;
@@ -222,10 +247,11 @@ p.StartDelay {
 
 .LineGraphLine {
   width: calc(100% / 100 * var(--value, 1));
-  height: 10pt;
+  height: 5pt;
   display: inline-block;
   margin: 0;
   padding: 0;
+  background: hsl(calc((0.125 - var(--col, 0.5) * 0.425) * 360) 80% 62%);
 }
 
 .NoData {

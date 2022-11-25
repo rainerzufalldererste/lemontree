@@ -1053,8 +1053,19 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
           case lt_si_lang:
           {
             hwInfo.hasLangInfo = true;
-            READ_STRING(pStream, hwInfo.langPrimaryName);
-            
+
+            // This may contain multiple language codes, separated by '\0'.
+            uint8_t length;
+            RETURN_ERROR_IF(!(pStream)->read(&length), "Failed to read length for string 'hwInfo.langPrimaryName'.");
+
+            RETURN_ERROR_IF(length >= sizeof(hwInfo.langPrimaryName), "The retrieved length for string 'hwInfo.langPrimaryName' is invalid (%" PRIu8 ").", length);
+            RETURN_ERROR_IF(!(pStream)->read(hwInfo.langPrimaryName, length), "Failed to read string 'hwInfo.langPrimaryName'.");
+            hwInfo.langPrimaryName[length] = '\0';
+
+            for (size_t i = 0; i < length; i++)
+              if (hwInfo.langPrimaryName[i] == '\0')
+                hwInfo.langPrimaryName[i] = ';';
+
             break;
           }
         
