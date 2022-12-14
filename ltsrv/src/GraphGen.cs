@@ -401,6 +401,82 @@ public static class GraphGen
     return ret;
   }
 
+  internal static HElement To2DHistorgramChart(ValueRange2D data, string name)
+  {
+    if (data.count == 0)
+      return new HContainer() { Class = "NoData", Elements = { new HText($"No '{name}' Data Available.") } };
+
+    var ret = new HContainer() { Class = "DataInfo", Elements = { new HHeadline(name) } };
+
+    ret.AddElement(new HContainer() { Elements = { 
+        new HText($"{data.count}") { Class = "DataCount" }, new HText($"{data.averageX:0.####}") { Class = "DataDelay 2D" }, new HText($"{data.averageY:0.####}") { Class = "DataDelay 2D" }, new HText($"{data.minX:0.####}") { Class = "DataDelayMin 2D" }, new HText($"{data.maxX:0.####}") { Class = "DataDelayMax 2D" } , new HText($"{data.minY:0.####}") { Class = "DataDelayMin 2D" }, new HText($"{data.maxY:0.####}") { Class = "DataDelayMax 2D" } 
+      } });
+
+    if (data.data != null)
+      ret.AddElement(DisplayInfo(data.data));
+
+    if (data.histogram.Length > 1)
+    {
+      ulong max = 0;
+      ulong sum = 0;
+
+      double[] histValX = new double[data.histogram.Length];
+      double[] histValY = new double[data.histogram.Length];
+
+      int i = 0;
+      double minX = data.minX.ToDouble();
+      double minY = data.minY.ToDouble();
+      double diffX = (double)(data.maxX.ToDouble() - minX);
+      double diffY = (double)(data.maxY.ToDouble() - minY);
+
+      foreach (var x in data.histogram)
+      {
+        if (x == null || x.Length != histValX.Length)
+        {
+          ret.AddElement(new HText("Unsupported Data Format") { Class = "error" });
+          return ret;
+        }
+
+        foreach (var y in x)
+        {
+          sum += y;
+
+          if (y > max)
+            max = y;
+        }
+
+        histValX[i] = minX + diffX * ((double)i / (double)(data.histogram.Length - 1));
+        histValY[i] = minY + diffY * ((double)i / (double)(data.histogram.Length - 1));
+
+        i++;
+      }
+
+      List<List<HElement>> hist2d = new List<List<HElement>>();
+
+      for (int y = 0; y < data.histogram.Length; y++)
+      {
+        List<HElement> line = new List<HElement>();
+
+        for (int x = 0; x < data.histogram[y].Length; x++)
+        {
+          double percentage = data.histogram[y][x] / (double)max * 100.0;
+          line.Add(new HContainer() { Class = "Hist2DElement", Title = $"{histValX[x]:0.###}, {histValX[y]:0.###} ({x}, {y}) - {(data.histogram[y][x] / (double)sum) * 100.0:0.##} %", Style = $"--value:{percentage};" });
+        }
+
+        hist2d.Add(line);
+      }
+
+      ret.AddElement(new HTable(hist2d) { Class = "hist2d" });
+
+      ret.AddElement(new HText(data.minX.ToString()) { Class = "HistMin 2D" });
+      ret.AddElement(new HText(data.maxX.ToString()) { Class = "HistMax 2D" });
+      ret.AddElement(new HText(data.minY.ToString()) { Class = "HistMin 2D" });
+      ret.AddElement(new HText(data.maxY.ToString()) { Class = "HistMax 2D" });
+    }
+
+    return ret;
+  }
+
   internal static HElement ToHourHistorgramChart(List<uint64_t> data, string name)
   {
     if (data.Count == 0)

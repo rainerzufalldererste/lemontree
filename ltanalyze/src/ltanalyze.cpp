@@ -625,6 +625,7 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
         uint64_t u64 = 0;
         int64_t i64 = 0;
         double f64 = 0;
+        float f32_0 = 0, f32_1 = 0;
 
         switch (dataType)
         {
@@ -638,6 +639,11 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
         
         case lt_vt_f64:
           READ(&stream, f64);
+          break;
+        
+        case lt_vt_f32_2:
+          READ(&stream, f32_0);
+          READ(&stream, f32_1);
           break;
         
         default:
@@ -656,6 +662,22 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
           update_transition_data(&pValue->data, timestamp - startTimestamp);
           update_value_range(pValue, u64);
 
+          for (size_t i = 0; i < pAnalyze->subSystems.size(); i++)
+          {
+            const uint64_t subSystemIndex = pAnalyze->subSystems.index[i];
+
+            lt_sub_system *pSubSystem = get_sub_system(&state, subSystemIndex);
+
+            if (!pSubSystem->hasLastState)
+              continue;
+
+            lt_state *pState = get_state(pAnalyze, subSystemIndex, pSubSystem->lastState.stateIndex, pSubSystem->lastState.subStateIndex);
+
+            pValue = get_value_range_data(&pState->observedRangeU64, valueIndex);
+            update_transition_data(&pValue->data, timestamp - startTimestamp);
+            update_value_range(pValue, u64);
+          }
+
           break;
         }
 
@@ -665,6 +687,22 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
           update_transition_data(&pValue->data, timestamp - startTimestamp);
           update_value_range(pValue, i64);
 
+          for (size_t i = 0; i < pAnalyze->subSystems.size(); i++)
+          {
+            const uint64_t subSystemIndex = pAnalyze->subSystems.index[i];
+
+            lt_sub_system *pSubSystem = get_sub_system(&state, subSystemIndex);
+
+            if (!pSubSystem->hasLastState)
+              continue;
+
+            lt_state *pState = get_state(pAnalyze, subSystemIndex, pSubSystem->lastState.stateIndex, pSubSystem->lastState.subStateIndex);
+
+            pValue = get_value_range_data(&pState->observedRangeI64, valueIndex);
+            update_transition_data(&pValue->data, timestamp - startTimestamp);
+            update_value_range(pValue, i64);
+          }
+
           break;
         }
 
@@ -673,6 +711,47 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
           lt_value_range<double> *pValue = get_value_range_data(&pAnalyze->observedRangeF64, valueIndex);
           update_transition_data(&pValue->data, timestamp - startTimestamp);
           update_value_range(pValue, f64);
+
+          for (size_t i = 0; i < pAnalyze->subSystems.size(); i++)
+          {
+            const uint64_t subSystemIndex = pAnalyze->subSystems.index[i];
+
+            lt_sub_system *pSubSystem = get_sub_system(&state, subSystemIndex);
+
+            if (!pSubSystem->hasLastState)
+              continue;
+
+            lt_state *pState = get_state(pAnalyze, subSystemIndex, pSubSystem->lastState.stateIndex, pSubSystem->lastState.subStateIndex);
+
+            pValue = get_value_range_data(&pState->observedRangeF64, valueIndex);
+            update_transition_data(&pValue->data, timestamp - startTimestamp);
+            update_value_range(pValue, f64);
+          }
+
+          break;
+        }
+
+        case lt_vt_f32_2:
+        {
+          lt_value_range_2d *pValue = get_value_range_data(&pAnalyze->observedRangeF32_2, valueIndex);
+          update_transition_data(&pValue->data, timestamp - startTimestamp);
+          update_value_range(pValue, f32_0, f32_1);
+
+          for (size_t i = 0; i < pAnalyze->subSystems.size(); i++)
+          {
+            const uint64_t subSystemIndex = pAnalyze->subSystems.index[i];
+
+            lt_sub_system *pSubSystem = get_sub_system(&state, subSystemIndex);
+
+            if (!pSubSystem->hasLastState)
+              continue;
+
+            lt_state *pState = get_state(pAnalyze, subSystemIndex, pSubSystem->lastState.stateIndex, pSubSystem->lastState.subStateIndex);
+
+            pValue = get_value_range_data(&pState->observedRangeF32_2, valueIndex);
+            update_transition_data(&pValue->data, timestamp - startTimestamp);
+            update_value_range(pValue, f32_0, f32_1);
+          }
 
           break;
         }
@@ -706,10 +785,6 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
           READ(&stream, i64);
           break;
         
-        //case lt_vt_f64:
-        //  SKIP_F64(",", "value", stream);
-        //  break;
-        
         default:
           RECOVERABLE_ERROR("Invalid data type.");
           break;
@@ -725,6 +800,22 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
           lt_values_exact<uint64_t> *pValue = get_exact_value_data(&pAnalyze->observedU64, valueIndex);
           update_transition_data(&pValue->data, timestamp - startTimestamp);
           update_exact_value(pValue, u64);
+
+          for (size_t i = 0; i < pAnalyze->subSystems.size(); i++)
+          {
+            const uint64_t subSystemIndex = pAnalyze->subSystems.index[i];
+
+            lt_sub_system *pSubSystem = get_sub_system(&state, subSystemIndex);
+
+            if (!pSubSystem->hasLastState)
+              continue;
+
+            lt_state *pState = get_state(pAnalyze, subSystemIndex, pSubSystem->lastState.stateIndex, pSubSystem->lastState.subStateIndex);
+
+            pValue = get_exact_value_data(&pState->observedU64, valueIndex);
+            update_transition_data(&pValue->data, timestamp - startTimestamp);
+            update_exact_value(pValue, u64);
+          }
           
           break;
         }
@@ -734,6 +825,22 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
           lt_values_exact<int64_t> *pValue = get_exact_value_data(&pAnalyze->observedI64, valueIndex);
           update_transition_data(&pValue->data, timestamp - startTimestamp);
           update_exact_value(pValue, i64);
+
+          for (size_t i = 0; i < pAnalyze->subSystems.size(); i++)
+          {
+            const uint64_t subSystemIndex = pAnalyze->subSystems.index[i];
+
+            lt_sub_system *pSubSystem = get_sub_system(&state, subSystemIndex);
+
+            if (!pSubSystem->hasLastState)
+              continue;
+
+            lt_state *pState = get_state(pAnalyze, subSystemIndex, pSubSystem->lastState.stateIndex, pSubSystem->lastState.subStateIndex);
+
+            pValue = get_exact_value_data(&pState->observedI64, valueIndex);
+            update_transition_data(&pValue->data, timestamp - startTimestamp);
+            update_exact_value(pValue, i64);
+          }
 
           break;
         }
@@ -1176,8 +1283,6 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
       }
     }
   }
-
-  // TODO: Store Device Info.
 
   free(pData);
 

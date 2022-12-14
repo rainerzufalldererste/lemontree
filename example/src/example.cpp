@@ -95,6 +95,15 @@ int32_t main(const int32_t argc, const char **pArgv)
   lt_observe_value_f64(2, -12.2);
   lt_observe_value_f64(3, 13.3);
 
+  lt_observe_value_f32_2(0, -1.2f, 1.4f);
+  lt_observe_value_f32_2(0, .5f, 2.1f);
+  lt_observe_value_f32_2(0, -.2f, -4.2f);
+  lt_observe_value_f32_2(1, 3.9f, .4f);
+  lt_observe_value_f32_2(1, 11.2f, -11.4f);
+  lt_observe_value_f32_2(2, -91.0f, 6.1f);
+  lt_observe_value_f32_2(1, -.2f, -.4f);
+  lt_observe_value_f32_2(3, 0, 0);
+
   lt_observe_exact_value_u64(0, 10);
   lt_observe_exact_value_u64(0, 1);
   lt_observe_exact_value_u64(0, 0);
