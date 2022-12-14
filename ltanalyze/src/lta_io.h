@@ -54,7 +54,7 @@
 
 enum
 {
-  lt_analyze_file_version = 9,
+  lt_analyze_file_version = 10,
 };
 
 inline bool deserialize(OUT uint8_t *pValue, IN ByteStream *pStream, const uint32_t /* version */)
@@ -74,6 +74,34 @@ inline bool serialize(IN const uint8_t *pValue, IN StreamWriter *pStream)
 inline bool jsonify(IN const uint8_t *pValue, IN JsonWriter *pWriter)
 {
   pWriter->write_value(*pValue);
+
+  return true;
+}
+
+inline bool deserialize(OUT lt_vec2f *pValue, IN ByteStream *pStream, const uint32_t version)
+{
+  RETURN_ERROR_IF(version < 10, "This version cannot contain this data type.");
+
+  READ(pStream, pValue->x);
+  READ(pStream, pValue->y);
+
+  return true;
+}
+
+inline bool serialize(IN const lt_vec2f *pValue, IN StreamWriter *pStream)
+{
+  WRITE(pStream, pValue->x);
+  WRITE(pStream, pValue->y);
+
+  return true;
+}
+
+inline bool jsonify(IN const lt_vec2f *pValue, IN JsonWriter *pWriter)
+{
+  pWriter->begin_array();
+  pWriter->write_value(pValue->x);
+  pWriter->write_value(pValue->y);
+  pWriter->end();
 
   return true;
 }
@@ -757,6 +785,18 @@ inline bool deserialize(OUT lt_state *pValue, IN ByteStream *pStream, const uint
   if (version >= 7)
     RETURN_ERROR_IF(!deserialize(&pValue->logs, pStream, version), "Failed to deserialize.");
 
+  if (version >= 10)
+  {
+    RETURN_ERROR_IF(!deserialize(&pValue->observedU64, pStream, version), "Failed to deserialize.");
+    RETURN_ERROR_IF(!deserialize(&pValue->observedI64, pStream, version), "Failed to deserialize.");
+    RETURN_ERROR_IF(!deserialize(&pValue->observedString, pStream, version), "Failed to deserialize.");
+
+    RETURN_ERROR_IF(!deserialize(&pValue->observedRangeU64, pStream, version), "Failed to deserialize.");
+    RETURN_ERROR_IF(!deserialize(&pValue->observedRangeI64, pStream, version), "Failed to deserialize.");
+    RETURN_ERROR_IF(!deserialize(&pValue->observedRangeF64, pStream, version), "Failed to deserialize.");
+    RETURN_ERROR_IF(!deserialize(&pValue->observedRangeF32_2, pStream, version), "Failed to deserialize.");
+  }
+
   return true;
 }
 
@@ -776,6 +816,15 @@ inline bool serialize(IN const lt_state *pValue, IN StreamWriter *pStream)
   RETURN_ERROR_IF(!serialize(&pValue->errors, pStream), "Failed to serialize.");
   RETURN_ERROR_IF(!serialize(&pValue->warnings, pStream), "Failed to serialize.");
   RETURN_ERROR_IF(!serialize(&pValue->logs, pStream), "Failed to serialize.");
+
+  RETURN_ERROR_IF(!serialize(&pValue->observedU64, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pValue->observedI64, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pValue->observedString, pStream), "Failed to serialize.");
+
+  RETURN_ERROR_IF(!serialize(&pValue->observedRangeU64, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pValue->observedRangeI64, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pValue->observedRangeF64, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pValue->observedRangeF32_2, pStream), "Failed to serialize.");
 
   return true;
 }
@@ -819,6 +868,27 @@ inline bool jsonify(IN const lt_state *pValue, IN JsonWriter *pWriter)
 
   pWriter->write_name("logs");
   RETURN_ERROR_IF(!jsonify(&pValue->logs, pWriter), "Failed to jsonify.");
+
+  pWriter->write_name("observedU64");
+  RETURN_ERROR_IF(!jsonify(&pValue->observedU64, pWriter), "Failed to jsonify.");
+
+  pWriter->write_name("observedI64");
+  RETURN_ERROR_IF(!jsonify(&pValue->observedI64, pWriter), "Failed to jsonify.");
+
+  pWriter->write_name("observedString");
+  RETURN_ERROR_IF(!jsonify(&pValue->observedString, pWriter), "Failed to jsonify.");
+
+  pWriter->write_name("observedRangeU64");
+  RETURN_ERROR_IF(!jsonify(&pValue->observedRangeU64, pWriter), "Failed to jsonify.");
+
+  pWriter->write_name("observedRangeI64");
+  RETURN_ERROR_IF(!jsonify(&pValue->observedRangeI64, pWriter), "Failed to jsonify.");
+
+  pWriter->write_name("observedRangeF64");
+  RETURN_ERROR_IF(!jsonify(&pValue->observedRangeF64, pWriter), "Failed to jsonify.");
+
+  pWriter->write_name("observedRangeF32_2");
+  RETURN_ERROR_IF(!jsonify(&pValue->observedRangeF32_2, pWriter), "Failed to jsonify.");
 
   pWriter->end();
 
@@ -1620,6 +1690,151 @@ inline bool jsonify(IN const lt_value_range<T> *pData, IN JsonWriter *pWriter)
   return true;
 }
 
+inline bool deserialize(OUT lt_global_value_range_2d *pData, IN ByteStream *pStream, const uint32_t version)
+{
+  RETURN_ERROR_IF(version < 10, "Invalid Version");
+
+  READ(pStream, pData->averageX);
+  READ(pStream, pData->averageY);
+  READ(pStream, pData->minValueX);
+  READ(pStream, pData->minValueY);
+  READ(pStream, pData->maxValueX);
+  READ(pStream, pData->maxValueY);
+  READ(pStream, pData->count);
+
+  RETURN_ERROR_IF(!deserialize(&pData->values, pStream, version), "Failed to deserialize.");
+
+  return true;
+}
+
+inline bool serialize(IN const lt_global_value_range_2d *pData, IN StreamWriter *pStream)
+{
+  WRITE(pStream, pData->averageX);
+  WRITE(pStream, pData->averageY);
+  WRITE(pStream, pData->minValueX);
+  WRITE(pStream, pData->minValueY);
+  WRITE(pStream, pData->maxValueX);
+  WRITE(pStream, pData->maxValueY);
+  WRITE(pStream, pData->count);
+
+  RETURN_ERROR_IF(!serialize(&pData->values, pStream), "Failed to serialize.");
+
+  return true;
+}
+
+inline bool jsonify_internal(IN const lt_global_value_range_2d *pData, IN JsonWriter *pWriter)
+{
+  pWriter->write("averageX", pData->averageX);
+  pWriter->write("averageY", pData->averageY);
+  pWriter->write("minX", pData->minValueX);
+  pWriter->write("minY", pData->minValueY);
+  pWriter->write("maxX", pData->maxValueX);
+  pWriter->write("maxY", pData->maxValueY);
+  pWriter->write("count", pData->count);
+
+  pWriter->begin_array("histogram");
+
+  if (pData->values.size() <= 1)
+  {
+    pWriter->begin_array();
+
+    if (pData->values.size() > 0)
+      pWriter->write_value(pData->values.value.front());
+
+    pWriter->end();
+  }
+  else
+  {
+    const size_t histDim = 64;
+    uint64_t histogram[histDim * histDim] = {};
+    float histvalX[histDim - 1];
+    float histvalY[histDim - 1];
+    const float epsilonX = FLT_EPSILON * (pData->maxValueX - pData->minValueX);
+    const float epsilonY = FLT_EPSILON * (pData->maxValueY - pData->minValueY);
+
+    for (size_t i = 0; i < (histDim - 1); i++)
+    {
+      histvalX[i] = lerp(pData->minValueX, pData->maxValueX, i / (float)(histDim - 1)) + epsilonX;
+      histvalY[i] = lerp(pData->minValueY, pData->maxValueY, i / (float)(histDim - 1)) + epsilonY;
+    }
+
+    for (size_t i = 0; i < pData->values.size(); i++)
+    {
+      const lt_vec2f v = pData->values.index[i];
+      size_t x = 0;
+      size_t y = 0;
+
+      for (; x < histDim - 1; x++)
+        if (histvalX[x] >= v.x)
+          break;
+
+      for (; y < histDim - 1; y++)
+        if (histvalX[y] >= v.y)
+          break;
+
+      histogram[x + y * histDim] += pData->values.value[i];
+    }
+
+    for (size_t y = 0; y < histDim; y++)
+    {
+      pWriter->begin_array();
+
+      for (size_t x = 0; x < histDim; x++)
+        pWriter->write_value(histogram[x + y * histDim]);
+
+      pWriter->end();
+    }
+  }
+
+  pWriter->end();
+
+  return true;
+}
+
+inline bool jsonify(IN const lt_global_value_range_2d *pData, IN JsonWriter *pWriter)
+{
+  pWriter->begin_body();
+
+  RETURN_ERROR_IF(!jsonify_internal(pData, pWriter), "Failed to jsonify.");
+
+  pWriter->end();
+
+  return true;
+}
+
+inline bool deserialize(OUT lt_value_range_2d *pData, IN ByteStream *pStream, const uint32_t version)
+{
+  RETURN_ERROR_IF(version < 10, "Invalid Version");
+
+  RETURN_ERROR_IF(!deserialize(static_cast<lt_global_value_range_2d *>(pData), pStream, version), "Failed to deserialize.");
+  RETURN_ERROR_IF(!deserialize(&pData->data, pStream, version), "Failed to deserialize.");
+
+  return true;
+}
+
+inline bool serialize(IN const lt_value_range_2d *pData, IN StreamWriter *pStream)
+{
+  RETURN_ERROR_IF(!serialize(static_cast<const lt_global_value_range_2d *>(pData), pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pData->data, pStream), "Failed to serialize.");
+
+  return true;
+}
+
+template <typename T>
+inline bool jsonify(IN const lt_value_range_2d *pData, IN JsonWriter *pWriter)
+{
+  pWriter->begin_body();
+
+  RETURN_ERROR_IF(!jsonify_internal(static_cast<const lt_global_value_range_2d *>(pData), pWriter), "Failed to jsonify.");
+
+  pWriter->write_name("data");
+  RETURN_ERROR_IF(!jsonify(&pData->data, pWriter), "Failed to jsonify.");
+
+  pWriter->end();
+
+  return true;
+}
+
 template <typename T>
 inline bool deserialize(OUT lt_perf_value_range<T> *pData, IN ByteStream *pStream, const uint32_t version)
 {
@@ -1827,6 +2042,12 @@ inline bool deserialize(OUT lt_analyze *pAnalyze, IN ByteStream *pStream)
     RETURN_ERROR_IF(!deserialize(&pAnalyze->observedRangeU64, pStream, version), "Failed to deserialize.");
     RETURN_ERROR_IF(!deserialize(&pAnalyze->observedRangeI64, pStream, version), "Failed to deserialize.");
     RETURN_ERROR_IF(!deserialize(&pAnalyze->observedRangeF64, pStream, version), "Failed to deserialize.");
+
+    if (version >= 10)
+    {
+      RETURN_ERROR_IF(!deserialize(&pAnalyze->observedRangeF32_2, pStream, version), "Failed to deserialize.");
+    }
+
     RETURN_ERROR_IF(!deserialize(&pAnalyze->perfMetrics, pStream, version), "Failed to deserialize.");
   }
 
@@ -1863,6 +2084,7 @@ inline bool serialize(IN const lt_analyze *pAnalyze, OUT StreamWriter *pStream)
   RETURN_ERROR_IF(!serialize(&pAnalyze->observedRangeU64, pStream), "Failed to serialize.");
   RETURN_ERROR_IF(!serialize(&pAnalyze->observedRangeI64, pStream), "Failed to serialize.");
   RETURN_ERROR_IF(!serialize(&pAnalyze->observedRangeF64, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pAnalyze->observedRangeF32_2, pStream), "Failed to serialize.");
   RETURN_ERROR_IF(!serialize(&pAnalyze->perfMetrics, pStream), "Failed to serialize.");
   RETURN_ERROR_IF(!serialize(&pAnalyze->crashes, pStream), "Failed to serialize.");
 
@@ -1907,6 +2129,9 @@ inline bool jsonify(IN const lt_analyze *pAnalyze, OUT JsonWriter *pWriter)
 
   pWriter->write_name("observedRangeF64");
   RETURN_ERROR_IF(!jsonify(&pAnalyze->observedRangeF64, pWriter), "Failed to jsonify.");
+
+  pWriter->write_name("observedRangeF32_2");
+  RETURN_ERROR_IF(!jsonify(&pAnalyze->observedRangeF32_2, pWriter), "Failed to jsonify.");
 
   pWriter->write_name("perfMetrics");
   RETURN_ERROR_IF(!jsonify(&pAnalyze->perfMetrics, pWriter), "Failed to jsonify.");

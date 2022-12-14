@@ -204,6 +204,17 @@ inline lt_value_range<T> *get_value_range_data(SoaList<uint64_t, lt_value_range<
   return &pList->value.back();
 }
 
+inline lt_value_range_2d *get_value_range_data(SoaList<uint64_t, lt_value_range_2d> *pList, const uint64_t index)
+{
+  for (size_t i = 0; i < pList->size(); i++)
+    if (pList->index[i] == index)
+      return &pList->value[i];
+
+  pList->push_back(index, lt_value_range_2d());
+
+  return &pList->value.back();
+}
+
 template <typename T>
 inline lt_perf_value_range<T> *get_perf_value_range_data(SoaList<uint64_t, lt_perf_value_range<T>> *pList, const uint64_t index)
 {
@@ -528,6 +539,123 @@ inline bool update_value_range(lt_global_value_range<T> *pValue, const T newValu
 
       // Combine A and B.
       pValue->values.index[closestA] = adjust(pValue->values.index[closestA], pValue->values.index[closestB], pValue->values.value[closestA], pValue->values.value[closestB]);
+      pValue->values.value[closestA] += pValue->values.value[closestB];
+
+      // Remove B.
+      pValue->values.index.erase(pValue->values.index.begin() + closestB);
+      pValue->values.value.erase(pValue->values.value.begin() + closestB);
+    }
+  }
+
+  return boundsChanged;
+}
+
+inline bool update_value_range(lt_global_value_range_2d *pValue, const float newValueX, const float newValueY)
+{
+  bool boundsChanged = false;
+
+  pValue->averageX = adjust(pValue->averageX, newValueX, pValue->count);
+  pValue->averageY = adjust(pValue->averageY, newValueY, pValue->count);
+
+  if (pValue->count == 0)
+  {
+    pValue->minValueX = newValueX;
+    pValue->maxValueX = newValueX;
+    pValue->minValueY = newValueY;
+    pValue->maxValueY = newValueY;
+
+    boundsChanged = true;
+  }
+  else
+  {
+    if (newValueX < pValue->minValueX)
+    {
+      pValue->minValueX = newValueX;
+      boundsChanged = true;
+    }
+
+    if (newValueX > pValue->maxValueX)
+    {
+      pValue->maxValueX = newValueX;
+      boundsChanged = true;
+    }
+
+    if (newValueY < pValue->minValueY)
+    {
+      pValue->minValueY = newValueY;
+      boundsChanged = true;
+    }
+
+    if (newValueY > pValue->maxValueY)
+    {
+      pValue->maxValueY = newValueY;
+      boundsChanged = true;
+    }
+  }
+
+  pValue->count++;
+
+  const float sizeX = pValue->maxValueX - pValue->minValueX;
+  const float sizeY = pValue->maxValueY - pValue->minValueY;
+
+  constexpr size_t maxDist = 128;
+  const float range = sqrtf(sizeX * sizeX + sizeY * sizeY) / (float)maxDist;
+
+  size_t bestFit = (size_t)-1;
+  float bestFitDiff = 0.0;
+
+  for (size_t i = 0; i < pValue->values.size(); i++)
+  {
+    const float diffX = pValue->values.index[i].x - newValueX;
+    const float diffY = pValue->values.index[i].y - newValueY;
+    const float diff = sqrtf(diffX * diffX + diffY * diffY);
+
+    if (diff <= range && (bestFit == (size_t)-1 || bestFitDiff > diff))
+    {
+      bestFit = i;
+      bestFitDiff = diff;
+    }
+  }
+
+  if (bestFit != -1)
+  {
+    pValue->values.index[bestFit].x = adjust(pValue->values.index[bestFit].x, newValueX, pValue->values.value[bestFit]);
+    pValue->values.index[bestFit].y = adjust(pValue->values.index[bestFit].y, newValueY, pValue->values.value[bestFit]);
+    pValue->values.value[bestFit]++;
+  }
+  else
+  {
+    pValue->values.emplace_back(lt_vec2f(newValueX, newValueY), 1);
+
+    while (pValue->values.size() >= (maxDist * 3 / 2) * (maxDist * 3 / 2))
+    {
+      size_t closestA = (size_t)-1;
+      size_t closestB = (size_t)-1;
+      double bestDiff = 0.0;
+
+      for (size_t i = 0; i < pValue->values.size(); i++)
+      {
+        const lt_vec2f a = pValue->values.index[i];
+
+        for (size_t j = i + 1; j < pValue->values.size(); j++)
+        {
+          const lt_vec2f b = pValue->values.index[j];
+          const float diffX = a.x - b.x;
+          const float diffY = a.y - b.y;
+          const float diff = sqrtf(diffX * diffX + diffY * diffY);
+
+          if (closestA == (size_t)-1 || diff < bestDiff)
+          {
+            bestDiff = diff;
+            closestA = i;
+            closestB = j;
+          }
+        }
+      }
+
+      // Combine A and B.
+      pValue->values.index[closestA].x = adjust(pValue->values.index[closestA].x, pValue->values.index[closestB].x, pValue->values.value[closestA], pValue->values.value[closestB]);
+      pValue->values.index[closestA].y = adjust(pValue->values.index[closestA].y, pValue->values.index[closestB].y, pValue->values.value[closestA], pValue->values.value[closestB]);
       pValue->values.value[closestA] += pValue->values.value[closestB];
 
       // Remove B.

@@ -67,6 +67,10 @@ enum lt_value_type : uint8_t
   lt_vt_i64,
   lt_vt_f64,
   lt_vt_string,
+  
+  lt_vt_f32_2,
+
+  // Always add new value types at the bottom.
 };
 
 enum lt_system_info

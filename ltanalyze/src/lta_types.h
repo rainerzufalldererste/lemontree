@@ -456,6 +456,27 @@ struct lt_perf_value_range : lt_value_range<T>
   lt_short_hw_info minInfo, maxInfo;
 };
 
+struct lt_vec2f
+{
+  float x, y;
+
+  inline lt_vec2f() : x(0), y(0) {}
+  inline lt_vec2f(float x, float y) : x(x), y(y) {}
+};
+
+struct lt_global_value_range_2d
+{
+  uint64_t count = 0;
+  float minValueX, maxValueX, minValueY, maxValueY;
+  float averageX = 0, averageY = 0;
+  SoaList<lt_vec2f, uint64_t> values;
+};
+
+struct lt_value_range_2d : lt_global_value_range_2d
+{
+  lt_transition_data data;
+};
+
 struct lt_hw_info_analyze
 {
   lt_global_values<lt_string_value_entry> cpuName;
@@ -485,6 +506,15 @@ struct lt_state
   SoaList<lt_state_identifier, lt_transition_data> nextState;
   SoaList<lt_operation_identifier, lt_operation_transition_data> operations;
   SoaList<lt_operation_identifier, lt_transition_data> previousOperation;
+
+  SoaList<uint64_t, lt_values_exact<uint64_t>> observedU64;
+  SoaList<uint64_t, lt_values_exact<int64_t>> observedI64;
+  SoaList<uint64_t, lt_values<lt_string_value_entry>> observedString;
+
+  SoaList<uint64_t, lt_value_range<uint64_t>> observedRangeU64;
+  SoaList<uint64_t, lt_value_range<int64_t>> observedRangeI64;
+  SoaList<uint64_t, lt_value_range<double>> observedRangeF64;
+  SoaList<uint64_t, lt_value_range_2d> observedRangeF32_2;
 
   SoaList<lt_state_identifier, lt_transition_data> stateReach;
   SoaList<lt_operation_identifier, lt_transition_data> operationReach;
@@ -538,6 +568,7 @@ struct lt_analyze
   SoaList<uint64_t, lt_value_range<uint64_t>> observedRangeU64;
   SoaList<uint64_t, lt_value_range<int64_t>> observedRangeI64;
   SoaList<uint64_t, lt_value_range<double>> observedRangeF64;
+  SoaList<uint64_t, lt_value_range_2d> observedRangeF32_2;
 
   SoaList<uint64_t, lt_perf_value_range<double>> perfMetrics;
   

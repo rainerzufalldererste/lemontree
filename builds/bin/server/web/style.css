@@ -440,3 +440,38 @@ p.DayHistElement {
   background: hsl(calc(240 - var(--var) * 170) 90% 70% / var(--var));
   border-radius: 3pt;
 }
+
+.hist2d {
+  display: block;
+  margin: 50pt 0;
+}
+
+.Hist2DElement {
+  --val0: calc(1 - var(--value, 0) / 100);
+  --val: calc(1 - var(--val0) * var(--val0));
+  width: 9pt;
+  height: 9pt;
+  background: hsl(calc(var(--val, 0) * -165 - 160) calc(var(--val, 0) * 80% + 10%) calc(var(--val, 0) * 50% + 20%));
+  border-radius: 1pt;
+}
+
+p.HistMin.\32 D, p.HistMax.\32 D {
+  padding: 2pt;
+  float: none;
+  display: inline-block;
+}
+
+p.HistMin.\32 D::after {
+  content: '~';
+  margin-left: 5pt;
+  display: inline-block;
+  color: #424242;
+}
+
+p.HistMin.\32 D {
+  color: #3c5242;
+}
+
+p.HistMax.\32 D {
+  color: #523c42;
+}

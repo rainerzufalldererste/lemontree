@@ -520,6 +520,26 @@ void lt_observe_value_f64(const uint64_t valueIndex, const double value)
   lt_write_block(data, sizeof(data));
 }
 
+void lt_observe_value_f32_2(const uint64_t valueIndex, const float valueX, const float valueY)
+{
+  if (!lt_init())
+    return;
+
+  const uint64_t timestamp = lt_time_100ns();
+  uint8_t data[_lt_observed_value_length];
+
+  data[0] = lt_t_observed_value;
+  data[1] = lt_vt_f32_2;
+  *reinterpret_cast<uint64_t *>(&data[2]) = valueIndex;
+  *reinterpret_cast<float *>(&data[10]) = valueX;
+  *reinterpret_cast<float *>(&data[14]) = valueY;
+  *reinterpret_cast<uint64_t *>(&data[18]) = timestamp;
+
+  static_assert(sizeof(data) == 26, "invalid data size.");
+
+  lt_write_block(data, sizeof(data));
+}
+
 void lt_observe_exact_value_u64(const uint64_t exactValueIndex, const uint64_t value)
 {
   if (!lt_init())

@@ -25,6 +25,7 @@
 #define PRINT_U64(prefix, name, stream) do { uint64_t v = 0; FATAL_IF(!stream.read(&v), "Insufficient data stream"); printf(prefix "\"" name "\":\"%" PRIu64 "\"", v); } while (0);
 #define PRINT_I64(prefix, name, stream) do { int64_t v = 0; FATAL_IF(!stream.read(&v), "Insufficient data stream"); printf(prefix "\"" name "\":\"%" PRIi64 "\"", v); } while (0);
 #define PRINT_F64(prefix, name, stream) do { double v = 0; FATAL_IF(!stream.read(&v), "Insufficient data stream"); printf(prefix "\"" name "\":%e", v); } while (0);
+#define PRINT_F32_2(prefix, name, stream) do { float_t v0 = 0, v1 = 0; FATAL_IF(!stream.read(&v0), "Insufficient data stream"); FATAL_IF(!stream.read(&v1), "Insufficient data stream"); printf(prefix "\"" name "\":[%e,%e]", v0, v1); } while (0);
 #define PRINT_U32(prefix, name, stream) do { uint32_t v = 0; FATAL_IF(!stream.read(&v), "Insufficient data stream"); printf(prefix "\"" name "\":%" PRIu32 "", v); } while (0);
 #define PRINT_I32(prefix, name, stream) do { int32_t v = 0; FATAL_IF(!stream.read(&v), "Insufficient data stream"); printf(prefix "\"" name "\":%" PRIi32 "", v); } while (0);
 #define PRINT_U8(prefix, name, stream) do { uint8_t v = 0; FATAL_IF(!stream.read(&v), "Insufficient data stream"); printf(prefix "\"" name "\":%" PRIu8 "", v); } while (0);
@@ -259,6 +260,10 @@ int32_t main(void)
 
         case lt_vt_f64:
           PRINT_F64(",", "value", stream);
+          break;
+
+        case lt_vt_f32_2:
+          PRINT_F32_2(",", "value", stream);
           break;
 
         default:
