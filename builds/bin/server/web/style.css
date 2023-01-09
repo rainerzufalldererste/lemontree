@@ -19,6 +19,12 @@ a {
   color: #838383;
 }
 
+h1 {
+  font-family: 'Segoe UI', sans-serif;
+  font-weight: 100;
+  font-size: 30pt;
+}
+
 a.nav {
   text-decoration: none;
   font-size: 80%;
@@ -43,6 +49,7 @@ a.LargeButton {
   border-radius: 2pt;
   margin: 2pt;
   color: #fff;
+  border: 1pt solid #747474;
 }
 
 a.Button, a.StateLink, a.OperationLink {
@@ -54,6 +61,7 @@ a.Button, a.StateLink, a.OperationLink {
   color: #fff;
   text-decoration: none;
   font-weight: 200;
+  border: 1pt solid #747474;
 }
 
 a.Button:hover, a.Button:active, a.StateLink:hover, a.StateLink:active, a.OperationLink:hover, a.OperationLink:active, a.LargeButton:hover, a.LargeButton:active {
@@ -118,6 +126,7 @@ h1.Page {
   height: 100%;
   position: absolute;
   width: 100%;
+  background: repeating-linear-gradient(calc(var(--degrees) * -1deg), hsl(calc((0.125 - var(--bg, 0.5) * 0.425) * 360) 80% 62%) 0, hsl(calc((0.125 - var(--bg, 0.5) * 0.425) * 360) 80% 62%) 6pt, hsl(calc((0.125 - var(--bg, 0.5) * 0.425 - 0.0125) * 360) 82% 60%) 6.1pt, hsl(calc((0.125 - var(--bg, 0.5) * 0.425 - 0.0125) * 360) 82% 60%) 12pt);
 }
 
 .PieSegment:after {
@@ -218,6 +227,8 @@ p.DataDelayMax {
   font-size: 20pt;
   color: #e3e3e3;
   font-family: Consolas, monospace;
+  font-weight: 800;
+  font-size: 15pt;
 }
 
 p.Bar, p.BarError {
@@ -229,6 +240,7 @@ p.Bar, p.BarError {
   padding: 0 5pt 5pt 5pt !important;
   text-align: right;
   margin: 0 10pt 0 0;
+  text-shadow: 0 0 3pt #233d5c;
 }
 
 div.ErrorBarContainer {

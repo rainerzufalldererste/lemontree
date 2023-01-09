@@ -55,7 +55,21 @@ public class ltsrv
       {
         try
         {
-          var analysis = Serializer.ReadJsonData<Analysis>(x);
+          Analysis analysis;
+
+          try
+          {
+            analysis = Serializer.ReadJsonData<Analysis>(x);
+          }
+          catch (Exception e)
+          {
+            Console.WriteLine($"Failed to deserialize '{x}'. Retrying with nan-fix. ('{e.SafeMessage()}')");
+            analysis = Serializer.ReadJsonDataInMemory<Analysis>(File.ReadAllText(x).Replace("nan(ind)", "0"));
+          }
+
+          if (analysis == null)
+            throw new Exception($"Failed to load analysis from '{x}'.");
+
           analysis.Sort();
 
           Console.WriteLine($"Deserialized & Sorted Analysis '{analysis.productName}' ({analysis.majorVersion}.{analysis.minorVersion}).");

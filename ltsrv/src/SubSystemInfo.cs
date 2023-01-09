@@ -95,43 +95,51 @@ public class SubSystemInfo : ElementResponse
 
     yield return new HHeadline($"Observed Values UInt64", 2);
 
-    foreach (var x in analysis.observedU64)
-      yield return new HLink(info.GetValueNameU64(x.index.value), $"/value?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&t=u64&id={x.index}") { Class = "LargeButton" };
+    if (analysis.observedU64 != null)
+      foreach (var x in analysis.observedU64)
+        yield return new HLink(info.GetValueNameU64(x.index.value), $"/value?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&t=u64&id={x.index}") { Class = "LargeButton" };
 
     yield return new HHeadline($"Observed Values Int64", 2);
 
-    foreach (var x in analysis.observedI64)
-      yield return new HLink(info.GetValueNameI64(x.index.value), $"/value?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&t=i64&id={x.index}") { Class = "LargeButton" };
+    if (analysis.observedI64 != null)
+      foreach (var x in analysis.observedI64)
+        yield return new HLink(info.GetValueNameI64(x.index.value), $"/value?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&t=i64&id={x.index}") { Class = "LargeButton" };
 
     yield return new HHeadline($"Observed Values String", 2);
 
-    foreach (var x in analysis.observedString)
-      yield return new HLink(info.GetValueNameString(x.index.value), $"/value?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&t=string&id={x.index}") { Class = "LargeButton" };
+    if (analysis.observedString != null)
+      foreach (var x in analysis.observedString)
+        yield return new HLink(info.GetValueNameString(x.index.value), $"/value?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&t=string&id={x.index}") { Class = "LargeButton" };
 
     yield return new HHeadline($"Observed Value Range UInt64", 2);
 
-    foreach (var x in analysis.observedRangeU64)
-      yield return new HLink(info.GetValueRangeNameU64(x.index.value), $"/range?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&t=u64&id={x.index}") { Class = "LargeButton" };
+    if (analysis.observedRangeU64 != null)
+      foreach (var x in analysis.observedRangeU64)
+        yield return new HLink(info.GetValueRangeNameU64(x.index.value), $"/range?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&t=u64&id={x.index}") { Class = "LargeButton" };
 
     yield return new HHeadline($"Observed Value Range Int64", 2);
 
-    foreach (var x in analysis.observedRangeI64)
-      yield return new HLink(info.GetValueRangeNameI64(x.index.value), $"/range?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&t=i64&id={x.index}") { Class = "LargeButton" };
+    if (analysis.observedRangeI64 != null)
+      foreach (var x in analysis.observedRangeI64)
+        yield return new HLink(info.GetValueRangeNameI64(x.index.value), $"/range?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&t=i64&id={x.index}") { Class = "LargeButton" };
 
     yield return new HHeadline($"Observed Value Range Float64", 2);
 
-    foreach (var x in analysis.observedRangeF64)
-      yield return new HLink(info.GetValueRangeNameF64(x.index.value), $"/range?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&t=f64&id={x.index}") { Class = "LargeButton" };
+    if (analysis.observedRangeF64 != null)
+      foreach (var x in analysis.observedRangeF64)
+        yield return new HLink(info.GetValueRangeNameF64(x.index.value), $"/range?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&t=f64&id={x.index}") { Class = "LargeButton" };
 
     yield return new HHeadline($"Observed Value Range Vector2<Float32>", 2);
 
-    foreach (var x in analysis.observedRangeF32_2)
-      yield return new HLink(info.GetValueRangeNameF32_2(x.index.value), $"/range?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&t=f32_2&id={x.index}") { Class = "LargeButton" };
+    if (analysis.observedRangeF32_2 != null)
+      foreach (var x in analysis.observedRangeF32_2)
+        yield return new HLink(info.GetValueRangeNameF32_2(x.index.value), $"/range?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&t=f32_2&id={x.index}") { Class = "LargeButton" };
 
     yield return new HHeadline($"Performance Metrics", 2);
 
-    foreach (var x in analysis.perfMetrics)
-      yield return new HLink(info.GetPerfMetricName(x.index.value), $"/perfmet?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&id={x.index}") { Class = "LargeButton" };
+    if (analysis.perfMetrics != null)
+      foreach (var x in analysis.perfMetrics)
+        yield return new HLink(info.GetPerfMetricName(x.index.value), $"/perfmet?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&id={x.index}") { Class = "LargeButton" };
 
     yield return new HHeadline($"Hardware Info", 2);
 
