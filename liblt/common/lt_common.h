@@ -123,6 +123,10 @@ public:
     pData += size;
     sizeRemaining -= size;
 
+    if constexpr (std::is_same<double, T>::value)
+      if (pV != nullptr && isnan(*pV))
+        *pV = 0;
+
     return true;
   }
 };

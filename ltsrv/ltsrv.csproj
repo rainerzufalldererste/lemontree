@@ -43,14 +43,14 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <None Include="project.lua" />
+    <Compile Include="src\GraphGen.cs" />
     <Compile Include="src\OperationInfo.cs" />
     <Compile Include="src\PerformanceMetricInfo.cs" />
     <Compile Include="src\StateInfo.cs" />
     <Compile Include="src\SubSystemInfo.cs" />
     <Compile Include="src\ValueInfo.cs" />
     <Compile Include="src\ValueRangeInfo.cs" />
-    <None Include="project.lua" />
-    <Compile Include="src\GraphGen.cs" />
     <Compile Include="src\ltsrv.cs" />
   </ItemGroup>
   <ItemGroup>

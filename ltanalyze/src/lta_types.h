@@ -93,7 +93,7 @@ class JsonWriter
   inline void _write(const uint32_t value) { fprintf(pFile, "%" PRIu32 "", value); }
   inline void _write(const int32_t value) { fprintf(pFile, "%" PRIi32 "", value); }
   inline void _write(const uint8_t value) { fprintf(pFile, "%" PRIu8 "", value); }
-  inline void _write(const double value) { fprintf(pFile, "%e", value); }
+  inline void _write(const double value) { if (isnan(value)) fputs("0", pFile); else fprintf(pFile, "%e", value); }
   inline void _write(const bool value) { fputs(value ? "true" : "false", pFile); }
 
 public:

@@ -11,9 +11,9 @@ project(ProjectName)
     buildoptions { '/MP' }
 
     ignoredefaultlibraries { "msvcrt" }
-  filter { "system:linux" }
-    cppdialect "C++11"
   filter { }
+  
+  cppdialect "C++17"
   
   defines { "_CRT_SECURE_NO_WARNINGS", "SSE2" }
   
