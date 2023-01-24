@@ -4,6 +4,13 @@
 
 #include <intrin.h>
 
+#include <winsock2.h>
+#include <ws2def.h>
+#include <ws2ipdef.h>
+#include <iphlpapi.h>
+#include <netioapi.h>
+#pragma comment(lib, "iphlpapi.lib")
+
 #include <windows.h>
 #include <winternl.h>
 #include <versionhelpers.h>
@@ -27,6 +34,8 @@
 
 #include "..\..\builds\bin\client\ltsend_exe.h"
 #define lt_send_executable ___builds_bin_client_ltsend_exe
+
+#pragma optimize("", off)
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -107,6 +116,24 @@ inline uint64_t lt_time_100ns()
   GetSystemTimePreciseAsFileTime(&time);
 
   return ((uint64_t)time.dwLowDateTime | ((uint64_t)time.dwHighDateTime << 32));
+}
+
+inline uint64_t lt_parse_uint(IN const wchar_t *start)
+{
+  uint64_t ret = 0;
+
+  while (true)
+  {
+    uint16_t digit = *start - L'0';
+
+    if (digit > 9)
+      break;
+
+    ret = (ret << 1) + (ret << 3) + digit;
+    start++;
+  }
+
+  return ret;
 }
 
 constexpr size_t lt_stack_trace_depth = 32;
@@ -839,7 +866,7 @@ static bool lt_init()
   // Write System Info.
   {
     uint8_t data[1024 * 3];
-    static_assert(sizeof(data) >= 1 + 2 + 1 + 1 + 255 + 4 + 1 + 8 * 4 + 1 + 1 + 255 + 1 + 4 * 4 + 8 + 4 * 4 + 1 + 255 + 1 + 255 + 1 + 1 + 255 + 1 + 1 + 1 + 1 + 32 * 6 * 4 + 1 + 2 * 8 + 1 + 1 + 255 + 1 + 255, "data size insufficient.");
+    static_assert(sizeof(data) >= 1 + 2 + 1 + 1 + 255 + 4 + 1 + 8 * 4 + 1 + 1 + 255 + 1 + 4 * 4 + 8 + 4 * 4 + 1 + 255 + 1 + 255 + 1 + 1 + 255 + 1 + 1 + 1 + 1 + 32 * 6 * 4 + 1 + 2 * 8 + 1 + 1 + 255 + 1 + 255 + 1 + 2 * 8 + 1 + 2 * 8 + 1 + 4, "data size insufficient.");
 
     const size_t length = lt_write_system_info(data);
 
@@ -2086,7 +2113,7 @@ static size_t lt_write_system_info(OUT uint8_t *pData)
     *pData = isElevated ? 1 : 0;
     pData++;
 
-  } while (0);
+  } while (false);
 
   // Monitor.
   {
@@ -2350,6 +2377,237 @@ static size_t lt_write_system_info(OUT uint8_t *pData)
       if (pLocator != nullptr)
         pLocator->Release();
     }
+
+  } while (false);
+
+  // Storage Quality.
+  do
+  {
+    uint64_t totalSize = 0;
+    uint64_t ssdSize = 0;
+
+    IWbemLocator *pLocator = nullptr;
+    HRESULT result = CoCreateInstance(CLSID_WbemLocator, 0, CLSCTX_INPROC_SERVER, IID_IWbemLocator, reinterpret_cast<void **>(&pLocator));
+
+    if (FAILED(result) && result == 0x800401F0 && pLocator == nullptr) // CoInitialize hasn't been called.
+    {
+      if (FAILED(CoInitialize(NULL)))
+        break;
+
+      result = CoCreateInstance(CLSID_WbemLocator, 0, CLSCTX_INPROC_SERVER, IID_IWbemLocator, reinterpret_cast<void **>(&pLocator));
+    }
+
+    if (FAILED(result) || pLocator == nullptr)
+    {
+      if (pLocator != nullptr)
+        pLocator->Release();
+
+      break;
+    }
+
+    IWbemServices *pServices = nullptr;
+
+    result = pLocator->ConnectServer(L"Root\\Microsoft\\Windows\\Storage", nullptr, nullptr, 0, NULL, 0, 0, &pServices);
+
+    if (FAILED(result) || pServices == nullptr)
+    {
+      if (pServices != nullptr)
+        pServices->Release();
+
+      if (pLocator != nullptr)
+        pLocator->Release();
+
+      break;
+    }
+
+    // Set the IWbemServices proxy so that impersonation of the user (client) occurs.
+    result = CoSetProxyBlanket(pServices, RPC_C_AUTHN_WINNT, RPC_C_AUTHZ_NONE, nullptr, RPC_C_AUTHN_LEVEL_CALL, RPC_C_IMP_LEVEL_IMPERSONATE, nullptr, EOAC_NONE);
+
+    if (FAILED(result))
+    {
+      if (pServices != nullptr)
+        pServices->Release();
+
+      if (pLocator != nullptr)
+        pLocator->Release();
+
+      break;
+    }
+
+    IEnumWbemClassObject *pEnumerator = nullptr;
+    result = pServices->ExecQuery(TEXT("WQL"), TEXT("select * from MSFT_PhysicalDisk"), WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY, nullptr, &pEnumerator);
+
+    if (FAILED(result))
+    {
+      if (pServices != nullptr)
+        pServices->Release();
+
+      if (pLocator != nullptr)
+        pLocator->Release();
+
+      break;
+    }
+
+    IWbemClassObject *ppValues[128];
+
+    ULONG count = 0;
+    result = pEnumerator->Next(WBEM_INFINITE, ARRAYSIZE(ppValues), ppValues, &count);
+
+    if (FAILED(result) || count == 0)
+    {
+      if (pEnumerator != nullptr)
+        pEnumerator->Release();
+
+      if (pServices != nullptr)
+        pServices->Release();
+
+      if (pLocator != nullptr)
+        pLocator->Release();
+
+      break;
+    }
+
+    for (size_t i = 0; i < count; i++)
+    {
+      if (ppValues[i] == nullptr)
+        continue;
+
+      VARIANT value;
+      CIMTYPE type = 0;
+
+      result = ppValues[i]->Get(TEXT("AllocatedSize"), 0, &value, &type, nullptr);
+      
+      if (FAILED(result) || (value.vt != VT_BSTR && value.vt != VT_UI8))
+      {
+        VariantClear(&value);
+        continue;
+      }
+
+      const uint64_t size = value.vt == VT_UI8 ? value.ullVal : lt_parse_uint(value.bstrVal);
+      totalSize += size;
+
+      VariantClear(&value);
+
+      result = ppValues[i]->Get(TEXT("MediaType"), 0, &value, &type, nullptr);
+
+      if (FAILED(result) || (value.vt != VT_UI2 && value.vt != VT_I2 && value.vt != VT_UI4 && value.vt != VT_I4 && value.vt != VT_BSTR))
+      {
+        VariantClear(&value);
+        continue;
+      }
+
+      if ((value.vt == VT_UI2 && value.uiVal == 4) || (value.vt == VT_I2 && value.iVal == 4) || (value.vt == VT_UI4 && value.ulVal == 4) || (value.vt == VT_I4 && value.lVal == 4) || (value.vt == VT_BSTR && value.bstrVal[0] == L'4' && value.bstrVal[1] == L'\0')) // 4 corresponds to SSD.
+      {
+        ssdSize += size;
+      }
+
+      VariantClear(&value);
+    }
+
+    for (size_t i = 0; i < count; i++)
+    {
+      if (ppValues[i] == nullptr)
+        continue;
+
+      ppValues[i]->Release();
+      ppValues[i] = nullptr;
+    }
+
+    if (pEnumerator != nullptr)
+      pEnumerator->Release();
+
+    if (pServices != nullptr)
+      pServices->Release();
+
+    if (pLocator != nullptr)
+      pLocator->Release();
+
+    if (totalSize == 0)
+      break;
+
+    *pData = lt_si_storage_quality;
+    pData++;
+
+    *reinterpret_cast<uint64_t *>(pData) = totalSize;
+    pData += sizeof(uint64_t);
+    *reinterpret_cast<uint64_t *>(pData) = ssdSize;
+    pData += sizeof(uint64_t);
+
+  } while (false);
+
+  // Networking.
+  do
+  {
+    uint8_t data[1024 * 64];
+    ULONG bytes = sizeof(data);
+    
+    IP_ADAPTER_ADDRESSES *pAdapter = reinterpret_cast<IP_ADAPTER_ADDRESSES_LH *>(data);
+
+    if (NO_ERROR != GetAdaptersAddresses(AF_INET, GAA_FLAG_SKIP_FRIENDLY_NAME | GAA_FLAG_SKIP_DNS_SERVER, nullptr, pAdapter, &bytes))
+      break;
+
+    bool fastestIsWireless = false;
+    uint64_t downLinkSpeed = 0;
+    uint64_t upLinkSpeed = 0;
+    uint8_t identifier[4];
+    ZeroMemory(identifier, sizeof(identifier));
+
+    while (pAdapter != nullptr)
+    {
+      bool skip = pAdapter->IfType != IF_TYPE_ETHERNET_CSMACD && pAdapter->IfType != IF_TYPE_IEEE80211;
+
+      if (!skip && pAdapter->PhysicalAddressLength >= 3) // skip virtual adapters.
+      {
+        skip |= (pAdapter->PhysicalAddress[0] == 0x00 && pAdapter->PhysicalAddress[1] == 0x05 && pAdapter->PhysicalAddress[2] == 0x69); // VMWare 1
+        skip |= (pAdapter->PhysicalAddress[0] == 0x00 && pAdapter->PhysicalAddress[1] == 0x0C && pAdapter->PhysicalAddress[2] == 0x29); // VMWare 2
+        skip |= (pAdapter->PhysicalAddress[0] == 0x00 && pAdapter->PhysicalAddress[1] == 0x50 && pAdapter->PhysicalAddress[2] == 0x56); // VMWare 3
+        skip |= (pAdapter->PhysicalAddress[0] == 0x00 && pAdapter->PhysicalAddress[1] == 0x1C && pAdapter->PhysicalAddress[2] == 0x42); // Parallels 1
+        skip |= (pAdapter->PhysicalAddress[0] == 0x00 && pAdapter->PhysicalAddress[1] == 0x03 && pAdapter->PhysicalAddress[2] == 0xFF); // Microsoft Virtual PC
+        skip |= (pAdapter->PhysicalAddress[0] == 0x00 && pAdapter->PhysicalAddress[1] == 0x0F && pAdapter->PhysicalAddress[2] == 0x4B); // Virtual Iron 4
+        skip |= (pAdapter->PhysicalAddress[0] == 0x00 && pAdapter->PhysicalAddress[1] == 0x16 && pAdapter->PhysicalAddress[2] == 0x3E); // Red Hat XEN, Oracle VM, Xen Source, Novell XEN
+        skip |= (pAdapter->PhysicalAddress[0] == 0x08 && pAdapter->PhysicalAddress[1] == 0x00 && pAdapter->PhysicalAddress[2] == 0x27); // Virtual Box
+        skip |= (pAdapter->PhysicalAddress[0] == 0x00 && pAdapter->PhysicalAddress[1] == 0x15 && pAdapter->PhysicalAddress[2] == 0x5D); // HyperV (Microsoft)
+        skip |= (pAdapter->PhysicalAddress[0] == 0x00 && pAdapter->PhysicalAddress[1] == 0x21 && pAdapter->PhysicalAddress[2] == 0xF6); // Virtual Iron Software / Oracle
+        skip |= (pAdapter->PhysicalAddress[0] == 0x00 && pAdapter->PhysicalAddress[1] == 0x24 && pAdapter->PhysicalAddress[2] == 0x0B); // First Virtual Corporation
+        skip |= (pAdapter->PhysicalAddress[0] == 0x54 && pAdapter->PhysicalAddress[1] == 0x52 && pAdapter->PhysicalAddress[2] == 0x00); // Linux Kernel VM
+      }
+
+      if (skip)
+      {
+        pAdapter = pAdapter->Next;
+        continue;
+      }
+
+      for (size_t i = 0; i < pAdapter->PhysicalAddressLength; i++)
+        identifier[i % ARRAYSIZE(identifier)] ^= pAdapter->PhysicalAddress[i];
+
+      if (pAdapter->ReceiveLinkSpeed > downLinkSpeed)
+      {
+        fastestIsWireless = pAdapter->IfType == IF_TYPE_IEEE80211;
+        downLinkSpeed = pAdapter->ReceiveLinkSpeed;
+        upLinkSpeed = pAdapter->TransmitLinkSpeed;
+      }
+
+      pAdapter = pAdapter->Next;
+    }
+
+    if (downLinkSpeed == 0)
+      break;
+
+    *pData = lt_si_networking;
+    pData++;
+
+    *reinterpret_cast<uint64_t *>(pData) = downLinkSpeed;
+    pData += sizeof(uint64_t);
+
+    *reinterpret_cast<uint64_t *>(pData) = upLinkSpeed;
+    pData += sizeof(uint64_t);
+
+    *pData = fastestIsWireless;
+    pData++;
+
+    memcpy(pData, identifier, sizeof(identifier));
+    pData += sizeof(identifier);
 
   } while (false);
 

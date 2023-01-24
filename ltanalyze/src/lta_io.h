@@ -54,7 +54,7 @@
 
 enum
 {
-  lt_analyze_file_version = 10,
+  lt_analyze_file_version = 11,
 };
 
 inline bool deserialize(OUT uint8_t *pValue, IN ByteStream *pStream, const uint32_t /* version */)
@@ -521,6 +521,17 @@ inline bool deserialize(OUT lt_short_hw_info *pData, IN ByteStream *pStream, con
   READ(pStream, pData->monitorTotalWidth);
   READ(pStream, pData->monitorTotalHeight);
 
+  if (version >= 11)
+  {
+    READ(pStream, pData->ssdStorageShare);
+    READ(pStream, pData->identifier);
+  }
+  else
+  {
+    pData->ssdStorageShare = 0;
+    pData->identifier = 0;
+  }
+
   return true;
 }
 
@@ -538,6 +549,8 @@ inline bool serialize(IN const lt_short_hw_info *pData, IN StreamWriter *pStream
   WRITE(pStream, pData->monitorCount);
   WRITE(pStream, pData->monitorTotalWidth);
   WRITE(pStream, pData->monitorTotalHeight);
+  WRITE(pStream, pData->ssdStorageShare);
+  WRITE(pStream, pData->identifier);
 
   return true;
 }
@@ -558,6 +571,8 @@ inline bool jsonify(IN const lt_short_hw_info *pData, IN JsonWriter *pWriter)
   pWriter->write("monitorCount", pData->monitorCount);
   pWriter->write("multiMonitorWidth", pData->monitorTotalWidth);
   pWriter->write("multiMonitorHeight", pData->monitorTotalHeight);
+  pWriter->write("ssdStorageShare", pData->ssdStorageShare);
+  pWriter->write("identifier", pData->identifier);
 
   pWriter->end();
 
@@ -1906,6 +1921,16 @@ inline bool deserialize(OUT lt_hw_info_analyze *pData, IN ByteStream *pStream, c
   RETURN_ERROR_IF(!deserialize(&pData->deviceManufacturerName, pStream, version), "Failed to deserialize.");
   RETURN_ERROR_IF(!deserialize(&pData->deviceManufacturerModelName, pStream, version), "Failed to deserialize.");
 
+  if (version >= 11)
+  {
+    RETURN_ERROR_IF(!deserialize(&pData->totalSsdStorage, pStream, version), "Failed to deserialize.");
+    RETURN_ERROR_IF(!deserialize(&pData->ssdStorageShare, pStream, version), "Failed to deserialize.");
+    RETURN_ERROR_IF(!deserialize(&pData->downLinkSpeed, pStream, version), "Failed to deserialize.");
+    RETURN_ERROR_IF(!deserialize(&pData->upLinkSpeed, pStream, version), "Failed to deserialize.");
+    RETURN_ERROR_IF(!deserialize(&pData->isWireless, pStream, version), "Failed to deserialize.");
+    RETURN_ERROR_IF(!deserialize(&pData->identifier, pStream, version), "Failed to deserialize.");
+  }
+
   return true;
 }
 
@@ -1934,6 +1959,12 @@ inline bool serialize(IN const lt_hw_info_analyze *pData, IN StreamWriter *pStre
   RETURN_ERROR_IF(!serialize(&pData->storageTotal, pStream), "Failed to serialize.");
   RETURN_ERROR_IF(!serialize(&pData->deviceManufacturerName, pStream), "Failed to serialize.");
   RETURN_ERROR_IF(!serialize(&pData->deviceManufacturerModelName, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pData->totalSsdStorage, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pData->ssdStorageShare, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pData->downLinkSpeed, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pData->upLinkSpeed, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pData->isWireless, pStream), "Failed to serialize.");
+  RETURN_ERROR_IF(!serialize(&pData->identifier, pStream), "Failed to serialize.");
 
   return true;
 }
@@ -2010,6 +2041,24 @@ inline bool jsonify(IN const lt_hw_info_analyze *pData, IN JsonWriter *pWriter)
 
   pWriter->write_name("deviceManufacturerModel");
   RETURN_ERROR_IF(!jsonify(&pData->deviceManufacturerModelName, pWriter), "Failed to jsonify.");
+
+  pWriter->write_name("totalSsdStorage");
+  RETURN_ERROR_IF(!jsonify(&pData->totalSsdStorage, pWriter), "Failed to jsonify.");
+
+  pWriter->write_name("ssdStorageShare");
+  RETURN_ERROR_IF(!jsonify(&pData->ssdStorageShare, pWriter), "Failed to jsonify.");
+
+  pWriter->write_name("downLinkSpeed");
+  RETURN_ERROR_IF(!jsonify(&pData->downLinkSpeed, pWriter), "Failed to jsonify.");
+
+  pWriter->write_name("upLinkSpeed");
+  RETURN_ERROR_IF(!jsonify(&pData->upLinkSpeed, pWriter), "Failed to jsonify.");
+
+  pWriter->write_name("isWireless");
+  RETURN_ERROR_IF(!jsonify(&pData->isWireless, pWriter), "Failed to jsonify.");
+
+  pWriter->write_name("identifier");
+  RETURN_ERROR_IF(!jsonify(&pData->identifier, pWriter), "Failed to jsonify.");
 
   pWriter->end();
 
