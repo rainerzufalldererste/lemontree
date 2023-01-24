@@ -562,6 +562,24 @@ int32_t main(void)
             break;
           }
 
+          case lt_si_storage_quality:
+          {
+            PRINT_X64(",", "totalStorageBytes", stream);
+            PRINT_X64(",", "ssdStorageBytes", stream);
+
+            break;
+          }
+
+          case lt_si_networking:
+          {
+            PRINT_X64(",", "downLinkSpeed", stream);
+            PRINT_X64(",", "upLinkSpeed", stream);
+            PRINT_BOOL(",", "isWireless", stream);
+            PRINT_U32(",", "identifier", stream);
+
+            break;
+          }
+
           default:
           {
             stream.sizeRemaining = 0;

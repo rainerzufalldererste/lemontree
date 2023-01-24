@@ -166,6 +166,12 @@ public class SubSystemInfo : ElementResponse
     yield return GraphGen.ToHistorgramChart(analysis.hwInfo.totalStorage, "Total Storage GB");
     yield return GraphGen.ToPieChart(analysis.hwInfo.deviceManufacturer, "Device Manufacturer");
     yield return GraphGen.ToPieChart(analysis.hwInfo.deviceManufacturerModel, "Device Model");
+    yield return GraphGen.ToHistorgramChart(analysis.hwInfo.totalSsdStorage, "Total SSD Storage GB");
+    yield return GraphGen.ToHistorgramChart(analysis.hwInfo.ssdStorageShare, "SSD Storage Share", v => $"{v * 100.0:0.##}%");
+    yield return GraphGen.ToHistorgramChart(analysis.hwInfo.downLinkSpeed, "Network Down Link", v => $"{v / 1000.0:0.##} GBit/s");
+    yield return GraphGen.ToHistorgramChart(analysis.hwInfo.upLinkSpeed, "Network Up Link", v => $"{v / 1000.0:0.##} GBit/s");
+    yield return GraphGen.ToPieChart(analysis.hwInfo.isWireless, "Network Connection", v => v ? "IEEE 802.11" : "Ethernet");
+    yield return GraphGen.ToPieChart(analysis.hwInfo.identifier, "Network ID", v => HardwareInfo.idToString(v));
   }
 
   internal static IEnumerable<HElement> ShowContents(SessionData sessionData, string productName, ulong majorVersion, ulong minorVersion, ulong subSystem)

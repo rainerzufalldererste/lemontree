@@ -86,6 +86,8 @@ enum lt_system_info
   lt_si_device,
   lt_si_lang,
   lt_si_elevated,
+  lt_si_storage_quality,
+  lt_si_networking,
 
   lt_si_end,
 };

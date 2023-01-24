@@ -1254,6 +1254,30 @@ bool analyze_file(const wchar_t *inputFileName, lt_analyze *pAnalyze, bool isNew
             break;
           }
         
+          case lt_si_storage_quality:
+          {
+            hwInfo.hasStorageQualityInfo = true;
+
+            uint64_t storageTotal;
+            READ(pStream, storageTotal);
+            READ(pStream, hwInfo.totalSsdStorage);
+            hwInfo.ssdStorageShare = hwInfo.totalSsdStorage / (double)storageTotal;
+        
+            break;
+          }
+        
+          case lt_si_networking:
+          {
+            hwInfo.hasNetworkInfo = true;
+
+            READ(pStream, hwInfo.downLinkSpeed);
+            READ(pStream, hwInfo.upLinkSpeed);
+            READ(pStream, hwInfo.isWireless);
+            READ(pStream, hwInfo.identifier);
+        
+            break;
+          }
+        
           default:
           {
             stream.sizeRemaining = 0;

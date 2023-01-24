@@ -28,9 +28,7 @@ inline void to_short_hw_info(IN const lt_hw_info *pHwInfo, OUT lt_short_hw_info 
   }
 
   if (pHwInfo->hasOsInfo)
-  {
     memcpy(pShortHwInfo->osName, pHwInfo->osName, sizeof(pHwInfo->osName));
-  }
 
   if (pHwInfo->hasMonitorInfo)
   {
@@ -38,6 +36,12 @@ inline void to_short_hw_info(IN const lt_hw_info *pHwInfo, OUT lt_short_hw_info 
     pShortHwInfo->monitorTotalWidth = pHwInfo->monitorTotalWidth;
     pShortHwInfo->monitorTotalHeight = pHwInfo->monitorTotalHeight;
   }
+
+  if (pHwInfo->hasStorageQualityInfo)
+    pShortHwInfo->ssdStorageShare = (float_t)pHwInfo->ssdStorageShare;
+
+  if (pHwInfo->hasNetworkInfo)
+    pShortHwInfo->identifier;
 }
 
 inline lt_sub_system_data *get_sub_system_data(IN lt_analyze *pAnalyze, const uint64_t subSystem)
@@ -746,6 +750,24 @@ inline void update_hw_info(lt_hw_info_analyze *pAnalyze, IN const lt_hw_info *pI
     model[sizeof(model) - 1] = '\0';
 
     update_string_value(&pAnalyze->deviceManufacturerModelName.values, model);
+  }
+
+  if (pInfo->hasStorageQualityInfo)
+  {
+    update_value_range(&pAnalyze->totalSsdStorage, pInfo->totalSsdStorage / (1024.0 * 1024.0 * 1024.0));
+    update_value_range(&pAnalyze->ssdStorageShare, pInfo->ssdStorageShare);
+  }
+
+  if (pInfo->hasNetworkInfo)
+  {
+    if (pInfo->downLinkSpeed != 0 && pInfo->downLinkSpeed != (uint64_t)-1)
+      update_value_range(&pAnalyze->downLinkSpeed, pInfo->downLinkSpeed / (1000.0 * 1000.0));
+
+    if (pInfo->upLinkSpeed != 0 && pInfo->upLinkSpeed != (uint64_t)-1)
+      update_value_range(&pAnalyze->upLinkSpeed, pInfo->upLinkSpeed / (1000.0 * 1000.0));
+    
+    update_value(&pAnalyze->isWireless.values, (uint8_t)(pInfo->isWireless ? 1 : 0));
+    update_exact_value(&pAnalyze->identifier, pInfo->identifier);
   }
 }
 

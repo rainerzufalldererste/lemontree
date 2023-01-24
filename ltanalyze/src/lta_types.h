@@ -320,6 +320,8 @@ struct lt_short_hw_info
   char osName[0x100] = "<UNKNOWN>";
   uint64_t monitorCount = 0;
   uint32_t monitorTotalWidth = 0, monitorTotalHeight = 0;
+  float_t ssdStorageShare = 0;
+  uint32_t identifier = 0;
 };
 
 template <typename T>
@@ -374,6 +376,13 @@ struct lt_hw_info
   bool hasDeviceInfo = false;
   char deviceManufacturerName[0x100];
   char deviceModelName[0x100];
+  bool hasStorageQualityInfo = false;
+  uint64_t totalSsdStorage;
+  double ssdStorageShare;
+  bool hasNetworkInfo = false;
+  uint64_t downLinkSpeed, upLinkSpeed;
+  bool isWireless;
+  uint32_t identifier;
 };
 
 template <typename T>
@@ -495,6 +504,10 @@ struct lt_hw_info_analyze
   lt_global_value_range<double> storageAvailable, storageTotal;
   lt_global_values<lt_string_value_entry> deviceManufacturerName;
   lt_global_values<lt_string_value_entry> deviceManufacturerModelName;
+  lt_global_value_range<double> totalSsdStorage, ssdStorageShare;
+  lt_global_value_range<double> upLinkSpeed, downLinkSpeed;
+  lt_global_values<uint8_t> isWireless;
+  lt_global_values_exact<uint32_t> identifier;
 };
 
 struct lt_state

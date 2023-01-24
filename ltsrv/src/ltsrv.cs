@@ -803,6 +803,24 @@ public struct HardwareInfo
   public GlobalValueRange<double> availableStorage, totalStorage;
   public GlobalExactValueData<string> deviceManufacturer;
   public GlobalExactValueData<string> deviceManufacturerModel;
+  public GlobalValueRange<double> totalSsdStorage, ssdStorageShare;
+  public GlobalValueRange<double> downLinkSpeed, upLinkSpeed;
+  public GlobalExactValueDataWithAverage<bool> isWireless;
+  public GlobalExactValueDataWithAverage<uint> identifier;
+
+  public static string idToString(uint id)
+  {
+    string lut = "123456789ABCDEFGHKLMNPQRSTUVWXYZ";
+    string ret = "";
+
+    do
+    {
+      ret += lut[(int)id & 0b11111];
+      id >>= 5;
+    } while (id != 0);
+
+    return ret;
+  }
 }
 
 public class Ref<Index, Value>
@@ -852,10 +870,12 @@ public struct HardwareInfoShort
   public uint64_t freeVRam, dedicatedVRam, totalVRam;
   public string os;
   public uint64_t monitorCount, multiMonitorWidth, multiMonitorHeight;
+  public double ssdStorageShare;
+  public uint identifier;
 
   public override string ToString()
   {
-    return $"CPU: {cpu} ({cpuCores} Cores)\nRAM: {(double)freeRam / (1024.0 * 1024.0 * 1024.0):0.#} / {(double)totalRam / (1024.0 * 1024.0 * 1024.0):0.#} GB available\nGPU: {gpu} ({(double)freeVRam / (1024.0 * 1024.0 * 1024.0):0.#} / {(double)totalVRam / (1024.0 * 1024.0 * 1024.0):0.#} GB available, {(double)dedicatedVRam / (1024.0 * 1024.0 * 1024.0):0.#} GB dedicated)\nOS: {os}\nMonitors: {monitorCount} ({multiMonitorWidth} x {multiMonitorHeight} total)";
+    return $"CPU: {cpu} ({cpuCores} Cores)\nRAM: {(double)freeRam / (1024.0 * 1024.0 * 1024.0):0.#} / {(double)totalRam / (1024.0 * 1024.0 * 1024.0):0.#} GB available\nGPU: {gpu} ({(double)freeVRam / (1024.0 * 1024.0 * 1024.0):0.#} / {(double)totalVRam / (1024.0 * 1024.0 * 1024.0):0.#} GB available, {(double)dedicatedVRam / (1024.0 * 1024.0 * 1024.0):0.#} GB dedicated)\nOS: {os}\nMonitors: {monitorCount} ({multiMonitorWidth} x {multiMonitorHeight} total)\nSSD Storage: {ssdStorageShare * 100:0.##}%\nNetwork ID: {HardwareInfo.idToString(identifier)}";
   }
 }
 

@@ -218,9 +218,9 @@ public static class GraphGen
     return new HContainer() { Elements = { new HText($"{data.count}") { Class = "DataCount" }, new HText($"{data.average:0.####}") { Class = "DataDelay" }, new HText($"{data.min:0.####}") { Class = "DataDelayMin" }, new HText($"{data.max:0.####}") { Class = "DataDelayMax" } } };
   }
 
-  public static HContainer ToPieChart<T>(GlobalExactValueData<T> data, string name)
+  public static HContainer ToPieChart<T>(GlobalExactValueData<T> data, string name, Func<T, string> toStringFunc = null)
   {
-    if (data.count == 0)
+    if (data == null || data.count == 0)
       return new HContainer() { Class = "NoData", Elements = { new HText($"No '{name}' Data Available.") } };
 
     HContainer pieChart = new HContainer() { Class = "PieChartContainer" };
@@ -238,7 +238,7 @@ public static class GraphGen
       string color = colors[index++ % colors.Length];
 
       pieChart.AddElement(new HContainer() { Class = "PieSegment", Style = $"--offset: {offset}; --value: {percentage}; --bg: {color};" + (percentage > 50 ? " --over50: 1;" : "") });
-      description.AddElement(new HContainer() { Class = "PieDescriptionContainer", Elements = { new HText(x.value.ToString()) { Class = "DataName" }, new HText($"{percentage:0.##}%") { Class = "DataPercentage", Style = $"--col: {color};" }, new HText($"{x.count}") { Class = "DataCount" } } });
+      description.AddElement(new HContainer() { Class = "PieDescriptionContainer", Elements = { new HText(toStringFunc == null ? x.value.ToString() : toStringFunc(x.value)) { Class = "DataName" }, new HText($"{percentage:0.##}%") { Class = "DataPercentage", Style = $"--col: {color};" }, new HText($"{x.count}") { Class = "DataCount" } } });
 
       offset += percentage;
       offsetCount += x.count.value;
@@ -340,9 +340,9 @@ public static class GraphGen
     return new HContainer() { Elements = { new HHeadline("Delay", 2), new HText($"{data.data.count}") { Class = "DataCount" }, new HText($"{data.data.avgDelay:0.####} s") { Class = "DataDelay" }, new HText($"{data.data.minDelay:0.####} s") { Class = "DataDelayMin" }, new HText($"{data.data.maxDelay:0.####} s") { Class = "DataDelayMax" } } };
   }
 
-  internal static HElement ToHistorgramChart<T>(GlobalValueRange<T> data, string name)
+  internal static HElement ToHistorgramChart<T>(GlobalValueRange<T> data, string name, Func<double, string> toStringFunc = null)
   {
-    if (data.count == 0)
+    if (data == null || data.count == 0)
       return new HContainer() { Class = "NoData", Elements = { new HText($"No '{name}' Data Available.") } };
 
     var ret = new HContainer() { Class = "DataInfo", Elements = { new HHeadline(name) } };
@@ -351,11 +351,11 @@ public static class GraphGen
     {
       var d = data as PerfValueRange<T>;
 
-      ret.AddElement(new HContainer() { Elements = { new HText($"{data.count}") { Class = "DataCount" }, new HText($"{data.average:0.####}") { Class = "DataDelay" }, new HText($"{data.min:0.####}") { Class = "DataDelayMin", Title = d.minInfo.ToString() }, new HText($"{data.max:0.####}") { Class = "DataDelayMax", Title = d.maxInfo.ToString() } } });
+      ret.AddElement(new HContainer() { Elements = { new HText($"{data.count}") { Class = "DataCount" }, new HText(toStringFunc == null ? $"{data.average:0.####}" : toStringFunc(data.average)) { Class = "DataDelay" }, new HText(toStringFunc == null ? $"{data.min:0.####}" : toStringFunc(Convert.ToDouble(data.min))) { Class = "DataDelayMin", Title = d.minInfo.ToString() }, new HText(toStringFunc == null ? $"{data.max:0.####}" : toStringFunc(Convert.ToDouble(data.max))) { Class = "DataDelayMax", Title = d.maxInfo.ToString() } } });
     }
     else
     {
-      ret.AddElement(new HContainer() { Elements = { new HText($"{data.count}") { Class = "DataCount" }, new HText($"{data.average:0.####}") { Class = "DataDelay" }, new HText($"{data.min:0.####}") { Class = "DataDelayMin" }, new HText($"{data.max:0.####}") { Class = "DataDelayMax" } } });
+      ret.AddElement(new HContainer() { Elements = { new HText($"{data.count}") { Class = "DataCount" }, new HText(toStringFunc == null ? $"{data.average:0.####}" : toStringFunc(data.average)) { Class = "DataDelay" }, new HText(toStringFunc == null ? $"{data.min:0.####}" : toStringFunc(Convert.ToDouble(data.min))) { Class = "DataDelayMin" }, new HText(toStringFunc == null ? $"{data.max:0.####}" : toStringFunc(Convert.ToDouble(data.max))) { Class = "DataDelayMax" } } });
     }
 
     if (data is ValueRange<T>)
@@ -389,13 +389,13 @@ public static class GraphGen
         i++;
 
         double percentage = (double)y / max * 100.0;
-        histogram.AddElement(new HContainer() { Class = "HistogramElement Large", Title = $"{histVal[i]:0.###} ({y})", Style = $"--value:{percentage};" });
+        histogram.AddElement(new HContainer() { Class = "HistogramElement Large", Title = (toStringFunc == null ? $"{histVal[i]:0.###}" : toStringFunc(histVal[i])) + $"({y})", Style = $"--value:{percentage};" });
       }
 
       ret.AddElement(histogram);
 
-      ret.AddElement(new HText(data.min.ToString()) { Class = "HistMin" });
-      ret.AddElement(new HText(data.max.ToString()) { Class = "HistMax" });
+      ret.AddElement(new HText(toStringFunc == null ? data.min.ToString() : toStringFunc(Convert.ToDouble(data.min))) { Class = "HistMin" });
+      ret.AddElement(new HText(toStringFunc == null ? data.max.ToString() : toStringFunc(Convert.ToDouble(data.max))) { Class = "HistMax" });
     }
 
     return ret;
