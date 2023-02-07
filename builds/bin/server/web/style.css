@@ -487,3 +487,71 @@ p.HistMin.\32 D {
 p.HistMax.\32 D {
   color: #523c42;
 }
+
+a.SortedByWeight {
+  display: block;
+  color: #fff;
+  text-decoration: none;
+  background: linear-gradient(0deg, hsl(calc(-5deg + var(--w) * 1.5deg) 50% 40%), hsl(calc(-5deg + var(--w) * 1.5deg) 80% 60%));
+  height: calc(max(15, 2 * var(--w)) * 1pt);
+  overflow-y: hidden;
+  margin: 3pt;
+  border-radius: 5pt;
+  padding: 3pt 6pt 4pt;
+  width: calc(50% + 0.5% * var(--s, 100));
+  text-shadow: 0pt 0pt 2.5pt #0008;
+}
+
+a.SortedByWeight p, a.InState p, a.OutState p {
+  display: inline;
+  font-family: Consolas, monospace;
+  font-size: 80%;
+  color: hsl(calc(-5deg + var(--w) * 1.5deg) 80% 80%);
+  background: hsl(calc(-5deg + var(--w) * 1.5deg) 30% 20%);
+  padding: 2pt 8pt;
+  border-radius: 10pt;
+  margin-left: 5pt;
+}
+
+table.InStateTab, table.OutStateTab {
+  margin: 5pt 1%;
+}
+
+a.InState, a.OutState {
+  display: block;
+  color: #fff;
+  text-decoration: none;
+  background: linear-gradient(0deg, hsl(calc(-5deg + var(--w) * 1.5deg) 50% 40%), hsl(calc(-5deg + var(--w) * 1.5deg) 80% 60%));
+  height: calc(max(25, 3 * var(--w)) * 1pt);
+  overflow-y: hidden;
+  border-radius: 5pt;
+  padding: 3pt 6pt 4pt;
+  text-shadow: 0pt 0pt 2.5pt #0008;
+  width: 300pt;
+  margin: 2pt -5pt;
+}
+
+table.StateTransitions {
+  width: 100%;
+}
+
+p.InStateTrans, p.OutStateTrans {
+  font-family: Consolas, monospace;
+  font-size: 80%;
+  display: table-cell;
+  width: 50pt;
+  padding: 1pt 5pt;
+  text-shadow: 0pt 0pt 2.5pt #0008;
+  height: calc(max(25, 3 * var(--w)) * var(--p) * 1pt);
+  vertical-align: middle;
+}
+
+p.InStateTrans {
+  background: linear-gradient(-90deg, #0000, hsl(calc(-5deg + var(--w) * 1.5deg) 80% 60%));
+  text-align: left;
+}
+
+p.OutStateTrans {
+  background: linear-gradient(90deg, #0000, hsl(calc(-5deg + var(--w) * 1.5deg) 80% 60%));
+  text-align: right;
+}

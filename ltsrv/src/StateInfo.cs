@@ -1,4 +1,6 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
 using LamestWebserver;
 using LamestWebserver.UI;
 using LamestWebserver.Core;
@@ -86,5 +88,77 @@ public class StateInfo : ElementResponse
 
     yield return GraphGen.ToBarGraph(analysis, (uint64_t)subSystem, s.stateReach, "State Reach", info);
     yield return GraphGen.ToBarGraph(analysis, (uint64_t)subSystem, s.operationReach, "Operation Reach", info);
+
+    // Display States with relevance information.
+    {
+      yield return new HHeadline("State Overview", 2) { ID = "overview" };
+
+      List<List<HElement>> incoming = new List<List<HElement>>();
+      List<List<HElement>> outgoing = new List<List<HElement>>();
+
+      var list = from k in s.previousState.OrderByDescending(e => e.value.avgDelay) select new { state = k, usage = GetUsageInfoNext(analysis, (uint64_t)subSystem, k.index, new StateId(state, subStateIndex)) };
+      ulong maxShare = list.Max(e => e.usage.Item2);
+      ulong sumFromSelf = (ulong)list.Sum(e => (long)(ulong)e.state.value.count);
+      ulong maxFromSelf = list.Max(e => (ulong)e.state.value.count);
+
+      foreach (var x in list)
+      {
+        var stateLink = new HLink(info.GetStateName((uint64_t)subSystem, x.state.index.state, x.state.index.subState), $"/state?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&ss={subSystem}&id={x.state.index.state}&sid={x.state.index.subState}#overview") { Class = "InState", Style = $"--w:{x.usage.Item2 / maxShare * 100};", Elements = { new HText($"{x.state.value.avgDelay} s | {x.usage.Item2}") } };
+        var stateTransition = new HText($"{x.usage.Item1 / (double)x.usage.Item2 * 100.0:0.##} %") { Class = "InStateTrans", Style = $"--w:{x.usage.Item2 / maxShare * 100};--p:{x.usage.Item1 / (double)x.usage.Item2}" };
+        var fromThis = new HText($"{x.state.value.count / (double)sumFromSelf * 100.0:0.##} %") { Class = "OutStateTrans", Style = $"--w:{x.state.value.count / (double)maxFromSelf * 100};--p:{maxFromSelf / (double)sumFromSelf}" };
+
+        incoming.Add(new List<HElement>() { stateLink, stateTransition, fromThis });
+      }
+
+      list = from k in s.nextState.OrderByDescending(e => e.value.avgDelay) select new { state = k, usage = GetUsageInfoPrevious(analysis, (uint64_t)subSystem, k.index, new StateId(state, subStateIndex)) };
+      maxShare = list.Max(e => e.usage.Item2);
+      sumFromSelf = (ulong)list.Sum(e => (long)(ulong)e.state.value.count);
+      maxFromSelf = list.Max(e => (ulong)e.state.value.count);
+
+      foreach (var x in list)
+      {
+        var stateLink = new HLink(info.GetStateName((uint64_t)subSystem, x.state.index.state, x.state.index.subState), $"/state?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&ss={subSystem}&id={x.state.index.state}&sid={x.state.index.subState}#overview") { Class = "OutState", Style = $"--w:{x.usage.Item2 / maxShare * 100};", Elements = { new HText($"{x.state.value.avgDelay} s | {x.usage.Item2}") } };
+        var stateTransition = new HText($"{x.usage.Item1 / (double)x.usage.Item2 * 100.0:0.##} %") { Class = "OutStateTrans", Style = $"--w:{x.usage.Item2 / maxShare * 100};--p:{x.usage.Item1 / (double)x.usage.Item2}" };
+        var fromThis = new HText($"{x.state.value.count / (double)sumFromSelf * 100.0:0.##} %") { Class = "InStateTrans", Style = $"--w:{x.state.value.count / (double)maxFromSelf * 100};--p:{maxFromSelf / (double)sumFromSelf}" };
+        
+        outgoing.Add(new List<HElement>() { fromThis, stateTransition, stateLink });
+      }
+
+      yield return new HTable(new List<List<HElement>>() { new List<HElement>() { new HTable(incoming) { Class = "InStateTab" }, new HTable(outgoing) { Class = "OutStateTab" } } }) { Class = "StateTransitions" };
+    }
+  }
+
+  private static Tuple<ulong, ulong> GetUsageInfoNext(Analysis analysis, uint64_t subSystem, StateId index, StateId self)
+  {
+    ulong total = 0;
+    ulong share = 0;
+
+    try
+    {
+      var ps = analysis.subSystems.FindItem(subSystem).states.FindItem(new StateId(index.state, index.subState));
+
+      total = (ulong)ps.nextState.Sum(x => (long)(ulong)x.value.count);
+      share = (from y in ps.nextState where y.index.state == self.state && y.index.subState == self.subState select (ulong)y.value.count).FirstOrDefault();
+    }
+    catch { }
+
+    return new Tuple<ulong, ulong>(share, total);
+  }
+
+  private static Tuple<ulong, ulong> GetUsageInfoPrevious(Analysis analysis, uint64_t subSystem, StateId index, StateId self)
+  {
+    ulong total = 0;
+    ulong share = 0;
+
+    try
+    {
+      var ps = analysis.subSystems.FindItem(subSystem).states.FindItem(new StateId(index.state, index.subState));
+
+      total = (ulong)ps.previousState.Sum(x => (long)(ulong)x.value.count);
+      share = (from y in ps.previousState where y.index.state == self.state && y.index.subState == self.subState select (ulong)y.value.count).FirstOrDefault();
+    }
+    catch { }
+
+    return new Tuple<ulong, ulong>(share, total);
   }
 }
