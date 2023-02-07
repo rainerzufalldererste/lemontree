@@ -53,43 +53,51 @@ public class StateInfo : ElementResponse
 
     yield return new HHeadline($"Observed Values UInt64", 2);
 
-    foreach (var x in s.observedU64)
-      yield return new HLink(info.GetValueNameU64(x.index.value), $"/value?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&t=u64&id={x.index}&ss={subSystem}&sid={state}&ssid={subStateIndex}") { Class = "LargeButton" };
+    if (s.observedU64 != null)
+      foreach (var x in s.observedU64)
+        yield return new HLink(info.GetValueNameU64(x.index.value), $"/value?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&t=u64&id={x.index}&ss={subSystem}&sid={state}&ssid={subStateIndex}") { Class = "LargeButton" };
 
     yield return new HHeadline($"Observed Values Int64", 2);
 
-    foreach (var x in s.observedI64)
-      yield return new HLink(info.GetValueNameI64(x.index.value), $"/value?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&t=i64&id={x.index}&ss={subSystem}&sid={state}&ssid={subStateIndex}") { Class = "LargeButton" };
+    if (s.observedI64 != null)
+      foreach (var x in s.observedI64)
+        yield return new HLink(info.GetValueNameI64(x.index.value), $"/value?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&t=i64&id={x.index}&ss={subSystem}&sid={state}&ssid={subStateIndex}") { Class = "LargeButton" };
 
     yield return new HHeadline($"Observed Values String", 2);
 
-    foreach (var x in s.observedString)
-      yield return new HLink(info.GetValueNameString(x.index.value), $"/value?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&t=string&id={x.index}&ss={subSystem}&sid={state}&ssid={subStateIndex}") { Class = "LargeButton" };
+    if (s.observedString != null)
+      foreach (var x in s.observedString)
+        yield return new HLink(info.GetValueNameString(x.index.value), $"/value?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&t=string&id={x.index}&ss={subSystem}&sid={state}&ssid={subStateIndex}") { Class = "LargeButton" };
 
     yield return new HHeadline($"Observed Value Range UInt64", 2);
 
-    foreach (var x in s.observedRangeU64)
-      yield return new HLink(info.GetValueRangeNameU64(x.index.value), $"/range?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&t=u64&id={x.index}&ss={subSystem}&sid={state}&ssid={subStateIndex}") { Class = "LargeButton" };
+    if (s.observedRangeU64 != null)
+      foreach (var x in s.observedRangeU64)
+        yield return new HLink(info.GetValueRangeNameU64(x.index.value), $"/range?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&t=u64&id={x.index}&ss={subSystem}&sid={state}&ssid={subStateIndex}") { Class = "LargeButton" };
 
     yield return new HHeadline($"Observed Value Range Int64", 2);
 
-    foreach (var x in s.observedRangeI64)
-      yield return new HLink(info.GetValueRangeNameI64(x.index.value), $"/range?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&t=i64&id={x.index}&ss={subSystem}&sid={state}&ssid={subStateIndex}") { Class = "LargeButton" };
+    if (s.observedRangeI64 != null)
+      foreach (var x in s.observedRangeI64)
+        yield return new HLink(info.GetValueRangeNameI64(x.index.value), $"/range?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&t=i64&id={x.index}&ss={subSystem}&sid={state}&ssid={subStateIndex}") { Class = "LargeButton" };
 
     yield return new HHeadline($"Observed Value Range Float64", 2);
 
-    foreach (var x in s.observedRangeF64)
-      yield return new HLink(info.GetValueRangeNameF64(x.index.value), $"/range?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&t=f64&id={x.index}&ss={subSystem}&sid={state}&ssid={subStateIndex}") { Class = "LargeButton" };
+    if (s.observedRangeF64 != null)
+      foreach (var x in s.observedRangeF64)
+        yield return new HLink(info.GetValueRangeNameF64(x.index.value), $"/range?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&t=f64&id={x.index}&ss={subSystem}&sid={state}&ssid={subStateIndex}") { Class = "LargeButton" };
 
     yield return new HHeadline($"Observed Value Range Vector2<Float32>", 2);
 
-    foreach (var x in s.observedRangeF32_2)
-      yield return new HLink(info.GetValueRangeNameF32_2(x.index.value), $"/range?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&t=f32_2&id={x.index}&ss={subSystem}&sid={state}&ssid={subStateIndex}") { Class = "LargeButton" };
+    if (s.observedRangeF32_2 != null)
+      foreach (var x in s.observedRangeF32_2)
+        yield return new HLink(info.GetValueRangeNameF32_2(x.index.value), $"/range?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&t=f32_2&id={x.index}&ss={subSystem}&sid={state}&ssid={subStateIndex}") { Class = "LargeButton" };
 
     yield return GraphGen.ToBarGraph(analysis, (uint64_t)subSystem, s.stateReach, "State Reach", info);
     yield return GraphGen.ToBarGraph(analysis, (uint64_t)subSystem, s.operationReach, "Operation Reach", info);
 
     // Display States with relevance information.
+    if (s.nextState != null && s.previousState != null)
     {
       yield return new HHeadline("State Overview", 2) { ID = "overview" };
 
@@ -103,9 +111,9 @@ public class StateInfo : ElementResponse
 
       foreach (var x in list)
       {
-        var stateLink = new HLink(info.GetStateName((uint64_t)subSystem, x.state.index.state, x.state.index.subState), $"/state?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&ss={subSystem}&id={x.state.index.state}&sid={x.state.index.subState}#overview") { Class = "InState", Style = $"--w:{x.usage.Item2 / maxShare * 100};", Elements = { new HText($"{x.state.value.avgDelay} s | {x.usage.Item2}") } };
-        var stateTransition = new HText($"{x.usage.Item1 / (double)x.usage.Item2 * 100.0:0.##} %") { Class = "InStateTrans", Style = $"--w:{x.usage.Item2 / maxShare * 100};--p:{x.usage.Item1 / (double)x.usage.Item2}" };
-        var fromThis = new HText($"{x.state.value.count / (double)sumFromSelf * 100.0:0.##} %") { Class = "OutStateTrans", Style = $"--w:{x.state.value.count / (double)maxFromSelf * 100};--p:{maxFromSelf / (double)sumFromSelf}" };
+        var stateLink = new HLink(info.GetStateName((uint64_t)subSystem, x.state.index.state, x.state.index.subState).WithMaxLength(35), $"/state?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&ss={subSystem}&id={x.state.index.state}&sid={x.state.index.subState}#overview") { Class = "InState", Title = info.GetStateName((uint64_t)subSystem, x.state.index.state, x.state.index.subState), Style = $"--w:{x.usage.Item2 / (double)maxShare * 100.0};", Elements = { new HText($"{x.state.value.avgDelay:0.##} s | {x.usage.Item2}") } };
+        var stateTransition = new HText($"{x.usage.Item1 / (double)x.usage.Item2 * 100.0:0.##} %") { Class = "InStateTrans", Style = $"--w:{x.usage.Item2 / (double)maxShare * 100.0};--p:{x.usage.Item1 / (double)x.usage.Item2}" };
+        var fromThis = new HText($"{x.state.value.count / (double)sumFromSelf * 100.0:0.##} %") { Class = "OutStateTrans", Style = $"--w:{x.state.value.count / (double)maxFromSelf * 100.0};--p:{maxFromSelf / (double)sumFromSelf}" };
 
         incoming.Add(new List<HElement>() { stateLink, stateTransition, fromThis });
       }
@@ -117,9 +125,9 @@ public class StateInfo : ElementResponse
 
       foreach (var x in list)
       {
-        var stateLink = new HLink(info.GetStateName((uint64_t)subSystem, x.state.index.state, x.state.index.subState), $"/state?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&ss={subSystem}&id={x.state.index.state}&sid={x.state.index.subState}#overview") { Class = "OutState", Style = $"--w:{x.usage.Item2 / maxShare * 100};", Elements = { new HText($"{x.state.value.avgDelay} s | {x.usage.Item2}") } };
-        var stateTransition = new HText($"{x.usage.Item1 / (double)x.usage.Item2 * 100.0:0.##} %") { Class = "OutStateTrans", Style = $"--w:{x.usage.Item2 / maxShare * 100};--p:{x.usage.Item1 / (double)x.usage.Item2}" };
-        var fromThis = new HText($"{x.state.value.count / (double)sumFromSelf * 100.0:0.##} %") { Class = "InStateTrans", Style = $"--w:{x.state.value.count / (double)maxFromSelf * 100};--p:{maxFromSelf / (double)sumFromSelf}" };
+        var stateLink = new HLink(info.GetStateName((uint64_t)subSystem, x.state.index.state, x.state.index.subState).WithMaxLength(35), $"/state?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&ss={subSystem}&id={x.state.index.state}&sid={x.state.index.subState}#overview") { Class = "OutState", Title = info.GetStateName((uint64_t)subSystem, x.state.index.state, x.state.index.subState), Style = $"--w:{x.usage.Item2 / (double)maxShare * 100.0};", Elements = { new HText($"{x.state.value.avgDelay:0.##} s | {x.usage.Item2}") } };
+        var stateTransition = new HText($"{x.usage.Item1 / (double)x.usage.Item2 * 100.0:0.##} %") { Class = "OutStateTrans", Style = $"--w:{x.usage.Item2 / (double)maxShare * 100.0};--p:{x.usage.Item1 / (double)x.usage.Item2}" };
+        var fromThis = new HText($"{x.state.value.count / (double)sumFromSelf * 100.0:0.##} %") { Class = "InStateTrans", Style = $"--w:{x.state.value.count / (double)maxFromSelf * 100.0};--p:{maxFromSelf / (double)sumFromSelf}" };
         
         outgoing.Add(new List<HElement>() { fromThis, stateTransition, stateLink });
       }

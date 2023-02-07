@@ -206,6 +206,7 @@ public class SubSystemInfo : ElementResponse
     yield return GraphGen.ToHistorgramChart(analysis, (uint64_t)subSystem, s.profileData, "Performance", info);
 
     // Display States with relevance information.
+    if (s.states != null)
     {
       yield return new HHeadline("States by time / ops", 2);
 
@@ -224,7 +225,7 @@ public class SubSystemInfo : ElementResponse
 
         var opCount = x.value.operations.Sum(e => (double)(ulong)e.value.count);
 
-        yield return new HLink(info.GetStateName((uint64_t)subSystem, x.index.state, x.index.subState, (x.value.errors.Count != 0 ? "🚫" : "") + (x.value.warnings.Count != 0 ? "⚠️" : "")), $"/state?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&ss={subSystem}&id={x.index.state}&sid={x.index.subState}") { Class = "SortedByWeight", Style = $"--w:{x.value.avgDelay / max * 100};--s:{opCount / maxOps * 100}", Elements = { new HText($"{x.value.avgDelay} s | {opCount} Operations") } };
+        yield return new HLink(info.GetStateName((uint64_t)subSystem, x.index.state, x.index.subState, (x.value.errors.Count != 0 ? "🚫" : "") + (x.value.warnings.Count != 0 ? "⚠️" : "")), $"/state?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&ss={subSystem}&id={x.index.state}&sid={x.index.subState}") { Class = "SortedByWeight", Style = $"--w:{x.value.avgDelay / max * 100};--s:{opCount / maxOps * 100}", Title = info.GetStateName((uint64_t)subSystem, x.index.state, x.index.subState, (x.value.errors.Count != 0 ? "🚫" : "") + (x.value.warnings.Count != 0 ? "⚠️" : "")), Elements = { new HText($"{x.value.avgDelay:0.##} s | {opCount} Operations") } };
       }
     }
   }
