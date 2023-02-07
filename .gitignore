@@ -263,6 +263,7 @@ __pycache__/
 # Project & Solution Files
 *.sln
 *.vcxpro*
+*.cspro*
 
 # Makefile
 Makefile

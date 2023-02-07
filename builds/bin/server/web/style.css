@@ -492,7 +492,7 @@ a.SortedByWeight {
   display: block;
   color: #fff;
   text-decoration: none;
-  background: linear-gradient(0deg, hsl(calc(-5deg + var(--w) * 1.5deg) 50% 40%), hsl(calc(-5deg + var(--w) * 1.5deg) 80% 60%));
+  background: linear-gradient(0deg, hsl(calc(-5deg + var(--w) * 1.3deg) 50% 40%), hsl(calc(-5deg + var(--w) * 1.3deg) 80% 60%));
   height: calc(max(15, 2 * var(--w)) * 1pt);
   overflow-y: hidden;
   margin: 3pt;
@@ -506,8 +506,8 @@ a.SortedByWeight p, a.InState p, a.OutState p {
   display: inline;
   font-family: Consolas, monospace;
   font-size: 80%;
-  color: hsl(calc(-5deg + var(--w) * 1.5deg) 80% 80%);
-  background: hsl(calc(-5deg + var(--w) * 1.5deg) 30% 20%);
+  color: hsl(calc(-5deg + var(--w) * 1.3deg) 80% 80%);
+  background: hsl(calc(-5deg + var(--w) * 1.3deg) 30% 20%);
   padding: 2pt 8pt;
   border-radius: 10pt;
   margin-left: 5pt;
@@ -521,7 +521,7 @@ a.InState, a.OutState {
   display: block;
   color: #fff;
   text-decoration: none;
-  background: linear-gradient(0deg, hsl(calc(-5deg + var(--w) * 1.5deg) 50% 40%), hsl(calc(-5deg + var(--w) * 1.5deg) 80% 60%));
+  background: linear-gradient(0deg, hsl(calc(-5deg + var(--w) * 1.3deg) 50% 40%), hsl(calc(-5deg + var(--w) * 1.3deg) 80% 60%));
   height: calc(max(25, 3 * var(--w)) * 1pt);
   overflow-y: hidden;
   border-radius: 5pt;
@@ -547,11 +547,11 @@ p.InStateTrans, p.OutStateTrans {
 }
 
 p.InStateTrans {
-  background: linear-gradient(-90deg, #0000, hsl(calc(-5deg + var(--w) * 1.5deg) 80% 60%));
+  background: linear-gradient(-90deg, #0000, hsl(calc(-5deg + var(--w) * 1.3deg) 80% 60%));
   text-align: left;
 }
 
 p.OutStateTrans {
-  background: linear-gradient(90deg, #0000, hsl(calc(-5deg + var(--w) * 1.5deg) 80% 60%));
+  background: linear-gradient(90deg, #0000, hsl(calc(-5deg + var(--w) * 1.3deg) 80% 60%));
   text-align: right;
 }
