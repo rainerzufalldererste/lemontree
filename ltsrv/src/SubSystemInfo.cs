@@ -204,5 +204,28 @@ public class SubSystemInfo : ElementResponse
     yield return GraphGen.ToPieChart(s.noStateLogs.values, "Log Messages not attributed to a state", info, s.noStateLogs.count);
 
     yield return GraphGen.ToHistorgramChart(analysis, (uint64_t)subSystem, s.profileData, "Performance", info);
+
+    // Display States with relevance information.
+    {
+      yield return new HHeadline("States by time / ops", 2);
+
+      bool first = true;
+      double max = 0;
+
+      double maxOps = s.states.Max(e => e.value.operations.Sum(f => (double)(ulong)f.value.count));
+
+      foreach (var x in s.states.OrderByDescending(e => e.value.avgDelay))
+      {
+        if (first)
+        {
+          first = false;
+          max = x.value.avgDelay;
+        }
+
+        var opCount = x.value.operations.Sum(e => (double)(ulong)e.value.count);
+
+        yield return new HLink(info.GetStateName((uint64_t)subSystem, x.index.state, x.index.subState, (x.value.errors.Count != 0 ? "🚫" : "") + (x.value.warnings.Count != 0 ? "⚠️" : "")), $"/state?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&ss={subSystem}&id={x.index.state}&sid={x.index.subState}") { Class = "SortedByWeight", Style = $"--w:{x.value.avgDelay / max * 100};--s:{opCount / maxOps * 100}", Elements = { new HText($"{x.value.avgDelay} s | {opCount} Operations") } };
+      }
+    }
   }
 }
