@@ -206,7 +206,7 @@ public class SubSystemInfo : ElementResponse
     yield return GraphGen.ToHistorgramChart(analysis, (uint64_t)subSystem, s.profileData, "Performance", info);
 
     // Display States with relevance information.
-    if (s.states != null)
+    if (s.states != null && s.states.Any())
     {
       yield return new HHeadline("States by time / ops", 2);
 
@@ -220,7 +220,7 @@ public class SubSystemInfo : ElementResponse
         if (first)
         {
           first = false;
-          max = x.value.avgDelay;
+          max = System.Math.Max(0.1, x.value.avgDelay);
         }
 
         var opCount = x.value.operations.Sum(e => (double)(ulong)e.value.count);

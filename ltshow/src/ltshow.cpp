@@ -62,7 +62,7 @@ int32_t main(void)
   size_t fileSize = 0;
   uint8_t *pData = nullptr;
 
-  // Read StackTrace File.
+  // Read Log File.
   {
     HANDLE file = CreateFileW(inputFileName, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
     FATAL_IF(file == INVALID_HANDLE_VALUE, "Failed to open log file. (0x%" PRIX32 ")", GetLastError());
