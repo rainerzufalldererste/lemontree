@@ -97,7 +97,7 @@ public class StateInfo : ElementResponse
     yield return GraphGen.ToBarGraph(analysis, (uint64_t)subSystem, s.operationReach, "Operation Reach", info);
 
     // Display States with relevance information.
-    if (s.nextState != null && s.previousState != null)
+    if (s.nextState != null && s.previousState != null && s.nextState.Any() && s.previousState.Any())
     {
       yield return new HHeadline("State Overview", 2) { ID = "overview" };
 
@@ -105,9 +105,9 @@ public class StateInfo : ElementResponse
       List<List<HElement>> outgoing = new List<List<HElement>>();
 
       var list = from k in s.previousState.OrderByDescending(e => e.value.avgDelay) select new { state = k, usage = GetUsageInfoNext(analysis, (uint64_t)subSystem, k.index, new StateId(state, subStateIndex)) };
-      ulong maxShare = list.Max(e => e.usage.Item2);
-      ulong sumFromSelf = (ulong)list.Sum(e => (long)(ulong)e.state.value.count);
-      ulong maxFromSelf = list.Max(e => (ulong)e.state.value.count);
+      ulong maxShare = System.Math.Max((ulong)1, list.Max(e => e.usage.Item2));
+      ulong sumFromSelf = System.Math.Max((ulong)1, (ulong)list.Sum(e => (long)(ulong)e.state.value.count));
+      ulong maxFromSelf = System.Math.Max((ulong)1, list.Max(e => (ulong)e.state.value.count));
 
       foreach (var x in list)
       {
@@ -119,9 +119,9 @@ public class StateInfo : ElementResponse
       }
 
       list = from k in s.nextState.OrderByDescending(e => e.value.avgDelay) select new { state = k, usage = GetUsageInfoPrevious(analysis, (uint64_t)subSystem, k.index, new StateId(state, subStateIndex)) };
-      maxShare = list.Max(e => e.usage.Item2);
-      sumFromSelf = (ulong)list.Sum(e => (long)(ulong)e.state.value.count);
-      maxFromSelf = list.Max(e => (ulong)e.state.value.count);
+      maxShare = System.Math.Max((ulong)1, list.Max(e => e.usage.Item2));
+      sumFromSelf = System.Math.Max((ulong)1, (ulong)list.Sum(e => (long)(ulong)e.state.value.count));
+      maxFromSelf = System.Math.Max((ulong)1, list.Max(e => (ulong)e.state.value.count));
 
       foreach (var x in list)
       {

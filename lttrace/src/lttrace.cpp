@@ -43,7 +43,7 @@ int32_t main(void)
 
   int32_t argc = 0;
   wchar_t **pArgv = CommandLineToArgvW(commandLine, &argc);
-  FATAL_IF(argc != 3, "Invalid Parameter.\nUsage: <Input StackTrace File> <Application PDB>");
+  FATAL_IF(argc != 3, "Invalid Parameter.\nUsage: [<Input StackTrace File> | :<Base64 Encoded StackTrace>] <Application PDB>");
 
   const wchar_t *inputFileName = pArgv[1];
   const wchar_t *pdbFileName = pArgv[2];
@@ -86,8 +86,10 @@ int32_t main(void)
     FATAL_IF(FAILED(hr = pdbSource->openSession(&pdbSession)), "Failed to Open Session.");
   }
 
-  // Read StackTrace File.
+  // Is the input a file name or base64?
+  if (inputFileName[0] != TEXT(':'))
   {
+    // Read StackTrace File.
     HANDLE file = CreateFileW(inputFileName, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
     FATAL_IF(file == INVALID_HANDLE_VALUE, "Failed to open stack trace file. (0x%" PRIX32 ")", GetLastError());
 
@@ -115,6 +117,96 @@ int32_t main(void)
     }
 
     CloseHandle(file);
+  }
+  else
+  {
+    // Decode from Base64.
+    inputFileName++; // Remove ':'.
+
+    size_t length = wcslen(inputFileName);
+
+    // Remove Padding.
+    while (length > 0 && inputFileName[length - 1] == TEXT('='))
+      length--;
+
+    FATAL_IF(length % 4 == 1, "Base64 length invalid.");
+
+    stackTracesBytes = length / 4 * 3 + (size_t)max((int64_t)0, ((int64_t)(length % 4) - 1));
+    pStackTraces = reinterpret_cast<uint8_t *>(malloc(stackTracesBytes));
+
+    FATAL_IF(pStackTraces == nullptr, "Failed to allocate memory.");
+
+    // Which codepoint maps to which hextet?
+    // `0xFF` represents invalid codepoints (including the padding codepoint '=', which is handled separately)
+    const uint8_t lut[0x80] =
+    {
+      0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+      0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+      0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x3E, 0xFF, 0xFF, 0xFF, 0x3F,
+      0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x3A, 0x3B, 0x3C, 0x3D, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+      0xFF, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E,
+      0x0F, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+      0xFF, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28,
+      0x29, 0x2A, 0x2B, 0x2C, 0x2D, 0x2E, 0x2F, 0x30, 0x31, 0x32, 0x33, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
+    };
+
+    size_t i = 0;
+    uint8_t *pNext = pStackTraces;
+    uint32_t decoded[4];
+
+    for (; i < min(length, length - 3); i += 4)
+    {
+      FATAL_IF((uint16_t)inputFileName[i] >= 0x80 || (uint16_t)inputFileName[i + 1] >= 0x80 || (uint16_t)inputFileName[i + 2] >= 0x80 || (uint16_t)inputFileName[i + 3] >= 0x80, "Invalid Base64 String.");
+
+      decoded[0] = lut[(uint8_t)inputFileName[i + 0]];
+      decoded[1] = lut[(uint8_t)inputFileName[i + 1]];
+      decoded[2] = lut[(uint8_t)inputFileName[i + 2]];
+      decoded[3] = lut[(uint8_t)inputFileName[i + 3]];
+
+      FATAL_IF(decoded[0] == 0xFF || decoded[1] == 0xFF || decoded[2] == 0xFF || decoded[3] == 0xFF, "Invalid Base64 String.");
+
+      const uint32_t out = (decoded[0] << 3 * 6) | (decoded[1] << 12) | (decoded[2] << 6) | decoded[3];
+
+      pNext[0] = (uint8_t)(out >> 0x10);
+      pNext[1] = (uint8_t)(out >> 0x8);
+      pNext[2] = (uint8_t)out;
+
+      pNext += 3;
+    }
+
+    if (i < length)
+    {
+      ZeroMemory(decoded, sizeof(decoded));
+      const size_t remainingSize = length - i;
+
+      for (size_t j = 0; j < remainingSize; j++)
+      {
+        FATAL_IF((uint16_t)inputFileName[i + j] >= 0x80, "Invalid Base64 String.");
+
+        decoded[j] = lut[(uint8_t)inputFileName[i + j]];
+
+        FATAL_IF(decoded[j] == 0xFF, "Invalid Base64 String.");
+      }
+
+      const uint32_t out = (decoded[0] << 3 * 6) | (decoded[1] << 12) | (decoded[2] << 6) | decoded[3];
+
+      *pNext = (uint8_t)(out >> 0x10);
+      pNext++;
+
+      if (remainingSize > 2)
+      {
+        *pNext = (uint8_t)(out >> 0x8);
+        pNext++;
+
+        if (remainingSize > 3)
+        {
+          *pNext = (uint8_t)out;
+          pNext++;
+        }
+      }
+    }
+
+    FATAL_IF(pNext != pStackTraces + stackTracesBytes, "Invalid Base64 String.");
   }
 
   // Init Disassembler.
