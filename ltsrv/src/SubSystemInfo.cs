@@ -213,7 +213,7 @@ public class SubSystemInfo : ElementResponse
       bool first = true;
       double max = 0;
 
-      double maxOps = s.states.Max(e => e.value.operations.Sum(f => (double)(ulong)f.value.count));
+      double maxOps = System.Math.Max(1.0, s.states.Max(e => e.value.operations.Sum(f => (double)(ulong)f.value.count)));
 
       foreach (var x in s.states.OrderByDescending(e => e.value.avgDelay))
       {

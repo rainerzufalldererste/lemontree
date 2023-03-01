@@ -97,39 +97,44 @@ public class StateInfo : ElementResponse
     yield return GraphGen.ToBarGraph(analysis, (uint64_t)subSystem, s.operationReach, "Operation Reach", info);
 
     // Display States with relevance information.
-    if (s.nextState != null && s.previousState != null && s.nextState.Any() && s.previousState.Any())
     {
       yield return new HHeadline("State Overview", 2) { ID = "overview" };
 
       List<List<HElement>> incoming = new List<List<HElement>>();
       List<List<HElement>> outgoing = new List<List<HElement>>();
 
-      var list = from k in s.previousState.OrderByDescending(e => e.value.avgDelay) select new { state = k, usage = GetUsageInfoNext(analysis, (uint64_t)subSystem, k.index, new StateId(state, subStateIndex)) };
-      ulong maxShare = System.Math.Max((ulong)1, list.Max(e => e.usage.Item2));
-      ulong sumFromSelf = System.Math.Max((ulong)1, (ulong)list.Sum(e => (long)(ulong)e.state.value.count));
-      ulong maxFromSelf = System.Math.Max((ulong)1, list.Max(e => (ulong)e.state.value.count));
-
-      foreach (var x in list)
+      if (s.previousState != null && s.previousState.Any())
       {
-        var stateLink = new HLink(info.GetStateName((uint64_t)subSystem, x.state.index.state, x.state.index.subState).WithMaxLength(35), $"/state?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&ss={subSystem}&id={x.state.index.state}&sid={x.state.index.subState}#overview") { Class = "InState", Title = info.GetStateName((uint64_t)subSystem, x.state.index.state, x.state.index.subState), Style = $"--w:{x.usage.Item2 / (double)maxShare * 100.0};", Elements = { new HText($"{x.state.value.avgDelay:0.##} s | {x.usage.Item2}") } };
-        var stateTransition = new HText($"{x.usage.Item1 / (double)x.usage.Item2 * 100.0:0.##} %") { Class = "InStateTrans", Style = $"--w:{x.usage.Item2 / (double)maxShare * 100.0};--p:{x.usage.Item1 / (double)x.usage.Item2}" };
-        var fromThis = new HText($"{x.state.value.count / (double)sumFromSelf * 100.0:0.##} %") { Class = "OutStateTrans", Style = $"--w:{x.state.value.count / (double)maxFromSelf * 100.0};--p:{maxFromSelf / (double)sumFromSelf}" };
+        var list = from k in s.previousState.OrderByDescending(e => e.value.avgDelay) select new { state = k, usage = GetUsageInfoNext(analysis, (uint64_t)subSystem, k.index, new StateId(state, subStateIndex)) };
+        ulong maxShare = System.Math.Max((ulong)1, list.Max(e => e.usage.Item2));
+        ulong sumFromSelf = System.Math.Max((ulong)1, (ulong)list.Sum(e => (long)(ulong)e.state.value.count));
+        ulong maxFromSelf = System.Math.Max((ulong)1, list.Max(e => (ulong)e.state.value.count));
 
-        incoming.Add(new List<HElement>() { stateLink, stateTransition, fromThis });
+        foreach (var x in list)
+        {
+          var stateLink = new HLink(info.GetStateName((uint64_t)subSystem, x.state.index.state, x.state.index.subState).WithMaxLength(35), $"/state?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&ss={subSystem}&id={x.state.index.state}&sid={x.state.index.subState}#overview") { Class = "InState", Title = info.GetStateName((uint64_t)subSystem, x.state.index.state, x.state.index.subState), Style = $"--w:{x.usage.Item2 / (double)maxShare * 100.0};", Elements = { new HText($"{x.state.value.avgDelay:0.##} s | {x.usage.Item2}") } };
+          var stateTransition = new HText($"{x.usage.Item1 / (double)x.usage.Item2 * 100.0:0.##} %") { Class = "InStateTrans", Style = $"--w:{x.usage.Item2 / (double)maxShare * 100.0};--p:{x.usage.Item1 / (double)x.usage.Item2}" };
+          var fromThis = new HText($"{x.state.value.count / (double)sumFromSelf * 100.0:0.##} %") { Class = "OutStateTrans", Style = $"--w:{x.state.value.count / (double)maxFromSelf * 100.0};--p:{maxFromSelf / (double)sumFromSelf}" };
+
+          incoming.Add(new List<HElement>() { stateLink, stateTransition, fromThis });
+        }
       }
 
-      list = from k in s.nextState.OrderByDescending(e => e.value.avgDelay) select new { state = k, usage = GetUsageInfoPrevious(analysis, (uint64_t)subSystem, k.index, new StateId(state, subStateIndex)) };
-      maxShare = System.Math.Max((ulong)1, list.Max(e => e.usage.Item2));
-      sumFromSelf = System.Math.Max((ulong)1, (ulong)list.Sum(e => (long)(ulong)e.state.value.count));
-      maxFromSelf = System.Math.Max((ulong)1, list.Max(e => (ulong)e.state.value.count));
-
-      foreach (var x in list)
+      if (s.nextState != null && s.nextState.Any())
       {
-        var stateLink = new HLink(info.GetStateName((uint64_t)subSystem, x.state.index.state, x.state.index.subState).WithMaxLength(35), $"/state?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&ss={subSystem}&id={x.state.index.state}&sid={x.state.index.subState}#overview") { Class = "OutState", Title = info.GetStateName((uint64_t)subSystem, x.state.index.state, x.state.index.subState), Style = $"--w:{x.usage.Item2 / (double)maxShare * 100.0};", Elements = { new HText($"{x.state.value.avgDelay:0.##} s | {x.usage.Item2}") } };
-        var stateTransition = new HText($"{x.usage.Item1 / (double)x.usage.Item2 * 100.0:0.##} %") { Class = "OutStateTrans", Style = $"--w:{x.usage.Item2 / (double)maxShare * 100.0};--p:{x.usage.Item1 / (double)x.usage.Item2}" };
-        var fromThis = new HText($"{x.state.value.count / (double)sumFromSelf * 100.0:0.##} %") { Class = "InStateTrans", Style = $"--w:{x.state.value.count / (double)maxFromSelf * 100.0};--p:{maxFromSelf / (double)sumFromSelf}" };
-        
-        outgoing.Add(new List<HElement>() { fromThis, stateTransition, stateLink });
+        var list = from k in s.nextState.OrderByDescending(e => e.value.avgDelay) select new { state = k, usage = GetUsageInfoPrevious(analysis, (uint64_t)subSystem, k.index, new StateId(state, subStateIndex)) };
+        ulong maxShare = System.Math.Max((ulong)1, list.Max(e => e.usage.Item2));
+        ulong sumFromSelf = System.Math.Max((ulong)1, (ulong)list.Sum(e => (long)(ulong)e.state.value.count));
+        ulong maxFromSelf = System.Math.Max((ulong)1, list.Max(e => (ulong)e.state.value.count));
+
+        foreach (var x in list)
+        {
+          var stateLink = new HLink(info.GetStateName((uint64_t)subSystem, x.state.index.state, x.state.index.subState).WithMaxLength(35), $"/state?p={productName.EncodeUrl()}&V={majorVersion}&v={minorVersion}&ss={subSystem}&id={x.state.index.state}&sid={x.state.index.subState}#overview") { Class = "OutState", Title = info.GetStateName((uint64_t)subSystem, x.state.index.state, x.state.index.subState), Style = $"--w:{x.usage.Item2 / (double)maxShare * 100.0};", Elements = { new HText($"{x.state.value.avgDelay:0.##} s | {x.usage.Item2}") } };
+          var stateTransition = new HText($"{x.usage.Item1 / (double)x.usage.Item2 * 100.0:0.##} %") { Class = "OutStateTrans", Style = $"--w:{x.usage.Item2 / (double)maxShare * 100.0};--p:{x.usage.Item1 / (double)x.usage.Item2}" };
+          var fromThis = new HText($"{x.state.value.count / (double)sumFromSelf * 100.0:0.##} %") { Class = "InStateTrans", Style = $"--w:{x.state.value.count / (double)maxFromSelf * 100.0};--p:{maxFromSelf / (double)sumFromSelf}" };
+
+          outgoing.Add(new List<HElement>() { fromThis, stateTransition, stateLink });
+        }
       }
 
       yield return new HTable(new List<List<HElement>>() { new List<HElement>() { new HTable(incoming) { Class = "InStateTab" }, new HTable(outgoing) { Class = "OutStateTab" } } }) { Class = "StateTransitions" };
