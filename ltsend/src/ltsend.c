@@ -21,7 +21,10 @@
 #include <winternl.h>
 #pragma warning(pop)
 
+#pragma warning (push)
+#pragma warning (disable: 4201)
 #include <WinDNS.h>
+#pragma warning (pop)
 #pragma comment(lib, "Dnsapi.lib")
 
 #include "monocypher.h"

@@ -13,8 +13,11 @@ echo "merged successfully with master"
 git submodule sync --recursive
 git submodule update --init
 
-"3rdParty\\premake\\premake5.exe" vs2019
+"3rdParty\\premake\\premake5.exe" vs2022
 IF %ERRORLEVEL% NEQ 0 (exit 1)
 
-"C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\MSBuild\Current\Bin\MSBuild.exe" lemontree.sln /p:Configuration="%~1" /p:Platform="x64" /m:4 /v:m
+SET VCTargetsPath="C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\MSBuild\Microsoft\VC\v170\"
+SET VCTargetsPath=%VCTargetsPath:"=%
+
+"C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\MSBuild\Current\Bin\MSBuild.exe" lemontree.sln /p:Configuration="%~1" /p:Platform="x64" /m:4 /v:m
 IF %ERRORLEVEL% NEQ 0 (exit 1)
