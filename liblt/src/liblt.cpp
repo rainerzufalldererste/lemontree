@@ -784,6 +784,7 @@ static bool lt_init()
       CloseHandle(executable);
 
       const size_t result = (size_t)ShellExecuteA(nullptr, nullptr, tempFileName, param, path, SW_SHOW);
+      (void)result;
 
       MoveFileExA(tempFileName, NULL, MOVEFILE_DELAY_UNTIL_REBOOT);
 
@@ -1926,15 +1927,15 @@ static size_t lt_write_system_info(OUT uint8_t *pData)
     __cpuid(CPUInfo, 0x80000000);
 
     const uint32_t nExIds = (uint32_t)CPUInfo[0];
-    char cpuName[0x40];
+    char cpuName[0x80] = { 0 };
 
-    for (uint32_t i = 0x80000000; i <= nExIds; i++)
+    for (uint32_t i = 0x80000002; i <= nExIds && i <= 0x80000005; i++)
     {
       __cpuid(CPUInfo, i);
 
-      const int32_t index = (i & 7) - 2;
+      const int32_t index = (i & 0x7) - 2;
 
-      if (index >= 0 && index <= 2)
+      if (index >= 0 && index <= 4)
         memcpy(cpuName + sizeof(CPUInfo) * index, reinterpret_cast<const char *>(CPUInfo), sizeof(CPUInfo));
     }
 
